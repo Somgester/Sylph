@@ -1,0 +1,64 @@
+#root {
+    -fx-background-color: #0d0f12;
+    -fx-font-family: 'Source Sans Pro';
+}
+
+#toolbar, #status {
+    -fx-background-color: #151820;
+    -fx-border-color: #2a2f3a;
+}
+
+#toolbar {
+    -fx-border-width: 0 0 1 0;
+}
+
+#sidebar {
+    -fx-background-color: #151820;
+    -fx-border-color: #2a2f3a;
+    -fx-border-width: 0 1 0 0;
+}
+
+#brand {
+    -fx-text-fill: #06b6d4;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+#editor, #editor .content, #editor .viewport, .tree-view, .tree-view .viewport {
+    -fx-background-color: #0d0f12;
+}
+
+#editor {
+    -fx-control-inner-background: #0d0f12;
+    -fx-text-fill: #e5e7eb;
+    -fx-highlight-fill: #083344;
+    -fx-font-family: 'Source Code Pro';
+    -fx-font-size: 14px;
+    -fx-padding: 22px;
+    -fx-border-color: transparent;
+}
+
+.tree-view {
+    -fx-control-inner-background: #151820;
+    -fx-text-fill: #e5e7eb;
+    -fx-border-color: transparent;
+}
+
+#status {
+    -fx-text-fill: #9ca3af;
+    -fx-font-size: 12px;
+}
+
+.theme-toggle {
+    -fx-background-color: #1c2029;
+    -fx-text-fill: #e5e7eb;
+    -fx-border-color: #2a2f3a;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 7px 12px;
+}
+
+.theme-toggle:selected {
+    -fx-border-color: #06b6d4;
+    -fx-text-fill: #06b6d4;
+}

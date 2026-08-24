@@ -3,3 +3,6 @@
 
 # Ignore Gradle build output directory
 build
+
+# Ignore application start scripts and compiled distribution output
+app/bin
