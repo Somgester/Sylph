@@ -1,0 +1,76 @@
+#root {
+    -fx-background-color: #faf9f5;
+    -fx-font-family: 'Source Sans Pro';
+}
+
+#toolbar, #status {
+    -fx-background-color: #f5f0e8;
+    -fx-border-color: #e6dfd8;
+}
+
+#toolbar {
+    -fx-border-width: 0 0 1 0;
+}
+
+#sidebar {
+    -fx-background-color: #f5f0e8;
+    -fx-border-color: #e6dfd8;
+    -fx-border-width: 0 1 0 0;
+}
+
+#brand {
+    -fx-text-fill: #cc785c;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+#editor, #editor .content, #editor .viewport, .tree-view, .tree-view .viewport {
+    -fx-background-color: #faf9f5;
+}
+
+#editor {
+    -fx-control-inner-background: #faf9f5;
+    -fx-text-fill: #141413;
+    -fx-highlight-fill: #e8e0d2;
+    -fx-font-family: 'Source Code Pro';
+    -fx-font-size: 14px;
+    -fx-padding: 22px;
+    -fx-border-color: transparent;
+}
+
+.tree-view {
+    -fx-control-inner-background: #f5f0e8;
+    -fx-text-fill: #141413;
+    -fx-border-color: transparent;
+}
+
+.tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #141413;
+}
+
+.tree-cell:hover,
+.tree-cell:filled:selected,
+.tree-cell:filled:selected:focused {
+    -fx-background-color: #e5e7eb;
+    -fx-text-fill: #141413;
+}
+
+#status {
+    -fx-text-fill: #6c6a64;
+    -fx-font-size: 12px;
+}
+
+.theme-toggle {
+    -fx-background-color: #efe9de;
+    -fx-text-fill: #141413;
+    -fx-border-color: #e6dfd8;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 7px 12px;
+}
+
+.theme-toggle:selected {
+    -fx-border-color: #a9583e;
+    -fx-text-fill: #a9583e;
+}
