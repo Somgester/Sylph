@@ -19,5 +19,6 @@ proto install
 echo "Using: $(java -version 2>&1 | head -n 1)"
 
 ./gradlew :app:check
+./gradlew test
 ./gradlew :app:build
 exec ./gradlew :app:run "$@"
