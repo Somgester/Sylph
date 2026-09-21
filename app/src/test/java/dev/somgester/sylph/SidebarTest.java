@@ -97,10 +97,37 @@ class SidebarTest {
                     .orElseThrow();
             assertEquals(1, subItem.getChildren().size());
             subItem.setExpanded(true);
-            assertEquals(1, subItem.getChildren().size());
-            assertEquals("inner.txt", Sidebar.displayName(subItem.getChildren().get(0).getValue()));
             return null;
         });
+        assertTrue(waitForChild(sidebar, "sub", "inner.txt"),
+                "Timed out waiting for async child load");
+    }
+
+    @Test
+    void asyncRootLoadPopulatesChildren() throws Exception {
+        Files.createDirectory(tempDir.resolve("alpha"));
+        Files.writeString(tempDir.resolve("readme.md"), "hi");
+
+        Sidebar sidebar = onFxThread(Sidebar::new);
+        onFxThread(() -> {
+            sidebar.setRootDirectoryAsync(tempDir);
+            return null;
+        });
+        assertEquals(tempDir.toAbsolutePath().normalize(), onFxThread(sidebar::getRootDirectory));
+        long deadline = System.currentTimeMillis() + 5000L;
+        List<String> names = List.of();
+        while (System.currentTimeMillis() < deadline) {
+            names = onFxThread(() -> {
+                return sidebar.getTreeView().getRoot().getChildren().stream()
+                        .map(item -> Sidebar.displayName(item.getValue()))
+                        .toList();
+            });
+            if (names.contains("alpha") && names.contains("readme.md")) {
+                break;
+            }
+            Thread.sleep(100L);
+        }
+        assertEquals(List.of("alpha", "readme.md"), names);
     }
 
     @Test
@@ -190,6 +217,24 @@ class SidebarTest {
     }
 
     @Test
+    void ctrlKAloneDoesNotTriggerOpenAction() throws Exception {
+        EditorApp app = new EditorApp();
+        AtomicInteger calls = new AtomicInteger(0);
+        Scene scene = onFxThread(() -> new Scene(new BorderPane(), 800, 600));
+        onFxThread(() -> {
+            invokeRegisterShortcuts(app, scene, calls::incrementAndGet);
+            return null;
+        });
+        onFxThread(() -> {
+            KeyEvent chordStart = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.K,
+                    false, true, false, false);
+            scene.getRoot().fireEvent(chordStart);
+            return null;
+        });
+        assertEquals(0, calls.get());
+    }
+
+    @Test
     void listChildrenIsEmptyForEmptyDirectory() throws Exception {
         List<Path> children = Sidebar.listChildren(tempDir);
         assertTrue(children.isEmpty());
@@ -222,6 +267,24 @@ class SidebarTest {
         assertTrue(onFxThread(sidebar::isVisible));
         assertTrue(onFxThread(sidebar::isManaged));
         assertEquals(Sidebar.DEFAULT_WIDTH, onFxThread(sidebar::getSidebarWidth));
+    }
+
+    @Test
+    void collapsedSidebarFullyHides() throws Exception {
+        Sidebar sidebar = onFxThread(Sidebar::new);
+        onFxThread(() -> {
+            sidebar.setCollapsed(true);
+            return null;
+        });
+        assertFalse(onFxThread(sidebar::isVisible));
+        assertFalse(onFxThread(sidebar::isManaged));
+        onFxThread(() -> {
+            sidebar.toggleCollapsed();
+            return null;
+        });
+        assertFalse(onFxThread(sidebar::isCollapsed));
+        assertTrue(onFxThread(sidebar::isVisible));
+        assertTrue(onFxThread(sidebar::isManaged));
     }
 
     @Test
@@ -355,5 +418,27 @@ class SidebarTest {
         FutureTask<T> task = new FutureTask<>(callable);
         Platform.runLater(task);
         return task.get(5, TimeUnit.SECONDS);
+    }
+
+    private static boolean waitForChild(Sidebar sidebar, String parentName, String childName)
+            throws Exception {
+        long deadline = System.currentTimeMillis() + 5000L;
+        while (System.currentTimeMillis() < deadline) {
+            boolean loaded = onFxThread(() -> {
+                TreeItem<Path> root = sidebar.getTreeView().getRoot();
+                return root.getChildren().stream()
+                        .filter(item -> item.getValue().endsWith(parentName))
+                        .findFirst()
+                        .map(parent -> parent.getChildren().stream()
+                                .anyMatch(child -> child.getValue() != null
+                                        && child.getValue().endsWith(childName)))
+                        .orElse(false);
+            });
+            if (loaded) {
+                return true;
+            }
+            Thread.sleep(100L);
+        }
+        return false;
     }
 }

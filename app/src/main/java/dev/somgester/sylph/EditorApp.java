@@ -92,7 +92,7 @@ public class EditorApp extends Application {
         Button button = new Button("Open Folder");
         button.setId("open-folder");
         button.getStyleClass().add("theme-toggle");
-        button.setTooltip(new Tooltip("Open Folder (Ctrl+O or Ctrl+K Ctrl+O)"));
+        button.setTooltip(new Tooltip("Open Folder (Ctrl+O or Ctrl+K, Ctrl+O)"));
         button.setOnAction(event -> onOpen.run());
         return button;
     }
@@ -139,10 +139,19 @@ public class EditorApp extends Application {
 
     private void registerOpenFolderShortcuts(Scene scene, Runnable openAction) {
         KeyCombination openCombo = new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN);
+        KeyCombination chordStart = new KeyCodeCombination(KeyCode.K, KeyCombination.CONTROL_DOWN);
+        long[] chordArmedAt = {0L};
+        long chordTimeoutMillis = 1500L;
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (openCombo.match(event)) {
+                chordArmedAt[0] = 0L;
                 openAction.run();
                 event.consume();
+            } else if (chordStart.match(event)) {
+                chordArmedAt[0] = System.currentTimeMillis();
+            } else if (chordArmedAt[0] != 0L
+                    && System.currentTimeMillis() - chordArmedAt[0] > chordTimeoutMillis) {
+                chordArmedAt[0] = 0L;
             }
         });
     }

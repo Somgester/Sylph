@@ -51,6 +51,8 @@ public class Sidebar extends VBox {
 
     private double dragStartWidth;
 
+    private long loadGeneration;
+
     @SuppressWarnings("this-escape")
     public Sidebar() {
         setId("sidebar");
@@ -174,10 +176,11 @@ public class Sidebar extends VBox {
         if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
             throw new IllegalArgumentException("Not a directory: " + directory);
         }
+        loadGeneration++;
         this.rootDirectory = directory.toAbsolutePath().normalize();
         TreeItem<Path> root = createNode(this.rootDirectory);
-        root.setExpanded(true);
         loadChildren(root);
+        root.setExpanded(true);
         treeView.setRoot(root);
     }
 
@@ -192,6 +195,8 @@ public class Sidebar extends VBox {
             throw new IllegalArgumentException("Not a directory: " + directory);
         }
         Path normalized = directory.toAbsolutePath().normalize();
+        loadGeneration++;
+        long generation = loadGeneration;
         this.rootDirectory = normalized;
         TreeItem<Path> loadingRoot = new TreeItem<>(normalized);
         loadingRoot.setExpanded(true);
@@ -203,18 +208,22 @@ public class Sidebar extends VBox {
             }
         };
         task.setOnSucceeded(event -> {
-            TreeItem<Path> root = createNode(normalized);
-            root.setExpanded(true);
-            root.getChildren().clear();
+            if (generation != loadGeneration || !normalized.equals(rootDirectory)) {
+                return;
+            }
+            TreeItem<Path> root = new TreeItem<>(normalized);
             for (Path child : task.getValue()) {
                 root.getChildren().add(createNode(child));
             }
+            root.setExpanded(true);
             treeView.setRoot(root);
         });
         task.setOnFailed(event -> {
-            TreeItem<Path> emptyRoot = createNode(normalized);
+            if (generation != loadGeneration || !normalized.equals(rootDirectory)) {
+                return;
+            }
+            TreeItem<Path> emptyRoot = new TreeItem<>(normalized);
             emptyRoot.setExpanded(true);
-            loadChildren(emptyRoot);
             treeView.setRoot(emptyRoot);
         });
         Thread loader = new Thread(task, "sylph-sidebar-loader");
@@ -229,7 +238,7 @@ public class Sidebar extends VBox {
             item.getChildren().add(new TreeItem<>(null));
             item.expandedProperty().addListener((observable, oldValue, newValue) -> {
                 if (Boolean.TRUE.equals(newValue)) {
-                    loadChildren(item);
+                    loadChildrenAsync(item);
                 }
             });
         }
@@ -267,6 +276,46 @@ public class Sidebar extends VBox {
         for (Path child : listed) {
             item.getChildren().add(createNode(child));
         }
+    }
+
+    static void loadChildrenAsync(TreeItem<Path> item) {
+        Path dir = item.getValue();
+        if (dir == null) {
+            return;
+        }
+        boolean isDirectory;
+        try {
+            isDirectory = Files.isDirectory(dir, LinkOption.NOFOLLOW_LINKS);
+        } catch (SecurityException ex) {
+            return;
+        }
+        if (!isDirectory) {
+            return;
+        }
+        if (!(item.getChildren().size() == 1 && item.getChildren().get(0).getValue() == null)) {
+            return;
+        }
+        Task<List<Path>> task = new Task<>() {
+            @Override
+            protected List<Path> call() throws Exception {
+                return listChildren(dir);
+            }
+        };
+        task.setOnSucceeded(event -> {
+            if (!(item.getChildren().size() == 1 && item.getChildren().get(0).getValue() == null)) {
+                return;
+            }
+            item.getChildren().clear();
+            for (Path child : task.getValue()) {
+                item.getChildren().add(createNode(child));
+            }
+        });
+        task.setOnFailed(event -> {
+            // Keep the placeholder so the user can retry by collapsing and expanding.
+        });
+        Thread loader = new Thread(task, "sylph-sidebar-loader");
+        loader.setDaemon(true);
+        loader.start();
     }
 
     static List<Path> listChildren(Path dir) throws IOException {
