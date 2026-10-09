@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
@@ -22,6 +23,8 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -53,6 +56,8 @@ public class Sidebar extends VBox {
 
     private long loadGeneration;
 
+    private Consumer<Path> onOpenFile = path -> { };
+
     @SuppressWarnings("this-escape")
     public Sidebar() {
         setId("sidebar");
@@ -66,6 +71,14 @@ public class Sidebar extends VBox {
         treeView.setShowRoot(true);
         treeView.setPrefWidth(DEFAULT_WIDTH);
         treeView.setCellFactory(param -> new TreeCell<Path>() {
+            {
+                setOnMouseClicked(event -> {
+                    if (!isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
+                        openFile(getItem());
+                    }
+                });
+            }
+
             @Override
             protected void updateItem(Path item, boolean empty) {
                 super.updateItem(item, empty);
@@ -80,6 +93,12 @@ public class Sidebar extends VBox {
                 } else {
                     setText(displayName(item));
                 }
+            }
+        });
+        treeView.setOnKeyPressed(event -> {
+            TreeItem<Path> selected = treeView.getSelectionModel().getSelectedItem();
+            if (event.getCode() == KeyCode.ENTER && selected != null && openFile(selected.getValue())) {
+                event.consume();
             }
         });
         TreeItem<Path> placeholder = new TreeItem<>(null);
@@ -160,6 +179,18 @@ public class Sidebar extends VBox {
 
     public TreeView<Path> getTreeView() {
         return treeView;
+    }
+
+    public void setOnOpenFile(Consumer<Path> handler) {
+        onOpenFile = Objects.requireNonNull(handler, "handler");
+    }
+
+    private boolean openFile(Path path) {
+        if (path == null || Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            return false;
+        }
+        onOpenFile.accept(path);
+        return true;
     }
 
     public Path getRootDirectory() {
