@@ -1,109 +1,313 @@
 package dev.somgester.sylph;
 
 import java.io.File;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 import javafx.application.Application;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
-import javafx.scene.control.ToggleButton;
-import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 public class EditorApp extends Application {
 
+    private EditorSession session;
+
+    private AutoSaveController autoSave;
+
+    private BorderPane root;
+
+    private SettingsPage settingsPage;
+
+    private TextArea editor;
+
+    private Sidebar sidebar;
+
+    private Button sidebarButton;
+
+    private Label status;
+
+    private Stage stage;
+
+    private boolean settingsVisible;
+
+    private AppSettings settings;
+
+    private boolean fileActionInProgress;
+
+    private final class FileAction implements AutoCloseable {
+
+        private final AutoSaveController.Suspension suspension = autoSave.suspend();
+
+        private boolean finished;
+
+        void run(Runnable next) {
+            try {
+                next.run();
+            } catch (RuntimeException | Error ex) {
+                close();
+                throw ex;
+            }
+        }
+
+        void finishWith(Runnable next) {
+            try {
+                next.run();
+            } finally {
+                close();
+            }
+        }
+
+        @Override
+        public void close() {
+            if (!finished) {
+                finished = true;
+                fileActionInProgress = false;
+                suspension.close();
+            }
+        }
+    }
+
     @Override
-    public void start(Stage stage) {
-        BorderPane root = new BorderPane();
+    public void start(Stage primaryStage) {
+        createScene(primaryStage, new AppSettings(AppSettings.preferencesStore()));
+        primaryStage.show();
+    }
+
+    Scene createScene(Stage primaryStage, AppSettings settings) {
+        stage = primaryStage;
+        this.settings = settings;
+        session = new EditorSession(new EditorFileService());
+        autoSave = new AutoSaveController(session, settings);
+        root = new BorderPane();
         root.setId("root");
-
-        Label brand = new Label("SYLPH");
-        brand.setId("brand");
-
-        ToggleGroup themeGroup = new ToggleGroup();
-        ToggleButton darkTheme = createThemeButton("Dark", themeGroup, true);
-        ToggleButton lightTheme = createThemeButton("Light", themeGroup, false);
-        darkTheme.getStyleClass().add("theme-toggle");
-        lightTheme.getStyleClass().add("theme-toggle");
-        HBox themes = new HBox(4, darkTheme, lightTheme);
-        themes.setAlignment(Pos.CENTER_RIGHT);
-
-        Sidebar sidebar = new Sidebar();
-
-        Label status = new Label("Ready  |  sylph");
+        sidebar = new Sidebar();
+        status = new Label(session.statusProperty().get());
         status.setId("status");
         status.setPadding(new Insets(8, 14, 8, 14));
-
-        Runnable openAction = () -> openFolderDialog(stage, sidebar, status);
-        Button openFolderButton = createOpenFolderButton(openAction);
-        Button toggleSidebarButton = createSidebarToggleButton(sidebar::toggleCollapsed);
-
-        Region toolbarSpacer = new Region();
-        HBox.setHgrow(toolbarSpacer, Priority.ALWAYS);
-        HBox toolbar = new HBox(24, brand, toggleSidebarButton, openFolderButton, toolbarSpacer, themes);
-        toolbar.setId("toolbar");
-        toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setPadding(new Insets(14, 18, 14, 18));
-        root.setTop(toolbar);
+        status.setMaxWidth(Double.MAX_VALUE);
+        Tooltip statusTooltip = new Tooltip();
+        statusTooltip.textProperty().bind(status.textProperty());
+        status.setTooltip(statusTooltip);
+        session.statusProperty().addListener((observable, oldValue, message) -> status.setText(message));
         root.setLeft(sidebar);
-
-        TextArea editor = new TextArea("// Sylph Sample Text Area\n\n");
-        editor.setWrapText(false);
+        editor = new TextArea();
         editor.setId("editor");
+        editor.setWrapText(false);
+        editor.textProperty().bindBidirectional(session.textProperty());
+        editor.editableProperty().bind(session.editingBlockedProperty().not());
+        EditorChrome chrome = new EditorChrome(session, settings, editor, this::executeCommand);
+        sidebarButton = chrome.sidebarButton();
+        root.setTop(chrome);
         root.setCenter(editor);
-
         root.setBottom(status);
-
+        settingsPage = new SettingsPage(settings, autoSave, this::showEditor);
         Scene scene = new Scene(root, 1100, 700);
-        stage.setTitle("Sylph");
         stage.setScene(scene);
-        darkTheme.setOnAction(event -> applyTheme(scene, true));
-        lightTheme.setOnAction(event -> applyTheme(scene, false));
-        registerOpenFolderShortcuts(scene, openAction);
-        registerSidebarToggleShortcut(scene, sidebar::toggleCollapsed);
-        applyTheme(scene, true);
-        stage.show();
+        stage.getIcons().setAll(AppIcon.windowIcon());
+        stage.setMinWidth(640);
+        stage.setMinHeight(420);
+        stage.titleProperty().bind(Bindings.createStringBinding(() -> {
+            Path path = session.pathProperty().get();
+            String name = path == null ? "Untitled" : path.getFileName().toString();
+            return (session.dirtyProperty().get() ? "* " : "") + name + " — Sylph";
+        }, session.pathProperty(), session.dirtyProperty()));
+        settings.darkThemeProperty().addListener((observable, oldValue, dark) -> applyTheme(scene, dark));
+        EditorShortcuts.install(scene, this::executeCommand);
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (settingsVisible && event.getCode() == KeyCode.ESCAPE) {
+                showEditor();
+                event.consume();
+            }
+        });
+        stage.setOnCloseRequest(event -> {
+            event.consume();
+            FileAction action = beginFileAction();
+            if (action == null) {
+                status.setText("Please wait for the file operation to finish.");
+            } else {
+                action.run(() -> afterUnsavedCheck(() -> action.finishWith(() -> {
+                    closeResources();
+                    stage.hide();
+                }), action));
+            }
+        });
+        applyTheme(scene, settings.darkThemeProperty().get());
+        return scene;
     }
 
-    private ToggleButton createThemeButton(String label, ToggleGroup group, boolean selected) {
-        ToggleButton button = new ToggleButton(label);
-        button.setToggleGroup(group);
-        button.setSelected(selected);
-        button.setPadding(new Insets(7, 12, 7, 12));
-        return button;
+    private void toggleSettings() {
+        if (settingsVisible) {
+            showEditor();
+        } else {
+            settingsVisible = true;
+            root.setLeft(null);
+            root.setCenter(settingsPage);
+            sidebarButton.setDisable(true);
+            settingsPage.requestFocus();
+        }
     }
 
-    private Button createOpenFolderButton(Runnable onOpen) {
-        Button button = new Button("Open Folder");
-        button.setId("open-folder");
-        button.getStyleClass().add("theme-toggle");
-        button.setTooltip(new Tooltip("Open Folder (Ctrl+O or Ctrl+K, Ctrl+O)"));
-        button.setOnAction(event -> onOpen.run());
-        return button;
+    private void showEditor() {
+        settingsVisible = false;
+        root.setLeft(sidebar);
+        root.setCenter(editor);
+        sidebarButton.setDisable(false);
+        editor.requestFocus();
     }
 
-    private Button createSidebarToggleButton(Runnable onToggle) {
-        Button button = new Button("Sidebar");
-        button.setId("toggle-sidebar");
-        button.getStyleClass().add("theme-toggle");
-        button.setTooltip(new Tooltip("Toggle Sidebar (Ctrl+B)"));
-        button.setOnAction(event -> onToggle.run());
-        return button;
+    private void executeCommand(EditorShortcuts.Command command) {
+        switch (command) {
+            case OPEN_FILE -> openFileDialog();
+            case OPEN_FOLDER -> openFolderDialog(stage, sidebar, status);
+            case SAVE -> saveDocument(false, () -> { });
+            case SAVE_AS -> saveDocument(true, () -> { });
+            case SIDEBAR -> {
+                if (!settingsVisible) {
+                    sidebar.toggleCollapsed();
+                }
+            }
+            case SETTINGS -> toggleSettings();
+            case AUTOSAVE -> settings.autoSaveProperty().set(!settings.autoSaveProperty().get());
+            default -> throw new IllegalArgumentException("Unknown command: " + command);
+        }
+    }
+
+    private void openFileDialog() {
+        FileAction action = beginFileAction();
+        if (action == null) {
+            return;
+        }
+        action.run(() -> afterUnsavedCheck(() -> {
+            File file = chooseOpenFile();
+            if (file != null) {
+                session.open(file.toPath(), () -> action.finishWith(this::showEditor),
+                        error -> action.finishWith(() -> showFileError(error)));
+            } else {
+                action.close();
+            }
+        }, action));
+    }
+
+    File chooseOpenFile() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Open File");
+        return chooser.showOpenDialog(stage);
+    }
+
+    private FileAction beginFileAction() {
+        if (session.busyProperty().get() || fileActionInProgress) {
+            return null;
+        }
+        FileAction action = new FileAction();
+        fileActionInProgress = true;
+        return action;
+    }
+
+    private void afterUnsavedCheck(Runnable next, FileAction action) {
+        if (!session.dirtyProperty().get()) {
+            next.run();
+            return;
+        }
+        ButtonType save = new ButtonType("Save", ButtonBar.ButtonData.YES);
+        ButtonType discard = new ButtonType("Discard", ButtonBar.ButtonData.NO);
+        Alert prompt = new Alert(Alert.AlertType.CONFIRMATION,
+                "Save your changes before continuing?", save, discard, ButtonType.CANCEL);
+        prompt.initOwner(stage);
+        prompt.setTitle("Unsaved changes");
+        prompt.setHeaderText("This file has unsaved changes");
+        ButtonType choice = prompt.showAndWait().orElse(ButtonType.CANCEL);
+        if (choice == save) {
+            saveDocument(false, next, action);
+        } else if (choice == discard) {
+            next.run();
+        } else {
+            action.close();
+        }
+    }
+
+    private void saveDocument(boolean saveAs, Runnable afterSave) {
+        FileAction action = beginFileAction();
+        if (action == null) {
+            return;
+        }
+        action.run(() -> saveDocument(saveAs, () -> action.finishWith(afterSave), action));
+    }
+
+    private void saveDocument(boolean saveAs, Runnable afterSave, FileAction action) {
+        Path destination = session.pathProperty().get();
+        if (destination == null || saveAs) {
+            File file = chooseSaveFile(destination);
+            if (file == null) {
+                action.close();
+                return;
+            }
+            destination = file.toPath();
+        }
+        Path target = destination;
+        Consumer<Throwable> onError = error -> action.run(() -> {
+            if (error instanceof FileAlreadyExistsException) {
+                Alert prompt = new Alert(Alert.AlertType.CONFIRMATION,
+                        "Replace " + target + "?", ButtonType.YES, ButtonType.NO);
+                prompt.initOwner(stage);
+                prompt.setTitle("Replace existing file");
+                prompt.setHeaderText("A file already exists at this location");
+                if (prompt.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
+                    session.save(target, false, true, () -> action.run(afterSave),
+                            failure -> action.finishWith(() -> showFileError(failure)));
+                } else {
+                    action.close();
+                }
+            } else {
+                action.finishWith(() -> showFileError(error));
+            }
+        });
+        session.save(target, false, false, () -> action.run(afterSave), onError);
+    }
+
+    File chooseSaveFile(Path destination) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Save As");
+        chooser.setInitialFileName(destination == null ? "untitled.txt" : destination.getFileName().toString());
+        return chooser.showSaveDialog(stage);
+    }
+
+    void showFileError(Throwable error) {
+        Alert alert = new Alert(Alert.AlertType.ERROR,
+                error.getMessage() == null ? "The file operation failed." : error.getMessage(), ButtonType.OK);
+        alert.initOwner(stage);
+        alert.setTitle("Sylph");
+        alert.setHeaderText("Unable to complete the file action");
+        alert.showAndWait();
+    }
+
+    @Override
+    public void stop() {
+        closeResources();
+    }
+
+    void closeResources() {
+        if (autoSave != null) {
+            autoSave.close();
+        }
+        if (session != null) {
+            session.close();
+        }
     }
 
     private void openFolderDialog(Stage stage, Sidebar sidebar, Label status) {
@@ -137,41 +341,21 @@ public class EditorApp extends Application {
         status.setTooltip(new Tooltip(normalized.toString()));
     }
 
-    private void registerOpenFolderShortcuts(Scene scene, Runnable openAction) {
-        KeyCombination openCombo = new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN);
-        KeyCombination chordStart = new KeyCodeCombination(KeyCode.K, KeyCombination.CONTROL_DOWN);
-        long[] chordArmedAt = {0L};
-        long chordTimeoutMillis = 1500L;
-        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (openCombo.match(event)) {
-                chordArmedAt[0] = 0L;
-                openAction.run();
-                event.consume();
-            } else if (chordStart.match(event)) {
-                chordArmedAt[0] = System.currentTimeMillis();
-            } else if (chordArmedAt[0] != 0L
-                    && System.currentTimeMillis() - chordArmedAt[0] > chordTimeoutMillis) {
-                chordArmedAt[0] = 0L;
-            }
-        });
-    }
-
-    private void registerSidebarToggleShortcut(Scene scene, Runnable toggleAction) {
-        KeyCombination toggleCombo = new KeyCodeCombination(KeyCode.B, KeyCombination.CONTROL_DOWN);
-        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (toggleCombo.match(event)) {
-                toggleAction.run();
-                event.consume();
-            }
-        });
-    }
-
     private void applyTheme(Scene scene, boolean dark) {
         String stylesheet = dark ? "dark.css" : "light.css";
         var resource = getClass().getResource("/styles/" + stylesheet);
         if (resource == null) {
             throw new IllegalStateException("Missing theme stylesheet: " + stylesheet);
         }
-        scene.getStylesheets().setAll(resource.toExternalForm());
+        var settingsStyle = getClass().getResource("/styles/settings.css");
+        if (settingsStyle == null) {
+            throw new IllegalStateException("Missing settings stylesheet");
+        }
+        var shellStyle = getClass().getResource("/styles/shell.css");
+        if (shellStyle == null) {
+            throw new IllegalStateException("Missing shell stylesheet");
+        }
+        scene.getStylesheets().setAll(resource.toExternalForm(), settingsStyle.toExternalForm(),
+                shellStyle.toExternalForm());
     }
 }

@@ -1,0 +1,205 @@
+#settings-page, #settings-page > .viewport, .settings-canvas {
+    -fx-background-color: -settings-background;
+    -fx-border-color: transparent;
+    -fx-font-family: "System";
+}
+
+#settings-page .label, #settings-page .check-box, #settings-page .radio-button {
+    -fx-text-fill: -settings-text;
+}
+
+#settings-page .settings-title {
+    -fx-font-size: 32px;
+    -fx-font-weight: bold;
+}
+
+#settings-page .settings-section-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+#settings-page .settings-description {
+    -fx-font-size: 13px;
+    -fx-text-fill: -settings-muted;
+    -fx-line-spacing: 3px;
+}
+
+#settings-page .settings-field-label, #settings-page .check-box {
+    -fx-font-size: 14px;
+}
+
+.settings-section {
+    -fx-padding: 16px;
+    -fx-background-color: -settings-surface;
+    -fx-background-radius: 8px;
+    -fx-border-color: -settings-border;
+    -fx-border-radius: 8px;
+}
+
+.theme-card {
+    -fx-padding: 12px;
+    -fx-background-color: -settings-background;
+    -fx-background-radius: 6px;
+    -fx-border-color: -settings-border;
+    -fx-border-radius: 6px;
+    -fx-border-width: 2px;
+    -fx-cursor: hand;
+}
+
+.theme-card:hover, .theme-card:selected {
+    -fx-border-color: -settings-accent;
+}
+
+.theme-preview-dark, .theme-preview-light {
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-color: #888888;
+}
+
+.theme-preview-dark {
+    -fx-background-color: #0d0f12;
+}
+
+.theme-preview-light {
+    -fx-background-color: #faf9f5;
+}
+
+.theme-preview-dark .preview-sidebar {
+    -fx-background-color: #242936;
+}
+
+.theme-preview-light .preview-sidebar {
+    -fx-background-color: #e8e0d2;
+}
+
+#settings-page .theme-preview-dark .preview-text {
+    -fx-fill: #e5e7eb;
+    -fx-font-size: 28px;
+}
+
+#settings-page .theme-preview-light .preview-text {
+    -fx-fill: #141413;
+    -fx-font-size: 28px;
+}
+
+.theme-preview-dark .preview-line {
+    -fx-background-color: #06b6d4;
+}
+
+.theme-preview-light .preview-line {
+    -fx-background-color: #a9583e;
+}
+
+#settings-page .settings-back {
+    -fx-background-color: transparent;
+    -fx-text-fill: -settings-muted;
+    -fx-font-size: 13px;
+    -fx-padding: 0 0 8px 0;
+    -fx-cursor: hand;
+}
+
+#settings-page .settings-back:hover, #settings-page .settings-back:focused {
+    -fx-text-fill: -settings-accent;
+    -fx-underline: true;
+}
+
+#settings-page .radio-button, #settings-page .check-box, #settings-page .combo-box {
+    -fx-focus-color: -settings-accent;
+    -fx-faint-focus-color: transparent;
+}
+
+#settings-page .radio-button .radio, #settings-page .check-box .box {
+    -fx-background-color: -settings-background;
+    -fx-border-color: -settings-border;
+    -fx-border-radius: 4px;
+}
+
+#settings-page .radio-button .radio {
+    -fx-border-radius: 50%;
+    -fx-background-radius: 50%;
+}
+
+#settings-page .radio-button:selected .dot, #settings-page .check-box:selected .mark {
+    -fx-background-color: -settings-accent;
+}
+
+#settings-page .radio-button:focused .radio, #settings-page .check-box:focused .box {
+    -fx-border-color: -settings-accent;
+}
+
+#settings-page .combo-box {
+    -fx-background-color: -settings-background;
+    -fx-border-color: -settings-border;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+}
+
+#settings-page .combo-box > .list-cell {
+    -fx-text-fill: -settings-text;
+    -fx-background-color: transparent;
+}
+
+#settings-page .combo-box .arrow {
+    -fx-background-color: -settings-muted;
+}
+
+#autosave-delay:focused, #autosave-delay:showing {
+    -fx-border-color: -settings-accent;
+}
+
+.combo-box-popup > .list-view {
+    -fx-background-color: -settings-surface;
+    -fx-control-inner-background: -settings-surface;
+    -fx-border-color: -settings-border;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-padding: 4px;
+}
+
+.combo-box-popup .list-cell {
+    -fx-background-color: -settings-surface;
+    -fx-text-fill: -settings-text;
+    -fx-padding: 7px 12px;
+}
+
+.combo-box-popup .list-cell:filled:hover {
+    -fx-background-color: -settings-hover;
+    -fx-text-fill: -settings-text;
+}
+
+.combo-box-popup .list-cell:filled:selected {
+    -fx-background-color: -settings-accent;
+    -fx-text-fill: -settings-selection-text;
+}
+
+#settings-keybindings {
+    -fx-text-fill: -settings-text;
+}
+
+#settings-keybindings > .title {
+    -fx-background-color: -settings-surface;
+    -fx-background-radius: 6px;
+    -fx-border-color: -settings-border;
+    -fx-border-radius: 6px;
+    -fx-padding: 10px 14px;
+}
+
+#settings-keybindings > .title .arrow {
+    -fx-background-color: -settings-muted;
+}
+
+#settings-keybindings > .content {
+    -fx-background-color: -settings-surface;
+    -fx-border-color: -settings-border;
+    -fx-padding: 16px;
+}
+
+#settings-keybindings:focused > .title {
+    -fx-border-color: -settings-accent;
+}
+
+#settings-page .shortcut-key {
+    -fx-font-family: "Monospaced";
+    -fx-font-size: 12px;
+    -fx-text-fill: -settings-muted;
+}
