@@ -11,7 +11,6 @@ import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
@@ -26,8 +25,9 @@ final class EditorChrome extends VBox {
 
     private final Button sidebarButton;
 
-    EditorChrome(EditorSession session, AppSettings settings, TextArea editor,
+    EditorChrome(EditorSession session, AppSettings settings, EditorView editorView,
             Consumer<EditorShortcuts.Command> execute) {
+        var editor = editorView.area();
         Button openFile = action(EditorShortcuts.Command.OPEN_FILE, AppIcon.Symbol.FILE, "open-file", execute);
         Button openFolder = action(EditorShortcuts.Command.OPEN_FOLDER, AppIcon.Symbol.FOLDER, "open-folder", execute);
         Button save = action(EditorShortcuts.Command.SAVE, AppIcon.Symbol.SAVE, "save-file", execute);
@@ -48,13 +48,15 @@ final class EditorChrome extends VBox {
         file.getItems().add(autoSave);
         Menu edit = new Menu("Edit");
         MenuItem undo = editItem("Undo", KeyCode.Z, editor::undo);
-        undo.disableProperty().bind(editor.undoableProperty().not().or(session.editingBlockedProperty()));
+        undo.disableProperty().bind(editorView.undoAvailableProperty().not().or(session.editingBlockedProperty()));
         MenuItem redo = editItem("Redo", KeyCode.Z, editor::redo, KeyCombination.SHIFT_DOWN);
-        redo.disableProperty().bind(editor.redoableProperty().not().or(session.editingBlockedProperty()));
+        redo.disableProperty().bind(editorView.redoAvailableProperty().not().or(session.editingBlockedProperty()));
+        var noSelection = Bindings.createBooleanBinding(() -> editor.getSelectedText().isEmpty(),
+                editor.selectedTextProperty());
         MenuItem cut = editItem("Cut", KeyCode.X, editor::cut);
-        cut.disableProperty().bind(editor.selectedTextProperty().isEmpty().or(session.editingBlockedProperty()));
+        cut.disableProperty().bind(noSelection.or(session.editingBlockedProperty()));
         MenuItem copy = editItem("Copy", KeyCode.C, editor::copy);
-        copy.disableProperty().bind(editor.selectedTextProperty().isEmpty());
+        copy.disableProperty().bind(noSelection);
         MenuItem paste = editItem("Paste", KeyCode.V, editor::paste);
         paste.disableProperty().bind(session.editingBlockedProperty());
         edit.getItems().addAll(undo, redo, new SeparatorMenuItem(), cut, copy, paste,

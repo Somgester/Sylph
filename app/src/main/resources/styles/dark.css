@@ -37,7 +37,7 @@
     -fx-font-weight: bold;
 }
 
-#editor, #editor .content, #editor .viewport, .tree-view, .tree-view .viewport {
+#editor, #editor-scroll, .tree-view, .tree-view .viewport {
     -fx-background-color: #0d0f12;
 }
 
@@ -49,6 +49,18 @@
     -fx-font-size: 14px;
     -fx-padding: 22px;
     -fx-border-color: transparent;
+}
+
+#editor .text {
+    -fx-fill: #e5e7eb;
+}
+
+#editor .caret {
+    -fx-stroke: #e5e7eb;
+}
+
+#editor .selection {
+    -fx-fill: #083344;
 }
 
 .tree-view {

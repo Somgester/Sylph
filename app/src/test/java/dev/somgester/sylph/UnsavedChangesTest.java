@@ -19,12 +19,12 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.DialogPane;
-import javafx.scene.control.TextArea;
 import javafx.scene.input.KeyCode;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.stage.WindowEvent;
 import javafx.util.Duration;
+import org.fxmisc.richtext.CodeArea;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -74,7 +74,7 @@ class UnsavedChangesTest {
 
     private Scene scene;
 
-    private TextArea editor;
+    private CodeArea editor;
 
     private AppSettings settings;
 
@@ -101,7 +101,7 @@ class UnsavedChangesTest {
     void discardOnCloseNeverWritesWhileTheRealConfirmationIsOpenOrAfterClosing(int delay) throws Exception {
         Path file = createAndOpen(delay);
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.NO, file);
             stage.fireEvent(new WindowEvent(stage, WindowEvent.WINDOW_CLOSE_REQUEST));
             assertFalse(stage.isShowing());
@@ -116,7 +116,7 @@ class UnsavedChangesTest {
     void cancellingTheConfirmationKeepsEditsAndRestartsAutosave() throws Exception {
         Path file = createAndOpen(1);
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.CANCEL_CLOSE, file);
             stage.fireEvent(new WindowEvent(stage, WindowEvent.WINDOW_CLOSE_REQUEST));
             assertTrue(stage.isShowing());
@@ -134,7 +134,7 @@ class UnsavedChangesTest {
         Path file = createAndOpen(1);
         Path next = Files.writeString(directory.resolve("next.txt"), "next file");
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.NO, file);
             app.openChoices.add(() -> {
                 pumpPickerEvents(file);
@@ -152,7 +152,7 @@ class UnsavedChangesTest {
     void cancellingTheOpenPickerAfterDiscardKeepsEditsAndRestartsAutosave() throws Exception {
         Path file = createAndOpen(1);
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.NO, file);
             app.openChoices.add(() -> {
                 pumpPickerEvents(file);
@@ -171,7 +171,7 @@ class UnsavedChangesTest {
     void cancellingSaveAsKeepsAutosavePausedUntilThePickerCloses() throws Exception {
         Path file = createAndOpen(1);
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             app.saveChoices.add(() -> {
                 pumpPickerEvents(file);
                 return null;
@@ -187,7 +187,7 @@ class UnsavedChangesTest {
     void choosingSaveStillWritesTheChangesBeforeClosing() throws Exception {
         Path file = createAndOpen(1);
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.YES, file);
             stage.fireEvent(new WindowEvent(stage, WindowEvent.WINDOW_CLOSE_REQUEST));
             return null;
@@ -202,7 +202,7 @@ class UnsavedChangesTest {
         Path file = createAndOpen(1);
         Path next = Files.writeString(directory.resolve("next.txt"), "next file");
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.YES, file);
             app.openChoices.add(next::toFile);
             EditorShortcutsTest.press(scene, KeyCode.O, false, false, true);
@@ -212,7 +212,7 @@ class UnsavedChangesTest {
         assertNoDialogFailure();
         assertEquals(EDITED, Files.readString(file));
         FxTestSupport.onFxThread(() -> {
-            editor.setText("new file edits");
+            editor.replaceText("new file edits");
             return null;
         });
         FxTestSupport.await(() -> Files.readString(next).equals("new file edits"));
@@ -222,7 +222,7 @@ class UnsavedChangesTest {
     void failedFileSwitchKeepsAutosavePausedThroughTheErrorThenRestoresIt() throws Exception {
         Path file = createAndOpen(1);
         FxTestSupport.onFxThread(() -> {
-            editor.setText(EDITED);
+            editor.replaceText(EDITED);
             answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.NO, file);
             app.openChoices.add(() -> directory.resolve("missing.txt").toFile());
             app.errorHandler = error -> pumpPickerEvents(file);
@@ -243,7 +243,7 @@ class UnsavedChangesTest {
             settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, true, delay)));
             scene = app.createScene(stage, settings);
             stage.show();
-            editor = (TextArea) scene.getRoot().lookup("#editor");
+            editor = (CodeArea) scene.getRoot().lookup("#editor");
             app.openChoices.add(file::toFile);
             EditorShortcutsTest.press(scene, KeyCode.O, false, false, true);
             return null;
