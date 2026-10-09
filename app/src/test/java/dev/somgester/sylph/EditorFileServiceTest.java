@@ -1,5 +1,6 @@
 package dev.somgester.sylph;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,6 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EditorFileServiceTest {
 
@@ -63,5 +66,16 @@ class EditorFileServiceTest {
         assertThrows(IOException.class, () -> files.read(path));
         Files.write(path, new byte[] {0x41, 0x00, 0x42});
         assertThrows(IOException.class, () -> files.read(path));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"\u007FHello", "Hello\u007Fworld", "Hello\u007F", "\uFEFFHello\u007F\r\n"})
+    void delCharactersAreRefusedWithoutChangingTheFile(String content) throws IOException {
+        Path path = directory.resolve("del.txt");
+        Files.writeString(path, content);
+        byte[] original = Files.readAllBytes(path);
+
+        assertThrows(IOException.class, () -> files.read(path));
+        assertArrayEquals(original, Files.readAllBytes(path));
     }
 }
