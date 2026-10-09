@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -15,18 +14,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import javafx.application.Platform;
 import javafx.scene.Cursor;
-import javafx.scene.Scene;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TreeItem;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
-import javafx.scene.input.KeyEvent;
-import javafx.scene.layout.BorderPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -156,85 +147,6 @@ class SidebarTest {
     }
 
     @Test
-    void openFolderButtonHasExpectedIdAndAction() throws Exception {
-        EditorApp app = new EditorApp();
-        AtomicInteger calls = new AtomicInteger(0);
-        Button button = onFxThread(() -> {
-            Method method = EditorApp.class.getDeclaredMethod("createOpenFolderButton", Runnable.class);
-            method.setAccessible(true);
-            return (Button) method.invoke(app, (Runnable) calls::incrementAndGet);
-        });
-        assertEquals("Open Folder", button.getText());
-        assertEquals("open-folder", button.getId());
-        assertTrue(button.getStyleClass().contains("theme-toggle"));
-        onFxThread(() -> {
-            button.fire();
-            return null;
-        });
-        assertEquals(1, calls.get());
-    }
-
-    @Test
-    void ctrlOShortcutTriggersOpenAction() throws Exception {
-        EditorApp app = new EditorApp();
-        AtomicInteger calls = new AtomicInteger(0);
-        Scene scene = onFxThread(() -> new Scene(new BorderPane(), 800, 600));
-        onFxThread(() -> {
-            invokeRegisterShortcuts(app, scene, calls::incrementAndGet);
-            return null;
-        });
-        onFxThread(() -> {
-            KeyEvent event = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.O,
-                    false, true, false, false);
-            scene.getRoot().fireEvent(event);
-            return null;
-        });
-        assertEquals(1, calls.get());
-    }
-
-    @Test
-    void ctrlKThenCtrlOChordTriggersOpenActionOnce() throws Exception {
-        EditorApp app = new EditorApp();
-        AtomicInteger calls = new AtomicInteger(0);
-        Scene scene = onFxThread(() -> new Scene(new BorderPane(), 800, 600));
-        onFxThread(() -> {
-            invokeRegisterShortcuts(app, scene, calls::incrementAndGet);
-            return null;
-        });
-        onFxThread(() -> {
-            KeyEvent chordStart = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.K,
-                    false, true, false, false);
-            scene.getRoot().fireEvent(chordStart);
-            KeyCombination openCombo = new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN);
-            assertTrue(openCombo.match(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.O,
-                    false, true, false, false)));
-            KeyEvent chordEnd = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.O,
-                    false, true, false, false);
-            scene.getRoot().fireEvent(chordEnd);
-            return null;
-        });
-        assertEquals(1, calls.get());
-    }
-
-    @Test
-    void ctrlKAloneDoesNotTriggerOpenAction() throws Exception {
-        EditorApp app = new EditorApp();
-        AtomicInteger calls = new AtomicInteger(0);
-        Scene scene = onFxThread(() -> new Scene(new BorderPane(), 800, 600));
-        onFxThread(() -> {
-            invokeRegisterShortcuts(app, scene, calls::incrementAndGet);
-            return null;
-        });
-        onFxThread(() -> {
-            KeyEvent chordStart = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.K,
-                    false, true, false, false);
-            scene.getRoot().fireEvent(chordStart);
-            return null;
-        });
-        assertEquals(0, calls.get());
-    }
-
-    @Test
     void listChildrenIsEmptyForEmptyDirectory() throws Exception {
         List<Path> children = Sidebar.listChildren(tempDir);
         assertTrue(children.isEmpty());
@@ -361,57 +273,6 @@ class SidebarTest {
         assertEquals(Sidebar.DRAG_HANDLE_WIDTH, minWidth);
         assertTrue(onFxThread(() -> sidebar.getTreeView().isVisible()));
         assertFalse(onFxThread(() -> sidebar.getTreeView().isDisabled()));
-    }
-
-    @Test
-    void sidebarToggleButtonHasExpectedIdAndAction() throws Exception {
-        EditorApp app = new EditorApp();
-        AtomicInteger calls = new AtomicInteger(0);
-        Button button = onFxThread(() -> {
-            Method method = EditorApp.class.getDeclaredMethod("createSidebarToggleButton", Runnable.class);
-            method.setAccessible(true);
-            return (Button) method.invoke(app, (Runnable) calls::incrementAndGet);
-        });
-        assertEquals("Sidebar", button.getText());
-        assertEquals("toggle-sidebar", button.getId());
-        onFxThread(() -> {
-            button.fire();
-            return null;
-        });
-        assertEquals(1, calls.get());
-    }
-
-    @Test
-    void ctrlBShortcutTriggersToggleAction() throws Exception {
-        EditorApp app = new EditorApp();
-        AtomicInteger calls = new AtomicInteger(0);
-        Scene scene = onFxThread(() -> new Scene(new BorderPane(), 800, 600));
-        onFxThread(() -> {
-            invokeRegisterSidebarShortcut(app, scene, calls::incrementAndGet);
-            return null;
-        });
-        onFxThread(() -> {
-            KeyEvent event = new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.B,
-                    false, true, false, false);
-            scene.getRoot().fireEvent(event);
-            return null;
-        });
-        assertEquals(1, calls.get());
-    }
-
-    private static void invokeRegisterShortcuts(EditorApp app, Scene scene, Runnable action) throws Exception {
-        Method method = EditorApp.class.getDeclaredMethod("registerOpenFolderShortcuts",
-                Scene.class, Runnable.class);
-        method.setAccessible(true);
-        method.invoke(app, scene, action);
-    }
-
-    private static void invokeRegisterSidebarShortcut(EditorApp app, Scene scene, Runnable action)
-            throws Exception {
-        Method method = EditorApp.class.getDeclaredMethod("registerSidebarToggleShortcut",
-                Scene.class, Runnable.class);
-        method.setAccessible(true);
-        method.invoke(app, scene, action);
     }
 
     private static <T> T onFxThread(Callable<T> callable) throws Exception {

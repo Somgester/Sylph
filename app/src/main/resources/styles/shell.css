@@ -1,0 +1,105 @@
+#toolbar {
+    -fx-background-color: -shell-surface;
+    -fx-border-color: -shell-border;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 2px 10px;
+    -fx-min-height: 32px;
+    -fx-pref-height: 32px;
+}
+
+#main-menu {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-font-family: "System";
+    -fx-font-size: 12px;
+}
+
+#main-menu .menu {
+    -fx-padding: 5px 8px;
+    -fx-background-radius: 4px;
+}
+
+#main-menu .label {
+    -fx-text-fill: -shell-text;
+}
+
+#main-menu .menu:hover, #main-menu .menu:showing {
+    -fx-background-color: -shell-hover;
+}
+
+.chrome-action {
+    -fx-padding: 5px;
+    -fx-min-width: 26px;
+    -fx-min-height: 26px;
+    -fx-pref-width: 26px;
+    -fx-pref-height: 26px;
+    -fx-background-color: transparent;
+    -fx-background-radius: 4px;
+    -fx-border-color: transparent;
+    -fx-border-radius: 4px;
+    -fx-cursor: hand;
+}
+
+.chrome-action:hover {
+    -fx-background-color: -shell-hover;
+}
+
+.chrome-action:focused {
+    -fx-border-color: -shell-accent;
+}
+
+.chrome-action .action-icon {
+    -fx-stroke: -shell-text;
+}
+
+.chrome-action:hover .action-icon, .chrome-action:focused .action-icon {
+    -fx-stroke: -shell-accent;
+}
+
+.file-actions {
+    -fx-padding: 0 0 0 8px;
+    -fx-border-color: -shell-border;
+    -fx-border-width: 0 0 0 1px;
+}
+
+#workspace-header {
+    -fx-background-color: -shell-surface;
+    -fx-border-color: -shell-border;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 6px 16px;
+    -fx-pref-height: 38px;
+}
+
+.sylph-mark {
+    -fx-fill: -shell-accent;
+}
+
+#document-title {
+    -fx-text-fill: -shell-text;
+    -fx-font-family: "System";
+    -fx-font-size: 12px;
+}
+
+.context-menu {
+    -fx-background-color: -shell-surface;
+    -fx-border-color: -shell-border;
+    -fx-background-radius: 6px;
+    -fx-border-radius: 6px;
+    -fx-padding: 5px;
+}
+
+.context-menu .menu-item {
+    -fx-padding: 7px 12px;
+}
+
+.context-menu .menu-item .label {
+    -fx-text-fill: -shell-text;
+}
+
+.context-menu .menu-item:focused {
+    -fx-background-color: -shell-hover;
+}
+
+.context-menu .check-menu-item:checked .check {
+    -fx-background-color: -shell-accent;
+}

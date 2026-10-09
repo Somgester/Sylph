@@ -1,6 +1,19 @@
 #root {
+    -shell-surface: #f3f0e9;
+    -shell-border: #e6dfd8;
+    -shell-text: #413c36;
+    -shell-hover: #e8e0d2;
+    -shell-accent: #a9583e;
     -fx-background-color: #faf9f5;
     -fx-font-family: 'Source Sans Pro';
+}
+
+.context-menu {
+    -shell-surface: #ffffff;
+    -shell-border: #d4cbc1;
+    -shell-text: #413c36;
+    -shell-hover: #e8e0d2;
+    -shell-accent: #a9583e;
 }
 
 #toolbar, #status {
@@ -131,4 +144,15 @@
 
 #sidebar-drag-handle:hover {
     -fx-background-color: rgba(204, 120, 92, 0.35);
+}
+
+#settings-page, .combo-box-popup > .list-view {
+    -settings-background: #faf9f5;
+    -settings-surface: #ffffff;
+    -settings-border: #d4cbc1;
+    -settings-text: #141413;
+    -settings-muted: #6c6a64;
+    -settings-accent: #a9583e;
+    -settings-hover: #e8e0d2;
+    -settings-selection-text: #ffffff;
 }
