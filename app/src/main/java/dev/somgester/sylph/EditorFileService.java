@@ -29,9 +29,9 @@ class EditorFileService {
         } catch (CharacterCodingException ex) {
             throw new IOException("Choose a UTF-8 text file", ex);
         }
-        if (content.chars().anyMatch(character -> character < 32
+        if (content.chars().anyMatch(character -> (character < 32 || character == 127)
                 && character != '\n' && character != '\r' && character != '\t')) {
-            throw new IOException("Binary files cannot be opened in the editor");
+            throw new IOException("Files with unsupported control characters cannot be opened in the editor");
         }
         boolean bom = content.startsWith("\uFEFF");
         if (bom) {
