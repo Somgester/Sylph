@@ -97,6 +97,8 @@ public class EditorApp extends Application {
         root = new BorderPane();
         root.setId("root");
         sidebar = new Sidebar();
+        sidebar.setOnOpenFile(this::openFile);
+        sidebar.getTreeView().disableProperty().bind(session.busyProperty());
         status = new Label(session.statusProperty().get());
         status.setId("status");
         status.setPadding(new Insets(8, 14, 8, 14));
@@ -196,12 +198,28 @@ public class EditorApp extends Application {
         action.run(() -> afterUnsavedCheck(() -> {
             File file = chooseOpenFile();
             if (file != null) {
-                session.open(file.toPath(), () -> action.finishWith(this::showEditor),
-                        error -> action.finishWith(() -> showFileError(error)));
+                loadFile(file.toPath(), action);
             } else {
                 action.close();
             }
         }, action));
+    }
+
+    private void openFile(Path file) {
+        Path normalized = file.toAbsolutePath().normalize();
+        if (normalized.equals(session.pathProperty().get())) {
+            editor.requestFocus();
+            return;
+        }
+        FileAction action = beginFileAction();
+        if (action != null) {
+            action.run(() -> afterUnsavedCheck(() -> loadFile(normalized, action), action));
+        }
+    }
+
+    private void loadFile(Path file, FileAction action) {
+        session.open(file, () -> action.finishWith(this::showEditor),
+                error -> action.finishWith(() -> showFileError(error)));
     }
 
     File chooseOpenFile() {
