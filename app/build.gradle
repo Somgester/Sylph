@@ -6,10 +6,31 @@ plugins {
 
 repositories {
     mavenCentral()
+    // TM4E publishes stable jars in its Eclipse update site, without Maven metadata.
+    exclusiveContent {
+        forRepository {
+            ivy {
+                name = 'tm4eRelease'
+                url = uri('https://download.eclipse.org/tm4e/releases/0.18.0/plugins')
+                patternLayout {
+                    artifact '[artifact]_[revision].[ext]'
+                }
+                metadataSources {
+                    artifact()
+                }
+            }
+        }
+        filter {
+            includeModule('org.eclipse', 'org.eclipse.tm4e.core')
+        }
+    }
 }
 
 dependencies {
     implementation libs.richtextfx
+    implementation libs.tm4e.core
+    // The update-site artifact has no transitive dependency metadata.
+    runtimeOnly libs.bundles.tm4e.runtime
     testImplementation libs.junit.jupiter
     testRuntimeOnly libs.monocle
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

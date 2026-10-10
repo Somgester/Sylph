@@ -2,13 +2,29 @@
 # https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
 
 [versions]
+batik = "1.19"
+gson = "2.13.2"
 guava = "33.4.5-jre"
+jcodings = "1.0.63"
+joni = "2.2.6"
 junit-jupiter = "5.12.1"
 monocle = "21.0.2"
 richtextfx = "0.11.7"
+snakeyaml-engine = "2.10"
+tm4e = "0.18.0.202608200919"
 
 [libraries]
+batik-css = { module = "org.apache.xmlgraphics:batik-css", version.ref = "batik" }
+batik-util = { module = "org.apache.xmlgraphics:batik-util", version.ref = "batik" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
+jcodings = { module = "org.jruby.jcodings:jcodings", version.ref = "jcodings" }
+joni = { module = "org.jruby.joni:joni", version.ref = "joni" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 monocle = { module = "org.testfx:openjfx-monocle", version.ref = "monocle" }
 richtextfx = { module = "org.fxmisc.richtext:richtextfx", version.ref = "richtextfx" }
+snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version.ref = "snakeyaml-engine" }
+tm4e-core = { module = "org.eclipse:org.eclipse.tm4e.core", version.ref = "tm4e" }
+
+[bundles]
+tm4e-runtime = ["gson", "batik-css", "batik-util", "jcodings", "joni", "snakeyaml-engine"]
