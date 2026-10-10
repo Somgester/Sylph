@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import org.fxmisc.richtext.CodeArea;
@@ -48,6 +49,9 @@ class SyntaxHighlighterTest {
         try {
             assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
             FxTestSupport.onFxThread(() -> {
+                for (int edit = 0; edit < 200; edit++) {
+                    area.replaceText("pending " + edit);
+                }
                 area.replaceText("new");
                 language.set(EditorLanguage.JSON);
                 return null;
@@ -87,6 +91,113 @@ class SyntaxHighlighterTest {
                     return result(text, "constant.numeric.json");
                 }));
         try {
+            FxTestSupport.await(() -> area.getStyleOfChar(0).contains("syntax-number"));
+            assertEquals(2, calls.get());
+        } finally {
+            FxTestSupport.onFxThread(() -> {
+                highlighter.close();
+                area.dispose();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void closingWhileWorkerRunsPreventsLatePaintAndEndsWorker() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicReference<Thread> worker = new AtomicReference<>();
+        ReadOnlyObjectWrapper<EditorLanguage> language = new ReadOnlyObjectWrapper<>(EditorLanguage.JAVA);
+        CodeArea area = FxTestSupport.onFxThread(() -> new CodeArea("old"));
+        SyntaxHighlighter highlighter = FxTestSupport.onFxThread(() -> new SyntaxHighlighter(area, language,
+                (text, requestedLanguage) -> {
+                    worker.set(Thread.currentThread());
+                    started.countDown();
+                    awaitIgnoringInterrupts(release);
+                    return result(text, "string.quoted.double.java");
+                }));
+        try {
+            assertTrue(started.await(5, TimeUnit.SECONDS));
+            FxTestSupport.onFxThread(() -> {
+                highlighter.close();
+                area.setStyle(0, area.getLength(), List.of("kept"));
+                return null;
+            });
+            release.countDown();
+            FxTestSupport.await(() -> !worker.get().isAlive());
+            FxTestSupport.onFxThread(() -> {
+                assertEquals(List.of("kept"), area.getStyleOfChar(0));
+                return null;
+            });
+        } finally {
+            release.countDown();
+            FxTestSupport.onFxThread(() -> {
+                highlighter.close();
+                area.dispose();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void persistentTimeoutStopsAfterOneRetryAndLaterEditCanRecover() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        ReadOnlyObjectWrapper<EditorLanguage> language = new ReadOnlyObjectWrapper<>(EditorLanguage.JSON);
+        CodeArea area = FxTestSupport.onFxThread(() -> new CodeArea("42"));
+        SyntaxHighlighter highlighter = FxTestSupport.onFxThread(() -> new SyntaxHighlighter(area, language,
+                (text, requestedLanguage) -> {
+                    int call = calls.incrementAndGet();
+                    if (call <= 2) {
+                        var unstyled = new SyntaxTokenizer.Token(0, text.length(), List.of());
+                        var line = new SyntaxTokenizer.Line(0, text.length(), List.of(unstyled));
+                        return new SyntaxTokenizer.Result(text.length(), List.of(line), false);
+                    }
+                    return result(text, "constant.numeric.json");
+                }));
+        try {
+            FxTestSupport.onFxThread(() -> {
+                area.setStyle(0, area.getLength(), List.of("stale"));
+                return null;
+            });
+            FxTestSupport.await(() -> calls.get() == 2 && area.getStyleOfChar(0).isEmpty());
+            FxTestSupport.onFxThread(() -> {
+                area.replaceText("43");
+                return null;
+            });
+            FxTestSupport.await(() -> area.getStyleOfChar(0).contains("syntax-number"));
+            assertEquals(3, calls.get());
+        } finally {
+            FxTestSupport.onFxThread(() -> {
+                highlighter.close();
+                area.dispose();
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void engineFailureClearsStaleStylesAndDoesNotStopFutureHighlighting() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        ReadOnlyObjectWrapper<EditorLanguage> language = new ReadOnlyObjectWrapper<>(EditorLanguage.JSON);
+        CodeArea area = FxTestSupport.onFxThread(() -> new CodeArea("42"));
+        SyntaxHighlighter highlighter = FxTestSupport.onFxThread(() -> new SyntaxHighlighter(area, language,
+                (text, requestedLanguage) -> {
+                    if (calls.incrementAndGet() == 1) {
+                        throw new IllegalStateException("Expected test grammar failure");
+                    }
+                    return result(text, "constant.numeric.json");
+                }));
+        try {
+            FxTestSupport.onFxThread(() -> {
+                area.setStyle(0, area.getLength(), List.of("stale"));
+                return null;
+            });
+            FxTestSupport.await(() -> calls.get() == 1 && area.getStyleOfChar(0).isEmpty());
+            FxTestSupport.onFxThread(() -> {
+                assertEquals("42", area.getText());
+                area.replaceText("43");
+                return null;
+            });
             FxTestSupport.await(() -> area.getStyleOfChar(0).contains("syntax-number"));
             assertEquals(2, calls.get());
         } finally {

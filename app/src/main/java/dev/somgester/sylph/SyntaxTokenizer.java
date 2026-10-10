@@ -3,6 +3,7 @@ package dev.somgester.sylph;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.function.Function;
@@ -37,6 +38,16 @@ final class SyntaxTokenizer {
 
     private final Function<EditorLanguage, Optional<IGrammar>> grammarForLanguage;
 
+    private record CachedLine(String text, IStateStack before, IStateStack after, List<Token> tokens) {
+        CachedLine {
+            tokens = List.copyOf(tokens);
+        }
+    }
+
+    private EditorLanguage cachedLanguage;
+
+    private List<CachedLine> cache = List.of();
+
     SyntaxTokenizer() {
         this(new SyntaxGrammars()::forLanguage);
     }
@@ -48,17 +59,43 @@ final class SyntaxTokenizer {
     Result tokenize(String text, EditorLanguage language) {
         checkCancelled();
         var grammar = grammarForLanguage.apply(language);
+        String[] source = text.split("\n", -1);
+        List<CachedLine> previous = language == cachedLanguage ? cache : List.of();
+        int prefix = 0;
+        while (prefix < source.length && prefix < previous.size()
+                && source[prefix].equals(previous.get(prefix).text())) {
+            checkCancelled();
+            prefix++;
+        }
+        int suffix = 0;
+        while (suffix < source.length - prefix && suffix < previous.size() - prefix
+                && source[source.length - 1 - suffix].equals(previous.get(previous.size() - 1 - suffix).text())) {
+            checkCancelled();
+            suffix++;
+        }
         List<Line> lines = new ArrayList<>();
+        List<CachedLine> nextCache = new ArrayList<>();
         IStateStack state = null;
         boolean complete = true;
         int start = 0;
-        while (true) {
+        for (int index = 0; index < source.length; index++) {
             checkCancelled();
-            int newline = text.indexOf('\n', start);
-            int end = newline < 0 ? text.length() : newline;
-            String lineText = text.substring(start, end);
+            String lineText = source[index];
+            IStateStack before = state;
             List<Token> tokens;
-            if (grammar.isPresent() && complete) {
+            CachedLine reusable = null;
+            if (complete && index < prefix) {
+                reusable = previous.get(index);
+            } else if (complete && index >= source.length - suffix) {
+                var candidate = previous.get(index + previous.size() - source.length);
+                if (Objects.equals(state, candidate.before())) {
+                    reusable = candidate;
+                }
+            }
+            if (reusable != null) {
+                state = reusable.after();
+                tokens = reusable.tokens();
+            } else if (grammar.isPresent() && complete) {
                 var lineResult = grammar.orElseThrow().tokenizeLine(lineText, state, LINE_TIME_LIMIT);
                 checkCancelled();
                 if (lineResult.isStoppedEarly()) {
@@ -72,12 +109,18 @@ final class SyntaxTokenizer {
             } else {
                 tokens = unstyled(lineText.length());
             }
-            lines.add(new Line(start, lineText.length(), tokens));
-            if (newline < 0) {
-                return new Result(text.length(), lines, complete);
-            }
-            start = newline + 1;
+            var cached = reusable != null ? reusable : new CachedLine(lineText, before, state, tokens);
+            nextCache.add(cached);
+            lines.add(new Line(start, lineText.length(), cached.tokens()));
+            start += lineText.length() + 1;
         }
+        checkCancelled();
+        // Never publish partial or cancelled state as a future reuse point.
+        if (complete) {
+            cachedLanguage = language;
+            cache = List.copyOf(nextCache);
+        }
+        return new Result(text.length(), lines, complete);
     }
 
     private static List<Token> copyTokens(IToken[] source, int length) {

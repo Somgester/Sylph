@@ -11,6 +11,7 @@ import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.value.ChangeListener;
 import org.fxmisc.richtext.CodeArea;
+import org.reactfx.Subscription;
 
 // Editor events and result application stay on JavaFX; grammars belong to the worker.
 final class SyntaxHighlighter implements AutoCloseable {
@@ -23,7 +24,7 @@ final class SyntaxHighlighter implements AutoCloseable {
 
     private final ScheduledThreadPoolExecutor worker;
 
-    private final ChangeListener<String> textListener;
+    private final Subscription textChanges;
 
     private final ChangeListener<EditorLanguage> languageListener;
 
@@ -32,6 +33,12 @@ final class SyntaxHighlighter implements AutoCloseable {
     private long revision;
 
     private boolean closed;
+
+    private SyntaxStyles.Snapshot painted;
+
+    private int dirtyStart;
+
+    private int dirtyEnd;
 
     SyntaxHighlighter(CodeArea area, ReadOnlyObjectProperty<EditorLanguage> language) {
         this(area, language, new SyntaxTokenizer()::tokenize);
@@ -49,12 +56,20 @@ final class SyntaxHighlighter implements AutoCloseable {
             return thread;
         });
         worker.setRemoveOnCancelPolicy(true);
-        textListener = (observable, previous, text) -> request();
+        dirtyEnd = area.getLength();
+        textChanges = area.plainTextChanges().subscribe(change -> {
+            dirtyStart = Math.min(dirtyStart, change.getPosition());
+            if (change.getPosition() < dirtyEnd) {
+                dirtyEnd = Math.max(change.getPosition(),
+                        dirtyEnd + change.getInserted().length() - change.getRemoved().length());
+            }
+            dirtyEnd = Math.max(dirtyEnd, change.getPosition() + change.getInserted().length());
+            request();
+        });
         languageListener = (observable, previous, current) -> {
             clearStyles();
             request();
         };
-        area.textProperty().addListener(textListener);
         language.addListener(languageListener);
         request();
     }
@@ -70,11 +85,16 @@ final class SyntaxHighlighter implements AutoCloseable {
             return;
         }
         String text = area.getText();
-        pending = worker.schedule(() -> highlight(text, requestedLanguage, requestedRevision),
+        var previous = painted;
+        int firstDirty = dirtyStart;
+        int lastDirty = dirtyEnd;
+        pending = worker.schedule(() -> highlight(text, requestedLanguage, requestedRevision,
+                previous, firstDirty, lastDirty),
                 120, TimeUnit.MILLISECONDS);
     }
 
-    private void highlight(String text, EditorLanguage requestedLanguage, long requestedRevision) {
+    private void highlight(String text, EditorLanguage requestedLanguage, long requestedRevision,
+            SyntaxStyles.Snapshot previous, int firstDirty, int lastDirty) {
         try {
             var result = tokenize.apply(text, requestedLanguage);
             // First-use regex compilation can consume the line budget. Retry once with warm caches.
@@ -84,10 +104,14 @@ final class SyntaxHighlighter implements AutoCloseable {
             if (Thread.currentThread().isInterrupted()) {
                 return;
             }
-            var styles = SyntaxStyles.spans(result);
+            var snapshot = new SyntaxStyles.Snapshot(text, result);
+            var patch = SyntaxStyles.patch(snapshot, previous, firstDirty, lastDirty);
             Platform.runLater(() -> {
                 if (!closed && revision == requestedRevision) {
-                    area.setStyleSpans(0, styles);
+                    area.setStyleSpans(patch.start(), patch.styles());
+                    painted = snapshot;
+                    dirtyStart = Integer.MAX_VALUE;
+                    dirtyEnd = -1;
                 }
             });
         } catch (CancellationException cancelled) {
@@ -105,6 +129,9 @@ final class SyntaxHighlighter implements AutoCloseable {
 
     private void clearStyles() {
         area.setStyle(0, area.getLength(), List.of());
+        painted = null;
+        dirtyStart = 0;
+        dirtyEnd = area.getLength();
     }
 
     @Override
@@ -112,7 +139,7 @@ final class SyntaxHighlighter implements AutoCloseable {
         if (!closed) {
             closed = true;
             revision++;
-            area.textProperty().removeListener(textListener);
+            textChanges.unsubscribe();
             language.removeListener(languageListener);
             if (pending != null) {
                 pending.cancel(true);

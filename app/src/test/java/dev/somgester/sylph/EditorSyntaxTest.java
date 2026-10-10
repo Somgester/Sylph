@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.imageio.ImageIO;
 import javafx.scene.Scene;
 import javafx.scene.paint.Color;
@@ -145,6 +146,94 @@ class EditorSyntaxTest {
     }
 
     @Test
+    void mixedEditsUndoRedoAndWholeReplacementMatchFreshColors() throws Exception {
+        open(Files.writeString(directory.resolve("Example.java"), JAVA_SOURCE));
+        awaitColors(JAVA_SOURCE);
+        String changed = FxTestSupport.onFxThread(() -> {
+            int number = view.area().getText().indexOf("42");
+            view.area().replaceText(number, number + 2, "\"café 🚀\"");
+            int comment = view.area().getText().indexOf("String text");
+            view.area().insertText(comment, "/* ");
+            int close = view.area().getText().indexOf("// note");
+            view.area().insertText(close, "*/\n    ");
+            return view.area().getText();
+        });
+        awaitColors(changed);
+        String undone = FxTestSupport.onFxThread(() -> {
+            view.area().undo();
+            return view.area().getText();
+        });
+        awaitColors(undone);
+        FxTestSupport.onFxThread(() -> {
+            view.area().redo();
+            assertEquals(changed, view.area().getText());
+            return null;
+        });
+        awaitColors(changed);
+        String replacement = changed.replace("Example", "Another");
+        FxTestSupport.onFxThread(() -> {
+            // RichTextFX discards styles throughout this whole replacement, even in matching text.
+            view.area().replaceText(replacement);
+            return null;
+        });
+        awaitColors(replacement);
+        FxTestSupport.onFxThread(() -> {
+            view.area().clear();
+            assertEquals("", view.area().getText());
+            view.area().replaceText(JAVA_SOURCE);
+            return null;
+        });
+        awaitColors(JAVA_SOURCE);
+    }
+
+    @Test
+    void saveAsChangesGrammarWithoutResettingSelectionOrUndo() throws Exception {
+        String json = "{\"message\": \"hello\", \"answer\": 42}";
+        open(Files.writeString(directory.resolve("data.txt"), json));
+        Path destination = directory.resolve("data.json");
+        FxTestSupport.onFxThread(() -> {
+            view.area().appendText("\n");
+            view.area().selectRange(json.indexOf("hello"), json.indexOf("hello") + 5);
+            assertTrue(view.area().getStyleOfChar(json.indexOf("hello")).isEmpty());
+            session.save(destination, false, false, () -> { }, error -> { throw new AssertionError(error); });
+            return null;
+        });
+        FxTestSupport.await(() -> session.completedOperationsProperty().get() == 2);
+        awaitColors(json + "\n");
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(EditorLanguage.JSON, session.languageProperty().get());
+            assertEquals("hello", view.area().getSelectedText());
+            assertTrue(view.undoAvailableProperty().get());
+            assertFalse(session.dirtyProperty().get());
+            return null;
+        });
+        assertEquals(json + "\n", Files.readString(destination));
+    }
+
+    @Test
+    void failedOpenKeepsCurrentTextLanguageAndColors() throws Exception {
+        Path file = Files.writeString(directory.resolve("Example.java"), JAVA_SOURCE);
+        open(file);
+        awaitColors(JAVA_SOURCE);
+        var colors = FxTestSupport.onFxThread(() -> view.area().getStyleSpans(0, view.area().getLength()));
+        Path unsupported = Files.writeString(directory.resolve("unsupported.json"), "{\"value\": \"\u007f\"}");
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        FxTestSupport.onFxThread(() -> {
+            session.open(unsupported, view::documentOpened, failure::set);
+            return null;
+        });
+        FxTestSupport.await(() -> failure.get() != null);
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(file, session.pathProperty().get());
+            assertEquals(EditorLanguage.JAVA, session.languageProperty().get());
+            assertEquals(JAVA_SOURCE, view.area().getText());
+            assertEquals(colors, view.area().getStyleSpans(0, view.area().getLength()));
+            assertFalse(session.dirtyProperty().get());
+            return null;
+        });
+    }
+
+    @Test
     void jsonKeysAndValuesReceiveDistinctColorsAndPlainFilesClearThem() throws Exception {
         String json = "{\n  \"message\": \"hello\",\n  \"answer\": 42,\n  \"enabled\": true\n}";
         open(Files.writeString(directory.resolve("data.json"), json));
@@ -178,6 +267,29 @@ class EditorSyntaxTest {
             return null;
         });
         FxTestSupport.await(() -> session.completedOperationsProperty().get() == completed + 1);
+    }
+
+    private void awaitColors(String source) throws Exception {
+        EditorLanguage language = FxTestSupport.onFxThread(() -> session.languageProperty().get());
+        var tokenizer = new SyntaxTokenizer();
+        var result = tokenizer.tokenize(source, language);
+        if (!result.complete()) {
+            result = tokenizer.tokenize(source, language);
+        }
+        assertTrue(result.complete());
+        var expected = SyntaxStyles.spans(result);
+        FxTestSupport.await(() -> {
+            if (!source.equals(view.area().getText())) {
+                return false;
+            }
+            for (int offset = 0; offset < source.length(); offset++) {
+                if (source.charAt(offset) != '\n' && !view.area().getStyleOfChar(offset)
+                        .equals(expected.subView(offset, offset + 1).getStyleSpan(0).getStyle())) {
+                    return false;
+                }
+            }
+            return true;
+        });
     }
 
     private void applyTheme(String theme) {
