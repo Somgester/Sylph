@@ -378,7 +378,11 @@ public class EditorApp extends Application {
         if (shellStyle == null) {
             throw new IllegalStateException("Missing shell stylesheet");
         }
+        var editorStyle = getClass().getResource("/styles/editor.css");
+        if (editorStyle == null) {
+            throw new IllegalStateException("Missing editor stylesheet");
+        }
         scene.getStylesheets().setAll(resource.toExternalForm(), settingsStyle.toExternalForm(),
-                shellStyle.toExternalForm());
+                shellStyle.toExternalForm(), editorStyle.toExternalForm());
     }
 }

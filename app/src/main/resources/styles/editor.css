@@ -1,0 +1,44 @@
+#editor-view, #editor-scroll, #editor {
+    -fx-background-color: -editor-background;
+}
+
+#editor {
+    -fx-font-family: monospace;
+    -fx-font-size: 14px;
+    -fx-font-style: normal;
+    -fx-font-weight: normal;
+    -fx-padding: 14px 16px 14px 0;
+    -fx-border-width: 0;
+}
+
+#editor .paragraph-box {
+    -fx-padding: 1px 0;
+}
+
+#editor .text {
+    -fx-fill: -editor-text;
+}
+
+#editor .caret {
+    -fx-stroke: -editor-text;
+    -fx-stroke-width: 1.5px;
+}
+
+#editor .selection {
+    -fx-fill: -editor-selection;
+}
+
+#editor .lineno {
+    -fx-font-family: monospace;
+    -fx-font-size: 14px;
+    -fx-font-style: normal;
+    -fx-font-weight: normal;
+    -fx-background-color: -editor-background;
+    -fx-text-fill: -editor-gutter-text;
+    -fx-padding: 0 16px 0 14px;
+    -fx-alignment: top-right;
+}
+
+#editor .lineno .text {
+    -fx-fill: -editor-gutter-text;
+}

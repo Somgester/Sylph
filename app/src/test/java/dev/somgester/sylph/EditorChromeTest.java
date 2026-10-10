@@ -12,6 +12,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.MenuBar;
+import javafx.scene.layout.BorderPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -30,11 +31,14 @@ class EditorChromeTest {
             try {
                 List<EditorShortcuts.Command> calls = new ArrayList<>();
                 EditorChrome chrome = new EditorChrome(session, settings(), editor, calls::add);
-                Scene scene = new Scene(chrome, 640, 70);
+                BorderPane root = new BorderPane();
+                root.setId("root");
+                root.setTop(chrome);
+                Scene scene = new Scene(root, 640, 70);
                 scene.getStylesheets().setAll(getClass().getResource("/styles/dark.css").toExternalForm(),
                         getClass().getResource("/styles/shell.css").toExternalForm());
-                chrome.applyCss();
-                chrome.layout();
+                root.applyCss();
+                root.layout();
                 for (String id : List.of("open-file", "open-folder", "save-file",
                         "toggle-sidebar", "open-settings")) {
                     Button button = (Button) chrome.lookup("#" + id);

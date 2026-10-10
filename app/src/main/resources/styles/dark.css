@@ -37,30 +37,15 @@
     -fx-font-weight: bold;
 }
 
-#editor, #editor-scroll, .tree-view, .tree-view .viewport {
+#editor-view {
+    -editor-background: #0d0f12;
+    -editor-text: #e5e7eb;
+    -editor-selection: #164e63;
+    -editor-gutter-text: #7f8a9d;
+}
+
+.tree-view, .tree-view .viewport {
     -fx-background-color: #0d0f12;
-}
-
-#editor {
-    -fx-control-inner-background: #0d0f12;
-    -fx-text-fill: #e5e7eb;
-    -fx-highlight-fill: #083344;
-    -fx-font-family: 'Source Code Pro';
-    -fx-font-size: 14px;
-    -fx-padding: 22px;
-    -fx-border-color: transparent;
-}
-
-#editor .text {
-    -fx-fill: #e5e7eb;
-}
-
-#editor .caret {
-    -fx-stroke: #e5e7eb;
-}
-
-#editor .selection {
-    -fx-fill: #083344;
 }
 
 .tree-view {

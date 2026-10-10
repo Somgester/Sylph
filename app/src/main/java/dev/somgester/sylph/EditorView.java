@@ -6,6 +6,7 @@ import javafx.beans.value.ChangeListener;
 import javafx.scene.layout.StackPane;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.util.UndoUtils;
 
 final class EditorView extends StackPane implements AutoCloseable {
@@ -35,6 +36,13 @@ final class EditorView extends StackPane implements AutoCloseable {
         area.setId("editor");
         area.setAccessibleText("Document editor");
         area.setWrapText(false);
+        var lineNumbers = LineNumberFactory.get(area, digits -> "%1$" + digits + "s", null, null);
+        area.setParagraphGraphicFactory(line -> {
+            var number = lineNumbers.apply(line);
+            // Supply Modena's fallback lookup before the label inherits the editor's theme.
+            number.setStyle("-fx-text-background-color: #666666;");
+            return number;
+        });
         area.replaceText(session.textProperty().get());
         area.getUndoManager().forgetHistory();
         area.editableProperty().bind(session.editingBlockedProperty().not());
