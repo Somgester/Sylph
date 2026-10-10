@@ -19,6 +19,39 @@
     -fx-fill: -editor-text;
 }
 
+#editor .syntax-comment {
+    -fx-fill: -syntax-comment;
+}
+
+#editor .syntax-string {
+    -fx-fill: -syntax-string;
+}
+
+#editor .syntax-number {
+    -fx-fill: -syntax-number;
+}
+
+#editor .syntax-keyword {
+    -fx-fill: -syntax-keyword;
+}
+
+#editor .syntax-type {
+    -fx-fill: -syntax-type;
+}
+
+#editor .syntax-function {
+    -fx-fill: -syntax-function;
+}
+
+#editor .syntax-property {
+    -fx-fill: -syntax-property;
+}
+
+#editor .syntax-invalid {
+    -fx-fill: -syntax-invalid;
+    -fx-underline: true;
+}
+
 #editor .caret {
     -fx-stroke: -editor-text;
     -fx-stroke-width: 1.5px;
