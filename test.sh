@@ -6,3 +6,4 @@ cd "$SYLPH_SCRIPT_DIR"
 source "$SYLPH_SCRIPT_DIR/init.sh"
 
 exec ./gradlew :app:test "$@"
+    

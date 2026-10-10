@@ -69,4 +69,3 @@ sylph_initialize() {
 }
 
 sylph_initialize
-  

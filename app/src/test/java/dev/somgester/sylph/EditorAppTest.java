@@ -36,7 +36,7 @@ class EditorAppTest {
         String stylesheet = onFxThread(() -> {
             Scene scene = new Scene(new BorderPane());
             invokeApplyTheme(app, scene, true);
-            assertEquals(3, scene.getStylesheets().size());
+            assertEquals(4, scene.getStylesheets().size());
             return scene.getStylesheets().getFirst();
         });
 
@@ -50,7 +50,7 @@ class EditorAppTest {
         String stylesheet = onFxThread(() -> {
             Scene scene = new Scene(new BorderPane());
             invokeApplyTheme(app, scene, false);
-            assertEquals(3, scene.getStylesheets().size());
+            assertEquals(4, scene.getStylesheets().size());
             return scene.getStylesheets().getFirst();
         });
 

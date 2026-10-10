@@ -18,7 +18,6 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.RadioButton;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.TitledPane;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
@@ -28,6 +27,7 @@ import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.PopupWindow;
 import javafx.stage.Window;
+import org.fxmisc.richtext.CodeArea;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -91,8 +91,9 @@ class SettingsPageTest {
                 BorderPane root = (BorderPane) scene.getRoot();
                 root.applyCss();
                 root.layout();
-                TextArea editor = (TextArea) root.getCenter();
-                editor.setText("Keep my unsaved work\nwhile changing settings.");
+                EditorView editorView = (EditorView) root.getCenter();
+                CodeArea editor = editorView.area();
+                editor.replaceText("Keep my unsaved work\nwhile changing settings.");
                 boolean mac = System.getProperty("os.name").startsWith("Mac");
                 Event.fireEvent(root, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.COMMA,
                         false, !mac, false, mac));
@@ -100,11 +101,11 @@ class SettingsPageTest {
                 root.applyCss();
                 root.layout();
                 ((Button) root.lookup("#settings-back")).fire();
-                assertSame(editor, root.getCenter());
+                assertSame(editorView, root.getCenter());
                 ((Button) root.lookup("#open-settings")).fire();
                 Event.fireEvent(root, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.ESCAPE,
                         false, false, false, false));
-                assertSame(editor, root.getCenter());
+                assertSame(editorView, root.getCenter());
                 assertEquals("Keep my unsaved work\nwhile changing settings.", editor.getText());
                 assertTrue(stage.getTitle().startsWith("* "));
                 EditorShortcutsTest.press(scene, KeyCode.S, false, true, true);

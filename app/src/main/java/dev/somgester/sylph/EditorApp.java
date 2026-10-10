@@ -15,7 +15,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -23,6 +22,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import org.fxmisc.richtext.CodeArea;
 
 public class EditorApp extends Application {
 
@@ -34,7 +34,9 @@ public class EditorApp extends Application {
 
     private SettingsPage settingsPage;
 
-    private TextArea editor;
+    private CodeArea editor;
+
+    private EditorView editorView;
 
     private Sidebar sidebar;
 
@@ -108,16 +110,22 @@ public class EditorApp extends Application {
         status.setTooltip(statusTooltip);
         session.statusProperty().addListener((observable, oldValue, message) -> status.setText(message));
         root.setLeft(sidebar);
-        editor = new TextArea();
-        editor.setId("editor");
-        editor.setWrapText(false);
-        editor.textProperty().bindBidirectional(session.textProperty());
-        editor.editableProperty().bind(session.editingBlockedProperty().not());
-        EditorChrome chrome = new EditorChrome(session, settings, editor, this::executeCommand);
+        editorView = new EditorView(session);
+        editor = editorView.area();
+        EditorChrome chrome = new EditorChrome(session, settings, editorView, this::executeCommand);
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
-        root.setCenter(editor);
-        root.setBottom(status);
+        root.setCenter(editorView);
+        Label language = new Label();
+        language.setId("document-language");
+        language.textProperty().bind(Bindings.createStringBinding(
+                () -> session.languageProperty().get().displayName(), session.languageProperty()));
+        language.setTooltip(new Tooltip("Language detected from file name"));
+        BorderPane statusBar = new BorderPane();
+        statusBar.setId("status-bar");
+        statusBar.setCenter(status);
+        statusBar.setRight(language);
+        root.setBottom(statusBar);
         settingsPage = new SettingsPage(settings, autoSave, this::showEditor);
         Scene scene = new Scene(root, 1100, 700);
         stage.setScene(scene);
@@ -168,7 +176,7 @@ public class EditorApp extends Application {
     private void showEditor() {
         settingsVisible = false;
         root.setLeft(sidebar);
-        root.setCenter(editor);
+        root.setCenter(editorView);
         sidebarButton.setDisable(false);
         editor.requestFocus();
     }
@@ -218,7 +226,10 @@ public class EditorApp extends Application {
     }
 
     private void loadFile(Path file, FileAction action) {
-        session.open(file, () -> action.finishWith(this::showEditor),
+        session.open(file, () -> action.finishWith(() -> {
+            editorView.documentOpened();
+            showEditor();
+        }),
                 error -> action.finishWith(() -> showFileError(error)));
     }
 
@@ -326,6 +337,9 @@ public class EditorApp extends Application {
         if (session != null) {
             session.close();
         }
+        if (editorView != null) {
+            editorView.close();
+        }
     }
 
     private void openFolderDialog(Stage stage, Sidebar sidebar, Label status) {
@@ -373,7 +387,11 @@ public class EditorApp extends Application {
         if (shellStyle == null) {
             throw new IllegalStateException("Missing shell stylesheet");
         }
+        var editorStyle = getClass().getResource("/styles/editor.css");
+        if (editorStyle == null) {
+            throw new IllegalStateException("Missing editor stylesheet");
+        }
         scene.getStylesheets().setAll(resource.toExternalForm(), settingsStyle.toExternalForm(),
-                shellStyle.toExternalForm());
+                shellStyle.toExternalForm(), editorStyle.toExternalForm());
     }
 }
