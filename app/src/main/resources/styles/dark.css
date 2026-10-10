@@ -16,7 +16,7 @@
     -shell-accent: #06b6d4;
 }
 
-#toolbar, #status {
+#toolbar, #status, #status-bar {
     -fx-background-color: #151820;
     -fx-border-color: #2a2f3a;
 }

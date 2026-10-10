@@ -80,6 +80,17 @@
     -fx-font-size: 12px;
 }
 
+#status-bar {
+    -fx-border-width: 1px 0 0 0;
+}
+
+#document-language {
+    -fx-text-fill: -shell-text;
+    -fx-font-family: "System";
+    -fx-font-size: 12px;
+    -fx-padding: 8px 14px;
+}
+
 .context-menu {
     -fx-background-color: -shell-surface;
     -fx-border-color: -shell-border;

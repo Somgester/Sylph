@@ -116,7 +116,16 @@ public class EditorApp extends Application {
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
         root.setCenter(editorView);
-        root.setBottom(status);
+        Label language = new Label();
+        language.setId("document-language");
+        language.textProperty().bind(Bindings.createStringBinding(
+                () -> session.languageProperty().get().displayName(), session.languageProperty()));
+        language.setTooltip(new Tooltip("Language detected from file name"));
+        BorderPane statusBar = new BorderPane();
+        statusBar.setId("status-bar");
+        statusBar.setCenter(status);
+        statusBar.setRight(language);
+        root.setBottom(statusBar);
         settingsPage = new SettingsPage(settings, autoSave, this::showEditor);
         Scene scene = new Scene(root, 1100, 700);
         stage.setScene(scene);

@@ -6,6 +6,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanWrapper;
 import javafx.beans.property.ReadOnlyIntegerProperty;
@@ -34,6 +35,8 @@ final class EditorSession implements AutoCloseable {
 
     private final ReadOnlyObjectWrapper<Path> path = new ReadOnlyObjectWrapper<>();
 
+    private final ReadOnlyObjectWrapper<EditorLanguage> language = new ReadOnlyObjectWrapper<>();
+
     private final ReadOnlyStringWrapper status = new ReadOnlyStringWrapper("Ready  |  Untitled");
 
     private final ReadOnlyIntegerWrapper completedOperations = new ReadOnlyIntegerWrapper();
@@ -49,6 +52,7 @@ final class EditorSession implements AutoCloseable {
     EditorSession(EditorFileService files) {
         this.files = files;
         dirty.bind(text.isNotEqualTo(savedText));
+        language.bind(Bindings.createObjectBinding(() -> EditorLanguage.forPath(path.get()), path));
         executor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
                 new ArrayBlockingQueue<>(1), runnable -> {
                     Thread thread = new Thread(runnable, "sylph-file-worker");
@@ -75,6 +79,10 @@ final class EditorSession implements AutoCloseable {
 
     ReadOnlyObjectProperty<Path> pathProperty() {
         return path.getReadOnlyProperty();
+    }
+
+    ReadOnlyObjectProperty<EditorLanguage> languageProperty() {
+        return language.getReadOnlyProperty();
     }
 
     ReadOnlyStringProperty statusProperty() {
