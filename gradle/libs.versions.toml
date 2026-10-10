@@ -4,9 +4,11 @@
 [versions]
 guava = "33.4.5-jre"
 junit-jupiter = "5.12.1"
+monocle = "21.0.2"
 richtextfx = "0.11.7"
 
 [libraries]
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+monocle = { module = "org.testfx:openjfx-monocle", version.ref = "monocle" }
 richtextfx = { module = "org.fxmisc.richtext:richtextfx", version.ref = "richtextfx" }

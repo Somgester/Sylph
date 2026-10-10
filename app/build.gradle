@@ -11,6 +11,7 @@ repositories {
 dependencies {
     implementation libs.richtextfx
     testImplementation libs.junit.jupiter
+    testRuntimeOnly libs.monocle
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -40,4 +41,12 @@ application {
 
 tasks.named('test') {
     useJUnitPlatform()
+
+    // Keep real JavaFX scene/dialog checks off the desktop unless explicitly requested.
+    if (!providers.gradleProperty('showUiTests').map { it.toBoolean() }.getOrElse(false)) {
+        systemProperty 'glass.platform', 'Monocle'
+        systemProperty 'monocle.platform', 'Headless'
+        systemProperty 'prism.order', 'sw'
+        systemProperty 'java.awt.headless', 'true'
+    }
 }
