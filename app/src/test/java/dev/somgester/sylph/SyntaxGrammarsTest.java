@@ -15,16 +15,21 @@ import org.junit.jupiter.params.provider.EnumSource;
 class SyntaxGrammarsTest {
 
     @ParameterizedTest
-    @EnumSource(value = EditorLanguage.class, names = {"JAVA", "JSON"})
+    @EnumSource(value = EditorLanguage.class, names = "PLAIN_TEXT", mode = EnumSource.Mode.EXCLUDE)
     void bundledGrammarsProduceStringAndNumberTokens(EditorLanguage language) {
         SyntaxGrammars grammars = new SyntaxGrammars();
         var grammar = grammars.forLanguage(language).orElseThrow();
-        String source = language == EditorLanguage.JAVA
-                ? "class Example { String message = \"hello\"; int answer = 42; }"
-                : "{\"message\": \"hello\", \"answer\": 42}";
+        String source = switch (language) {
+            case JAVA -> "class Example { String message = \"hello\"; int answer = 42; }";
+            case JSON -> "{\"message\": \"hello\", \"answer\": 42}";
+            case PYTHON -> "message = \"hello\"; answer = 42";
+            case JAVASCRIPT, JAVASCRIPT_JSX -> "const message = \"hello\"; const answer = 42;";
+            case TYPESCRIPT, TYPESCRIPT_TSX -> "const message: string = \"hello\"; const answer: number = 42;";
+            case PLAIN_TEXT -> throw new AssertionError("Plain text has no grammar");
+        };
         var result = grammar.tokenizeLine(source, null, Duration.ofSeconds(2));
         assertFalse(result.isStoppedEarly());
-        assertTrue(hasScope(result.getTokens(), "string.quoted.double"));
+        assertTrue(hasScope(result.getTokens(), "string.quoted"));
         assertTrue(hasScope(result.getTokens(), "constant.numeric"));
         assertSame(grammar, grammars.forLanguage(language).orElseThrow());
     }

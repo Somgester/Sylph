@@ -21,6 +21,9 @@ class SyntaxStylesTest {
         "storage.type.java, type",
         "entity.name.type.class.java, type",
         "entity.name.function.java, function",
+        "storage.type.function.python, keyword",
+        "variable.object.property.js, property",
+        "entity.other.attribute-name.tsx, property",
         "support.type.property-name.json, property",
         "invalid.illegal.json, invalid"
     })

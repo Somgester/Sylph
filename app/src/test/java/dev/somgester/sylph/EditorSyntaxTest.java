@@ -23,6 +23,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class EditorSyntaxTest {
 
@@ -229,6 +231,51 @@ class EditorSyntaxTest {
             assertEquals(JAVA_SOURCE, view.area().getText());
             assertEquals(colors, view.area().getStyleSpans(0, view.area().getLength()));
             assertFalse(session.dirtyProperty().get());
+            return null;
+        });
+    }
+
+    @Test
+    void switchingFromUnfinishedPythonStringToTypeScriptResetsGrammarState() throws Exception {
+        String python = "message = \"\"\"unfinished\ncontinued";
+        open(Files.writeString(directory.resolve("script.py"), python));
+        awaitColors(python);
+        String typescript = AdditionalSyntaxTest.sample(EditorLanguage.TYPESCRIPT);
+        open(Files.writeString(directory.resolve("script.ts"), typescript));
+        awaitColors(typescript);
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(EditorLanguage.TYPESCRIPT, session.languageProperty().get());
+            assertTrue(view.area().getStyleOfChar(typescript.indexOf("greet")).contains("syntax-function"));
+            assertFalse(session.dirtyProperty().get());
+            return null;
+        });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "script.py, PYTHON",
+        "script.js, JAVASCRIPT",
+        "Component.jsx, JAVASCRIPT_JSX",
+        "script.ts, TYPESCRIPT",
+        "Component.tsx, TYPESCRIPT_TSX"
+    })
+    void openingNewLanguagesRendersSyntaxInBothThemes(String filename, EditorLanguage language) throws Exception {
+        String source = AdditionalSyntaxTest.sample(language);
+        open(Files.writeString(directory.resolve(filename), source));
+        awaitColors(source);
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(language, session.languageProperty().get());
+            for (String theme : List.of("dark", "light")) {
+                applyTheme(theme);
+                render();
+                Color background = (Color) view.area().getBackground().getFills().getFirst().getFill();
+                for (String category : List.of("keyword", "function", "string", "number", "comment")) {
+                    assertTrue(contrast((Color) styledText(category).getFill(), background) >= 4.5,
+                            language + " " + theme + " " + category);
+                }
+            }
+            assertFalse(session.dirtyProperty().get());
+            assertFalse(view.undoAvailableProperty().get());
             return null;
         });
     }

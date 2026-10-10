@@ -121,12 +121,14 @@ class SyntaxIncrementalTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = EditorLanguage.class, names = {"JAVA", "JSON"})
+    @EnumSource(value = EditorLanguage.class, names = "PLAIN_TEXT", mode = EnumSource.Mode.EXCLUDE)
     void repeatedMixedEditsMatchAnIndependentFullParse(EditorLanguage language) {
         Random random = new Random(8301);
-        String text = language == EditorLanguage.JAVA
-                ? "class Example {\nString text = \"hello\";\n/* note */ int number = 42;\n}"
-                : "{\n\"message\": \"hello\",\n\"number\": 42,\n\"enabled\": true\n}";
+        String text = switch (language) {
+            case JAVA -> "class Example {\nString text = \"hello\";\n/* note */ int number = 42;\n}";
+            case JSON -> "{\n\"message\": \"hello\",\n\"number\": 42,\n\"enabled\": true\n}";
+            default -> AdditionalSyntaxTest.sample(language);
+        };
         String[] insertions = {"\n", "/*", "*/", "\"", "42", "café", "", "\t", "true"};
         var referenceGrammars = new SyntaxGrammars();
         for (int step = 0; step < 60; step++) {

@@ -13,7 +13,12 @@ final class SyntaxGrammars {
 
     private static final Map<String, String> RESOURCES = Map.of(
             "source.java", "/syntax/grammars/java.tmLanguage.json",
-            "source.json", "/syntax/grammars/JSON.tmLanguage.json");
+            "source.json", "/syntax/grammars/JSON.tmLanguage.json",
+            "source.python", "/syntax/grammars/MagicPython.tmLanguage.json",
+            "source.js", "/syntax/grammars/JavaScript.tmLanguage.json",
+            "source.js.jsx", "/syntax/grammars/JavaScriptReact.tmLanguage.json",
+            "source.ts", "/syntax/grammars/TypeScript.tmLanguage.json",
+            "source.tsx", "/syntax/grammars/TypeScriptReact.tmLanguage.json");
 
     private final Registry registry = new Registry(new IRegistryOptions() {
         @Override
@@ -27,6 +32,11 @@ final class SyntaxGrammars {
         String scope = switch (language) {
             case JAVA -> "source.java";
             case JSON -> "source.json";
+            case PYTHON -> "source.python";
+            case JAVASCRIPT -> "source.js";
+            case JAVASCRIPT_JSX -> "source.js.jsx";
+            case TYPESCRIPT -> "source.ts";
+            case TYPESCRIPT_TSX -> "source.tsx";
             case PLAIN_TEXT -> null;
         };
         if (scope == null) {

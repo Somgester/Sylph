@@ -91,7 +91,9 @@ final class SyntaxStyles {
         if (matches(scope, "invalid")) {
             return "invalid";
         }
-        if (matches(scope, "support.type.property-name") || matches(scope, "entity.name.tag")) {
+        if (matches(scope, "support.type.property-name") || matches(scope, "entity.name.tag")
+                || matches(scope, "variable.object.property") || matches(scope, "variable.other.property")
+                || matches(scope, "support.variable.property") || matches(scope, "entity.other.attribute-name")) {
             return "property";
         }
         if (matches(scope, "string") || matches(scope, "constant.character")) {
@@ -100,7 +102,7 @@ final class SyntaxStyles {
         if (matches(scope, "constant.numeric")) {
             return "number";
         }
-        if (matches(scope, "keyword") || matches(scope, "storage.modifier")
+        if (matches(scope, "keyword") || matches(scope, "storage.modifier") || matches(scope, "storage.type.function")
                 || matches(scope, "constant.language")) {
             return "keyword";
         }

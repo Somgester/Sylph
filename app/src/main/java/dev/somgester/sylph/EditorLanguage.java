@@ -6,7 +6,12 @@ import java.util.Locale;
 enum EditorLanguage {
     PLAIN_TEXT("Plain Text"),
     JAVA("Java"),
-    JSON("JSON");
+    JSON("JSON"),
+    PYTHON("Python"),
+    JAVASCRIPT("JavaScript"),
+    JAVASCRIPT_JSX("JavaScript (JSX)"),
+    TYPESCRIPT("TypeScript"),
+    TYPESCRIPT_TSX("TypeScript (TSX)");
 
     private final String displayName;
 
@@ -30,6 +35,11 @@ enum EditorLanguage {
         return switch (name.substring(dot + 1).toLowerCase(Locale.ROOT)) {
             case "java" -> JAVA;
             case "json" -> JSON;
+            case "py", "pyw", "pyi" -> PYTHON;
+            case "js", "mjs", "cjs" -> JAVASCRIPT;
+            case "jsx" -> JAVASCRIPT_JSX;
+            case "ts", "mts", "cts" -> TYPESCRIPT;
+            case "tsx" -> TYPESCRIPT_TSX;
             default -> PLAIN_TEXT;
         };
     }
