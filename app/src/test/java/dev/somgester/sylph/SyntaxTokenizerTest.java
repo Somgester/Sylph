@@ -65,7 +65,8 @@ class SyntaxTokenizerTest {
     @ParameterizedTest
     @EnumSource(EditorLanguage.class)
     void tokensUseUtf16OffsetsAndPreserveTabsAndTrailingEmptyLines(EditorLanguage language) {
-        String text = "\t\"café 🚀 漢字\" 42\n\n";
+        String text = language == EditorLanguage.SHELL
+                ? "\techo \"café 🚀 漢字\" $((42))\n\n" : "\t\"café 🚀 漢字\" 42\n\n";
         var result = tokenizer.tokenize(text, language);
         assertTrue(result.complete());
         assertEquals(List.of(0, text.length() - 1, text.length()),

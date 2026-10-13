@@ -93,7 +93,8 @@ final class SyntaxStyles {
         }
         if (matches(scope, "support.type.property-name") || matches(scope, "entity.name.tag")
                 || matches(scope, "variable.object.property") || matches(scope, "variable.other.property")
-                || matches(scope, "support.variable.property") || matches(scope, "entity.other.attribute-name")) {
+                || matches(scope, "support.variable.property") || matches(scope, "entity.other.attribute-name")
+                || (scope.endsWith(".shell") && matches(scope, "variable"))) {
             return "property";
         }
         if (matches(scope, "string") || matches(scope, "constant.character")) {

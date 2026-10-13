@@ -108,6 +108,26 @@ class EditorLanguageIntegrationTest {
     }
 
     @Test
+    void shellFilesAndStartupFilesHighlightAndPlainTextClearsTheirColors() throws Exception {
+        String source = AdditionalSyntaxTest.sample(EditorLanguage.SHELL);
+        int keyword = source.indexOf("if ");
+        for (String name : List.of("run.sh", ".bashrc", "notes.txt")) {
+            Path file = Files.writeString(directory.resolve(name), source);
+            open(file);
+            boolean shell = !name.equals("notes.txt");
+            FxTestSupport.await(() -> stage.getTitle().equals(name + " — Sylph")
+                    && !((Button) scene.getRoot().lookup("#open-file")).isDisabled()
+                    && language.getText().equals(shell ? "Shell Script" : "Plain Text")
+                    && editor.getStyleOfChar(keyword).contains("syntax-keyword") == shell);
+            FxTestSupport.onFxThread(() -> {
+                assertEquals(source, editor.getText());
+                assertFalse(editor.isUndoAvailable());
+                return null;
+            });
+        }
+    }
+
+    @Test
     void failedAndCancelledOpensKeepTheCurrentLanguageAndDocument() throws Exception {
         Path file = Files.writeString(directory.resolve("Sample.java"), "class Sample {}\n");
         open(file);

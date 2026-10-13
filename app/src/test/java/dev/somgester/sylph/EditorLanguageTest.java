@@ -34,6 +34,30 @@ class EditorLanguageTest {
         "module.cts, TYPESCRIPT",
         "Component.tsx, TYPESCRIPT_TSX",
         "Component.TSX, TYPESCRIPT_TSX",
+        "run.sh, SHELL",
+        "script.SH, SHELL",
+        "script.bash, SHELL",
+        "script.zsh, SHELL",
+        "script.ksh, SHELL",
+        "theme.zsh-theme, SHELL",
+        ".config.sh, SHELL",
+        ".bashrc, SHELL",
+        ".bash_aliases, SHELL",
+        ".bash_profile, SHELL",
+        ".bash_login, SHELL",
+        ".bash_logout, SHELL",
+        ".profile, SHELL",
+        ".zshrc, SHELL",
+        ".zshenv, SHELL",
+        ".zprofile, SHELL",
+        ".zlogin, SHELL",
+        ".zlogout, SHELL",
+        ".envrc, SHELL",
+        "zshrc, SHELL",
+        "script.sh.bak, PLAIN_TEXT",
+        ".bashrc.bak, PLAIN_TEXT",
+        ".sh, PLAIN_TEXT",
+        "folder.sh/notes.txt, PLAIN_TEXT",
         "README.md, MARKDOWN",
         "README.MD, MARKDOWN",
         "notes.markdown, MARKDOWN",
@@ -55,7 +79,7 @@ class EditorLanguageTest {
         "config.jsonc, PLAIN_TEXT",
         "folder.java/notes.txt, PLAIN_TEXT"
     })
-    void usesOnlyTheFinalFileExtension(String name, EditorLanguage expected) {
+    void detectsSupportedExtensionsAndShellStartupFiles(String name, EditorLanguage expected) {
         assertEquals(expected, EditorLanguage.forPath(Path.of(name)));
     }
 

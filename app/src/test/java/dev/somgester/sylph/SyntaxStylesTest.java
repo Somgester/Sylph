@@ -25,6 +25,10 @@ class SyntaxStylesTest {
         "variable.object.property.js, property",
         "entity.other.attribute-name.tsx, property",
         "support.type.property-name.json, property",
+        "variable.other.normal.shell, property",
+        "variable.parameter.positional.shell, property",
+        "variable.other.assignment.shell, property",
+        "variable.language.special.shell, property",
         "invalid.illegal.json, invalid"
     })
     void grammarScopesMapToSharedCssCategories(String scope, String category) {

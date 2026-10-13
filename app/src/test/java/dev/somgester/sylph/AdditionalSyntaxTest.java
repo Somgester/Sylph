@@ -69,6 +69,8 @@ class AdditionalSyntaxTest {
 
     static String sample(EditorLanguage language) {
         return switch (language) {
+            case SHELL -> "#!/usr/bin/env bash\ngreet() {\n    local name=\"hello\"\n"
+                    + "    if [ \"$name\" ]; then\n        echo $((42)) # note\n    fi\n}\n";
             case PYTHON -> "def greet(name):\n    message = \"hello\"\n    return 42  # note\n";
             case JAVASCRIPT, JAVASCRIPT_JSX -> "function greet(name) {\n    const message = \"hello\";\n"
                     + "    return 42; // note\n}\n";

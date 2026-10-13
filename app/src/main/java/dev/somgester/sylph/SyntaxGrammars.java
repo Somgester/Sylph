@@ -18,7 +18,8 @@ final class SyntaxGrammars {
             "source.js", "/syntax/grammars/JavaScript.tmLanguage.json",
             "source.js.jsx", "/syntax/grammars/JavaScriptReact.tmLanguage.json",
             "source.ts", "/syntax/grammars/TypeScript.tmLanguage.json",
-            "source.tsx", "/syntax/grammars/TypeScriptReact.tmLanguage.json");
+            "source.tsx", "/syntax/grammars/TypeScriptReact.tmLanguage.json",
+            "source.shell", "/syntax/grammars/shell-unix-bash.tmLanguage.json");
 
     private final Registry registry = new Registry(new IRegistryOptions() {
         @Override
@@ -33,6 +34,7 @@ final class SyntaxGrammars {
             case JAVA -> "source.java";
             case JSON -> "source.json";
             case PYTHON -> "source.python";
+            case SHELL -> "source.shell";
             case JAVASCRIPT -> "source.js";
             case JAVASCRIPT_JSX -> "source.js.jsx";
             case TYPESCRIPT -> "source.ts";

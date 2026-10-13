@@ -25,6 +25,7 @@ class SyntaxGrammarsTest {
             case PYTHON -> "message = \"hello\"; answer = 42";
             case JAVASCRIPT, JAVASCRIPT_JSX -> "const message = \"hello\"; const answer = 42;";
             case TYPESCRIPT, TYPESCRIPT_TSX -> "const message: string = \"hello\"; const answer: number = 42;";
+            case SHELL -> "message=\"hello\"; answer=$((42))";
             case PLAIN_TEXT, MARKDOWN -> throw new AssertionError("Language has no syntax grammar");
         };
         var result = grammar.tokenizeLine(source, null, Duration.ofSeconds(2));
