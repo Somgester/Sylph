@@ -3,10 +3,12 @@
 
 [versions]
 batik = "1.19"
+commonmark = "0.30.0"
 gson = "2.13.2"
 guava = "33.4.5-jre"
 jcodings = "1.0.63"
 joni = "2.2.6"
+jsoup = "1.23.2"
 junit-jupiter = "5.12.1"
 monocle = "21.0.2"
 richtextfx = "0.11.7"
@@ -14,12 +16,16 @@ snakeyaml-engine = "2.10"
 tm4e = "0.18.0.202608200919"
 
 [libraries]
+commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
+commonmark-tables = { module = "org.commonmark:commonmark-ext-gfm-tables", version.ref = "commonmark" }
+commonmark-strikethrough = { module = "org.commonmark:commonmark-ext-gfm-strikethrough", version.ref = "commonmark" }
 batik-css = { module = "org.apache.xmlgraphics:batik-css", version.ref = "batik" }
 batik-util = { module = "org.apache.xmlgraphics:batik-util", version.ref = "batik" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 jcodings = { module = "org.jruby.jcodings:jcodings", version.ref = "jcodings" }
 joni = { module = "org.jruby.joni:joni", version.ref = "joni" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 monocle = { module = "org.testfx:openjfx-monocle", version.ref = "monocle" }
 richtextfx = { module = "org.fxmisc.richtext:richtextfx", version.ref = "richtextfx" }

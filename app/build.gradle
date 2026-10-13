@@ -27,6 +27,10 @@ repositories {
 }
 
 dependencies {
+    implementation libs.commonmark
+    implementation libs.jsoup
+    implementation libs.commonmark.tables
+    implementation libs.commonmark.strikethrough
     implementation libs.richtextfx
     implementation libs.tm4e.core
     // The update-site artifact has no transitive dependency metadata.
@@ -53,7 +57,7 @@ checkstyle {
 
 javafx {
     version = "21.0.2"
-    modules = ['javafx.controls', 'javafx.graphics']
+    modules = ['javafx.controls', 'javafx.graphics', 'javafx.web']
 }
 
 application {

@@ -64,7 +64,10 @@ final class EditorChrome extends VBox {
         Menu view = new Menu("View");
         MenuItem sidebar = item(EditorShortcuts.Command.SIDEBAR, execute, session);
         sidebar.disableProperty().bind(sidebarButton.disabledProperty());
-        view.getItems().addAll(sidebar, item(EditorShortcuts.Command.SETTINGS, execute, session));
+        MenuItem preview = item(EditorShortcuts.Command.PREVIEW, execute, session);
+        preview.disableProperty().bind(session.languageProperty().isNotEqualTo(EditorLanguage.MARKDOWN)
+                .or(session.busyProperty()));
+        view.getItems().addAll(sidebar, preview, item(EditorShortcuts.Command.SETTINGS, execute, session));
         MenuBar menus = new MenuBar(file, edit, view);
         menus.setUseSystemMenuBar(false);
         menus.setId("main-menu");

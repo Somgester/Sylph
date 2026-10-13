@@ -3,6 +3,10 @@ package dev.somgester.sylph;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanWrapper;
 import javafx.beans.value.ChangeListener;
+import javafx.beans.binding.Bindings;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.layout.StackPane;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
@@ -77,6 +81,34 @@ final class EditorView extends StackPane implements AutoCloseable {
         return area;
     }
 
+    void installContextMenu(Runnable onPreview) {
+        MenuItem undo = contextItem("Undo", area::undo);
+        undo.disableProperty().bind(undoAvailable.not().or(session.editingBlockedProperty()));
+        MenuItem redo = contextItem("Redo", area::redo);
+        redo.disableProperty().bind(redoAvailable.not().or(session.editingBlockedProperty()));
+        var noSelection = Bindings.createBooleanBinding(() -> area.getSelectedText().isEmpty(),
+                area.selectedTextProperty());
+        MenuItem cut = contextItem("Cut", area::cut);
+        cut.disableProperty().bind(noSelection.or(session.editingBlockedProperty()));
+        MenuItem copy = contextItem("Copy", area::copy);
+        copy.disableProperty().bind(noSelection);
+        MenuItem paste = contextItem("Paste", area::paste);
+        paste.disableProperty().bind(session.editingBlockedProperty());
+        MenuItem preview = contextItem("Preview", onPreview);
+        preview.setId("preview-markdown");
+        preview.setAccelerator(EditorShortcuts.Command.PREVIEW.shortcut());
+        preview.disableProperty().bind(session.languageProperty().isNotEqualTo(EditorLanguage.MARKDOWN)
+                .or(session.busyProperty()));
+        area.setContextMenu(new ContextMenu(undo, redo, new SeparatorMenuItem(), cut, copy, paste,
+                contextItem("Select All", area::selectAll), new SeparatorMenuItem(), preview));
+    }
+
+    private static MenuItem contextItem(String text, Runnable action) {
+        MenuItem item = new MenuItem(text);
+        item.setOnAction(event -> action.run());
+        return item;
+    }
+
     ReadOnlyBooleanProperty undoAvailableProperty() {
         return undoAvailable.getReadOnlyProperty();
     }
@@ -115,6 +147,9 @@ final class EditorView extends StackPane implements AutoCloseable {
         if (!closed) {
             closed = true;
             highlighter.close();
+            if (area.getContextMenu() != null) {
+                area.getContextMenu().hide();
+            }
             area.textProperty().removeListener(editorTextListener);
             session.textProperty().removeListener(sessionTextListener);
             stopObservingHistory();

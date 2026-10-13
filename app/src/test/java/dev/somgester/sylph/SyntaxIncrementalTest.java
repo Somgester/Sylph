@@ -121,7 +121,7 @@ class SyntaxIncrementalTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = EditorLanguage.class, names = "PLAIN_TEXT", mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = EditorLanguage.class, names = {"PLAIN_TEXT", "MARKDOWN"}, mode = EnumSource.Mode.EXCLUDE)
     void repeatedMixedEditsMatchAnIndependentFullParse(EditorLanguage language) {
         Random random = new Random(8301);
         String text = switch (language) {

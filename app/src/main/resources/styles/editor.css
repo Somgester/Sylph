@@ -2,6 +2,38 @@
     -fx-background-color: -editor-background;
 }
 
+#markdown-preview {
+    -fx-background-color: -shell-surface;
+    -fx-border-color: -shell-border;
+    -fx-border-width: 0 0 0 1;
+}
+
+#markdown-preview-header {
+    -fx-padding: 8px 12px;
+    -fx-border-color: -shell-border;
+    -fx-border-width: 0 0 1 0;
+}
+
+#markdown-preview .label {
+    -fx-text-fill: -shell-text;
+}
+
+#close-markdown-preview {
+    -fx-min-width: 60px;
+    -fx-pref-width: 60px;
+    -fx-text-fill: -shell-text;
+}
+
+#markdown-workspace {
+    -fx-padding: 0;
+    -fx-background-color: -shell-border;
+}
+
+#markdown-workspace > .split-pane-divider {
+    -fx-padding: 0 2px;
+    -fx-background-color: -shell-border;
+}
+
 #editor {
     -fx-font-family: monospace;
     -fx-font-size: 14px;

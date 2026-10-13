@@ -259,7 +259,7 @@ class SettingsPageTest {
                 preview.root().layout();
                 page.setVvalue(1);
                 render(preview.root(), "keybindings", 1100, 700);
-                assertEquals(8, shortcuts.lookupAll(".shortcut-key").size());
+                assertEquals(EditorShortcuts.Command.values().length + 1, shortcuts.lookupAll(".shortcut-key").size());
                 assertTrue(shortcuts.getContent().localToScene(
                         shortcuts.getContent().getBoundsInLocal()).getMaxY() < 665);
                 return null;

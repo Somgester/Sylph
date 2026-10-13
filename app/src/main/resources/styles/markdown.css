@@ -1,0 +1,21 @@
+body {
+    margin: 0 auto;
+    padding: 24px;
+    max-width: 860px;
+    font: 16px/1.65 sans-serif;
+    overflow-wrap: break-word;
+}
+h1, h2, h3, h4, h5, h6 { line-height: 1.3; margin: 1.2em 0 .6em; }
+h1 { font-size: 2em; }
+h2 { font-size: 1.5em; }
+p, ul, ol, blockquote, pre, table { margin: 0 0 1em; }
+li > p { margin-bottom: .4em; }
+code { font: .9em monospace; border-radius: 4px; padding: .15em .3em; }
+pre { padding: 16px; overflow-x: auto; border-radius: 6px; }
+pre code { padding: 0; white-space: pre; }
+blockquote { border-left: 3px solid; padding-left: 16px; margin-left: 0; }
+table { border-collapse: collapse; display: block; overflow-x: auto; }
+th, td { border: 1px solid; padding: 6px 12px; }
+hr { border: 0; border-top: 1px solid; margin: 24px 0; }
+.markdown-link { text-decoration: underline; }
+.markdown-image { font-style: italic; }

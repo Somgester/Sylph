@@ -11,7 +11,8 @@ enum EditorLanguage {
     JAVASCRIPT("JavaScript"),
     JAVASCRIPT_JSX("JavaScript (JSX)"),
     TYPESCRIPT("TypeScript"),
-    TYPESCRIPT_TSX("TypeScript (TSX)");
+    TYPESCRIPT_TSX("TypeScript (TSX)"),
+    MARKDOWN("Markdown");
 
     private final String displayName;
 
@@ -40,6 +41,7 @@ enum EditorLanguage {
             case "jsx" -> JAVASCRIPT_JSX;
             case "ts", "mts", "cts" -> TYPESCRIPT;
             case "tsx" -> TYPESCRIPT_TSX;
+            case "md", "markdown" -> MARKDOWN;
             default -> PLAIN_TEXT;
         };
     }

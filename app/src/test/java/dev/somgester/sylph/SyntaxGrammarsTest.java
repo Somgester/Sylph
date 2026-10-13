@@ -15,7 +15,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 class SyntaxGrammarsTest {
 
     @ParameterizedTest
-    @EnumSource(value = EditorLanguage.class, names = "PLAIN_TEXT", mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = EditorLanguage.class, names = {"PLAIN_TEXT", "MARKDOWN"}, mode = EnumSource.Mode.EXCLUDE)
     void bundledGrammarsProduceStringAndNumberTokens(EditorLanguage language) {
         SyntaxGrammars grammars = new SyntaxGrammars();
         var grammar = grammars.forLanguage(language).orElseThrow();
@@ -25,7 +25,7 @@ class SyntaxGrammarsTest {
             case PYTHON -> "message = \"hello\"; answer = 42";
             case JAVASCRIPT, JAVASCRIPT_JSX -> "const message = \"hello\"; const answer = 42;";
             case TYPESCRIPT, TYPESCRIPT_TSX -> "const message: string = \"hello\"; const answer: number = 42;";
-            case PLAIN_TEXT -> throw new AssertionError("Plain text has no grammar");
+            case PLAIN_TEXT, MARKDOWN -> throw new AssertionError("Language has no syntax grammar");
         };
         var result = grammar.tokenizeLine(source, null, Duration.ofSeconds(2));
         assertFalse(result.isStoppedEarly());

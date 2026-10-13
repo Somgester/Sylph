@@ -37,7 +37,7 @@ final class SyntaxGrammars {
             case JAVASCRIPT_JSX -> "source.js.jsx";
             case TYPESCRIPT -> "source.ts";
             case TYPESCRIPT_TSX -> "source.tsx";
-            case PLAIN_TEXT -> null;
+            case PLAIN_TEXT, MARKDOWN -> null;
         };
         if (scope == null) {
             return Optional.empty();

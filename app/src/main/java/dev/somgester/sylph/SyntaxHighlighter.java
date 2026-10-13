@@ -80,7 +80,8 @@ final class SyntaxHighlighter implements AutoCloseable {
             pending.cancel(true);
         }
         EditorLanguage requestedLanguage = language.get();
-        if (requestedLanguage == EditorLanguage.PLAIN_TEXT || area.getLength() == 0) {
+        if (requestedLanguage == EditorLanguage.PLAIN_TEXT || requestedLanguage == EditorLanguage.MARKDOWN
+                || area.getLength() == 0) {
             clearStyles();
             return;
         }

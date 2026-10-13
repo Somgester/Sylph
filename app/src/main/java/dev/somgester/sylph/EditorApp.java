@@ -15,6 +15,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -51,6 +52,12 @@ public class EditorApp extends Application {
     private AppSettings settings;
 
     private boolean fileActionInProgress;
+
+    private MarkdownPreview markdownPreview;
+
+    private SplitPane previewSplit;
+
+    private boolean previewVisible;
 
     private final class FileAction implements AutoCloseable {
 
@@ -112,6 +119,16 @@ public class EditorApp extends Application {
         root.setLeft(sidebar);
         editorView = new EditorView(session);
         editor = editorView.area();
+        editorView.installContextMenu(this::toggleMarkdownPreview);
+        session.languageProperty().addListener((observable, previous, language) -> {
+            if (language != EditorLanguage.MARKDOWN && previewVisible) {
+                previewVisible = false;
+                markdownPreview.setActive(false);
+                if (!settingsVisible) {
+                    showDocument();
+                }
+            }
+        });
         EditorChrome chrome = new EditorChrome(session, settings, editorView, this::executeCommand);
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
@@ -166,6 +183,9 @@ public class EditorApp extends Application {
             showEditor();
         } else {
             settingsVisible = true;
+            if (markdownPreview != null) {
+                markdownPreview.setActive(false);
+            }
             root.setLeft(null);
             root.setCenter(settingsPage);
             sidebarButton.setDisable(true);
@@ -176,9 +196,55 @@ public class EditorApp extends Application {
     private void showEditor() {
         settingsVisible = false;
         root.setLeft(sidebar);
-        root.setCenter(editorView);
+        showDocument();
         sidebarButton.setDisable(false);
         editor.requestFocus();
+    }
+
+    private void toggleMarkdownPreview() {
+        if (previewVisible) {
+            hideMarkdownPreview();
+            return;
+        }
+        if (session.languageProperty().get() != EditorLanguage.MARKDOWN || session.busyProperty().get()) {
+            return;
+        }
+        if (markdownPreview == null) {
+            markdownPreview = new MarkdownPreview(session, settings, this::hideMarkdownPreview);
+            previewSplit = new SplitPane();
+            previewSplit.setId("markdown-workspace");
+        }
+        previewVisible = !previewVisible;
+        showEditor();
+    }
+
+    private void hideMarkdownPreview() {
+        previewVisible = false;
+        if (!settingsVisible) {
+            showDocument();
+            editor.requestFocus();
+        } else if (markdownPreview != null) {
+            markdownPreview.setActive(false);
+        }
+    }
+
+    private void showDocument() {
+        double divider = previewSplit == null || previewSplit.getDividers().isEmpty()
+                ? 0.5 : previewSplit.getDividerPositions()[0];
+        root.setCenter(null);
+        if (previewSplit != null) {
+            previewSplit.getItems().clear();
+        }
+        if (previewVisible) {
+            previewSplit.getItems().setAll(editorView, markdownPreview);
+            previewSplit.setDividerPositions(divider);
+            root.setCenter(previewSplit);
+        } else {
+            root.setCenter(editorView);
+        }
+        if (markdownPreview != null) {
+            markdownPreview.setActive(previewVisible);
+        }
     }
 
     private void executeCommand(EditorShortcuts.Command command) {
@@ -193,6 +259,7 @@ public class EditorApp extends Application {
                 }
             }
             case SETTINGS -> toggleSettings();
+            case PREVIEW -> toggleMarkdownPreview();
             case AUTOSAVE -> settings.autoSaveProperty().set(!settings.autoSaveProperty().get());
             default -> throw new IllegalArgumentException("Unknown command: " + command);
         }
@@ -331,6 +398,9 @@ public class EditorApp extends Application {
     }
 
     void closeResources() {
+        if (markdownPreview != null) {
+            markdownPreview.close();
+        }
         if (autoSave != null) {
             autoSave.close();
         }

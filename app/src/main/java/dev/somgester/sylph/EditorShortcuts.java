@@ -16,6 +16,7 @@ final class EditorShortcuts {
         SAVE_AS("Save As", KeyCode.S, KeyCombination.SHIFT_DOWN),
         SIDEBAR("Toggle Sidebar", KeyCode.B),
         SETTINGS("Settings", KeyCode.COMMA),
+        PREVIEW("Preview", KeyCode.V, KeyCombination.SHIFT_DOWN),
         AUTOSAVE("Toggle Autosave", KeyCode.S, KeyCombination.ALT_DOWN);
 
         private final String label;

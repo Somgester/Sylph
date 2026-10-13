@@ -73,7 +73,7 @@ class SyntaxTokenizerTest {
         assertTrue(result.lines().get(1).tokens().isEmpty());
         assertTrue(result.lines().get(2).tokens().isEmpty());
         assertCoverage(result, text);
-        if (language != EditorLanguage.PLAIN_TEXT) {
+        if (language != EditorLanguage.PLAIN_TEXT && language != EditorLanguage.MARKDOWN) {
             assertTrue(scopesAt(result, text.indexOf("42")).stream()
                     .anyMatch(scope -> scope.startsWith("constant.numeric")));
         }
