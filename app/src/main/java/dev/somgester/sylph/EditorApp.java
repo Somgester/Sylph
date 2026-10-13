@@ -107,7 +107,8 @@ public class EditorApp extends Application {
         root.setId("root");
         sidebar = new Sidebar();
         sidebar.setOnOpenFile(this::openFile);
-        sidebar.getTreeView().disableProperty().bind(session.busyProperty());
+        // Foreground file operations block navigation; background autosaves must not dim the sidebar.
+        sidebar.getTreeView().disableProperty().bind(session.editingBlockedProperty());
         status = new Label(session.statusProperty().get());
         status.setId("status");
         status.setPadding(new Insets(8, 14, 8, 14));
