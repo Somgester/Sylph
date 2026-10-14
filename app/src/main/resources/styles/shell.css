@@ -172,3 +172,14 @@
 #palette-results .label, #palette-status {
     -fx-text-fill: -shell-text;
 }
+
+#palette-results .palette-result-text {
+    -fx-fill: -shell-text;
+    -fx-font-family: "System";
+    -fx-font-size: 13px;
+}
+
+#palette-results .palette-result-text.palette-match {
+    -fx-fill: -shell-accent;
+    -fx-font-weight: bold;
+}

@@ -9,7 +9,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 
@@ -28,16 +27,11 @@ final class PaletteFileSearch {
     private PaletteFileSearch() { }
 
     static boolean matches(String name, String query) {
-        String normalized = name.toLowerCase(Locale.ROOT).replace('\\', '/');
-        for (String word : query.strip().toLowerCase(Locale.ROOT).replace('\\', '/').split("\\s+")) {
-            if (!normalized.contains(word)) {
-                return false;
-            }
-        }
-        return true;
+        return PaletteMatch.matches(name, PaletteMatch.words(query));
     }
 
     static Result search(Path root, String query) throws IOException {
+        var words = PaletteMatch.words(query);
         List<Path> files = new ArrayList<>();
         int[] unreadable = {0};
         boolean[] limited = {false};
@@ -58,7 +52,7 @@ final class PaletteFileSearch {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
                 checkCancelled();
-                if (attributes.isRegularFile() && matches(root.relativize(file).toString(), query)) {
+                if (attributes.isRegularFile() && PaletteMatch.matches(root.relativize(file).toString(), words)) {
                     if (files.size() == RESULT_LIMIT) {
                         limited[0] = true;
                         return FileVisitResult.TERMINATE;

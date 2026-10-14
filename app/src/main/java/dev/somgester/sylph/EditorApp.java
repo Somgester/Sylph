@@ -62,6 +62,8 @@ public class EditorApp extends Application {
 
     private CommandPalette palette;
 
+    private RecentFiles recentFiles = new RecentFiles();
+
     private ChangeListener<Boolean> themeListener;
 
     private final class FileAction implements AutoCloseable {
@@ -99,6 +101,7 @@ public class EditorApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        recentFiles = new RecentFiles(RecentFiles.preferencesStore());
         createScene(primaryStage, new AppSettings(AppSettings.preferencesStore()));
         primaryStage.show();
     }
@@ -162,7 +165,7 @@ public class EditorApp extends Application {
         }, session.pathProperty(), session.dirtyProperty()));
         themeListener = (observable, oldValue, dark) -> applyTheme(scene, dark);
         settings.darkThemeProperty().addListener(themeListener);
-        palette = new CommandPalette(root, sidebar::getRootDirectory, this::openFile,
+        palette = new CommandPalette(root, sidebar::getRootDirectory, recentFiles::files, this::openFile,
                 this::executeCommand, this::commandEnabled);
         EditorShortcuts.install(scene, this::executeCommand);
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
@@ -338,6 +341,7 @@ public class EditorApp extends Application {
     private void openFile(Path file) {
         Path normalized = file.toAbsolutePath().normalize();
         if (normalized.equals(session.pathProperty().get())) {
+            recentFiles.record(normalized);
             editor.requestFocus();
             return;
         }
@@ -349,6 +353,7 @@ public class EditorApp extends Application {
 
     private void loadFile(Path file, FileAction action) {
         session.open(file, () -> action.finishWith(() -> {
+            recentFiles.record(session.pathProperty().get());
             editorView.documentOpened();
             showEditor();
         }),
@@ -411,6 +416,10 @@ public class EditorApp extends Application {
             destination = file.toPath();
         }
         Path target = destination;
+        Runnable onSaved = () -> action.run(() -> {
+            recentFiles.record(session.pathProperty().get());
+            afterSave.run();
+        });
         Consumer<Throwable> onError = error -> action.run(() -> {
             if (error instanceof FileAlreadyExistsException) {
                 Alert prompt = new Alert(Alert.AlertType.CONFIRMATION,
@@ -419,7 +428,7 @@ public class EditorApp extends Application {
                 prompt.setTitle("Replace existing file");
                 prompt.setHeaderText("A file already exists at this location");
                 if (prompt.showAndWait().orElse(ButtonType.NO) == ButtonType.YES) {
-                    session.save(target, false, true, () -> action.run(afterSave),
+                    session.save(target, false, true, onSaved,
                             failure -> action.finishWith(() -> showFileError(failure)));
                 } else {
                     action.close();
@@ -428,7 +437,7 @@ public class EditorApp extends Application {
                 action.finishWith(() -> showFileError(error));
             }
         });
-        session.save(target, false, false, () -> action.run(afterSave), onError);
+        session.save(target, false, false, onSaved, onError);
     }
 
     File chooseSaveFile(Path destination) {

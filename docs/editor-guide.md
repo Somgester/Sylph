@@ -26,6 +26,12 @@ Autosave pauses throughout unsaved-change confirmations and associated file sele
 
 The centered search entry shares the top row with the File/Edit/View menus and save actions. Click it or press Mod+P to search regular files beneath the opened folder. Queries match words in relative paths without case sensitivity; search skips `.git`, `.gradle`, and `node_modules`, does not follow symbolic links, and displays at most 200 matches. Narrow the query if results are capped. File search runs in the background and cancels superseded queries.
 
+Opening file search with an empty query suggests up to 20 recently opened or manually saved files, newest first. Successful opens through the dialog, sidebar, or palette update this list; background autosaves do not reorder it. History persists in Java user preferences across app restarts and Reload Window. Missing files and symbolic-link entries are skipped in suggestions. Recent files can appear even without an opened folder; paths outside the current folder display in full. Typing searches matching recent files first, then the workspace, with duplicates removed and at most 200 total results.
+
+Typing updates the existing result list without clearing it while a search is pending. A still-matching selection is retained when new results arrive. Enter and double-click wait for current-query results so an older suggestion cannot open the wrong file.
+
+Matching query words are colored with the theme accent and bolded in both file and command results. Matching ignores case, supports multiple words and Unicode filenames, and keeps the original label text intact.
+
 Press Mod+Shift+P, or start a query with `>`, to search application commands, including Reload Window. Use Up/Down to select, Enter or double-click to activate, and Esc or a click outside the panel to dismiss. Tab keeps focus within the panel. Commands unavailable in the current state are omitted.
 
 Reload Window rebuilds the scene and reopens the current folder and saved file. Unsaved changes receive the same Save/Discard/Cancel decision as file switching, with autosave paused during the decision. Reload resets undo history, preview visibility, and sidebar presentation; theme and autosave preferences remain. Cancel retains the current scene and edits. The palette appears inside the existing window and follows both themes.

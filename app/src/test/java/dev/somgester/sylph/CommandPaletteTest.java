@@ -9,15 +9,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import javafx.animation.PauseTransition;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 import javafx.util.Duration;
@@ -151,6 +155,166 @@ class CommandPaletteTest {
             assertSame(editor(), stage.getScene().getFocusOwner());
             assertEquals("keep these edits", editor().getText());
             return null;
+        });
+    }
+
+    @Test
+    void searchingKeepsRowsVisibleAndSelectionStableButCannotActivateStaleResults() throws Exception {
+        Files.writeString(directory.resolve("first.txt"), "first");
+        Files.writeString(directory.resolve("second.txt"), "second");
+        create();
+        FxTestSupport.onFxThread(() -> {
+            var sidebar = (Sidebar) stage.getScene().lookup("#sidebar");
+            app.openFolder(directory, sidebar, (javafx.scene.control.Label) stage.getScene().lookup("#status"));
+            EditorShortcutsTest.press(stage.getScene(), KeyCode.P, false, false, true);
+            return null;
+        });
+        FxTestSupport.await(() -> results().getItems().size() == 2 && !searching());
+        int[] emptyUpdates = {0};
+        var originalList = FxTestSupport.onFxThread(() -> results());
+        FxTestSupport.onFxThread(() -> {
+            results().getItems().addListener((javafx.collections.ListChangeListener<Object>) change -> {
+                if (change.getList().isEmpty()) {
+                    emptyUpdates[0]++;
+                }
+            });
+            results().getSelectionModel().select(1);
+            query().setText(".TXT");
+            assertEquals(2, results().getItems().size(), "Keep rows while a new search is pending");
+            key(KeyCode.ENTER);
+            assertTrue(palette().isVisible(), "Enter must not activate the previous query's selection");
+            assertEquals("", editor().getText());
+            return null;
+        });
+        FxTestSupport.await(() -> !searching());
+        FxTestSupport.onFxThread(() -> {
+            assertSame(originalList, results());
+            assertEquals(1, results().getSelectionModel().getSelectedIndex());
+            query().selectAll();
+            query().replaceSelection("second");
+            assertEquals(2, results().getItems().size());
+            assertSame(query(), stage.getScene().getFocusOwner());
+            assertEquals(query().getLength(), query().getCaretPosition());
+            return null;
+        });
+        FxTestSupport.await(() -> results().getItems().size() == 1 && !searching());
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(0, emptyUpdates[0], "Matching searches must never publish an empty intermediate list");
+            assertTrue(palette().isVisible());
+            key(KeyCode.ENTER);
+            return null;
+        });
+        FxTestSupport.await(() -> editor().getText().equals("second"));
+    }
+
+    private boolean searching() {
+        return ((javafx.scene.control.Label) stage.getScene().lookup("#palette-status")).getText()
+                .equals("Searching files…");
+    }
+
+    @Test
+    void matchingLettersHaveAccentColorInBothThemesForFilesAndCommands() throws Exception {
+        Path file = Files.writeString(directory.resolve("café.py"), "hello");
+        create();
+        open(file, "hello");
+        FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(stage.getScene(), KeyCode.P, false, false, true);
+            query().setText("CAFÉ");
+            return null;
+        });
+        FxTestSupport.await(() -> results().getItems().size() == 1);
+        FxTestSupport.onFxThread(() -> {
+            for (boolean dark : new boolean[] {true, false}) {
+                settings.darkThemeProperty().set(dark);
+                stage.getScene().getRoot().applyCss();
+                stage.getScene().getRoot().layout();
+                // List layout can create new graphics after the first CSS pass.
+                stage.getScene().getRoot().applyCss();
+                List<Text> matched = results().lookupAll(".palette-match").stream()
+                        .filter(node -> node instanceof Text).map(node -> (Text) node).toList();
+                assertEquals("café", matched.stream().map(Text::getText)
+                        .collect(java.util.stream.Collectors.joining()));
+                for (Text text : matched) {
+                    assertEquals(Color.web(dark ? "#06b6d4" : "#a9583e"), text.getFill());
+                }
+            }
+            query().setText(">reload");
+            stage.getScene().getRoot().applyCss();
+            stage.getScene().getRoot().layout();
+            assertEquals("Reload", results().lookupAll(".palette-match").stream()
+                    .filter(node -> node instanceof Text).map(node -> ((Text) node).getText())
+                    .collect(java.util.stream.Collectors.joining()));
+            return null;
+        });
+    }
+
+    @Test
+    void recentFilesAreNewestFirstWithoutAFolderSurviveReloadAndSkipDeletedFiles() throws Exception {
+        Path first = Files.writeString(directory.resolve("first.txt"), "first");
+        Path second = Files.writeString(directory.resolve("second.txt"), "second");
+        create();
+        open(first, "first");
+        open(second, "second");
+        open(first, "first");
+        showRecent();
+        assertEquals(List.of(first.toString(), second.toString()), labels());
+        FxTestSupport.onFxThread(() -> {
+            query().setText("second");
+            return null;
+        });
+        FxTestSupport.await(() -> results().getItems().size() == 1);
+        FxTestSupport.onFxThread(() -> {
+            key(KeyCode.ENTER);
+            return null;
+        });
+        FxTestSupport.await(() -> editor().getText().equals("second")
+                && !stage.getScene().lookup("#open-file").isDisabled());
+        Scene before = FxTestSupport.onFxThread(() -> stage.getScene());
+        FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(stage.getScene(), KeyCode.R, false, true, true);
+            return null;
+        });
+        FxTestSupport.await(() -> stage.getScene() != before && editor().getText().equals("second")
+                && !stage.getScene().lookup("#open-file").isDisabled());
+        showRecent();
+        assertEquals(List.of(second.toString(), first.toString()), labels());
+        Files.delete(first);
+        FxTestSupport.onFxThread(() -> {
+            key(KeyCode.ESCAPE);
+            return null;
+        });
+        showRecent();
+        assertEquals(List.of(second.toString()), labels());
+    }
+
+    private void open(Path file, String text) throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            app.choice = file.toFile();
+            EditorShortcutsTest.press(stage.getScene(), KeyCode.O, false, false, true);
+            return null;
+        });
+        FxTestSupport.await(() -> editor().getText().equals(text)
+                && !stage.getScene().lookup("#open-file").isDisabled());
+    }
+
+    private void showRecent() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(stage.getScene(), KeyCode.P, false, false, true);
+            return null;
+        });
+        FxTestSupport.await(() -> !results().getItems().isEmpty()
+                && ((javafx.scene.control.Label) stage.getScene().lookup("#palette-status")).getText()
+                        .startsWith("Recent files"));
+    }
+
+    private List<String> labels() throws Exception {
+        return FxTestSupport.onFxThread(() -> {
+            stage.getScene().getRoot().applyCss();
+            stage.getScene().getRoot().layout();
+            return results().lookupAll(".list-cell").stream()
+                    .filter(node -> node instanceof ListCell<?> cell && !cell.isEmpty())
+                    .map(node -> (ListCell<?>) node).sorted(java.util.Comparator.comparingInt(ListCell::getIndex))
+                    .map(ListCell::getAccessibleText).toList();
         });
     }
 

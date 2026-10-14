@@ -2,6 +2,10 @@ package dev.somgester.sylph;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -13,6 +17,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -26,15 +31,19 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 
 // An in-scene overlay: no extra window, and theme values inherit from the editor.
 final class CommandPalette extends StackPane implements AutoCloseable {
 
-    private record Entry(String label, EditorShortcuts.Command command, Path file) { }
+    private record Entry(String label, EditorShortcuts.Command command, Path file, String query) { }
 
     private final BorderPane host;
 
     private final Supplier<Path> folder;
+
+    private final Supplier<List<Path>> recentFiles;
 
     private final Consumer<Path> openFile;
 
@@ -60,15 +69,18 @@ final class CommandPalette extends StackPane implements AutoCloseable {
 
     private long revision;
 
+    private long displayedRevision = -1;
+
     private boolean closed;
 
     private Node previousFocus;
 
     @SuppressWarnings("this-escape")
-    CommandPalette(BorderPane host, Supplier<Path> folder, Consumer<Path> openFile,
+    CommandPalette(BorderPane host, Supplier<Path> folder, Supplier<List<Path>> recentFiles, Consumer<Path> openFile,
             Consumer<EditorShortcuts.Command> execute, Predicate<EditorShortcuts.Command> enabled) {
         this.host = host;
         this.folder = folder;
+        this.recentFiles = recentFiles;
         this.openFile = openFile;
         this.execute = execute;
         this.enabled = enabled;
@@ -86,7 +98,15 @@ final class CommandPalette extends StackPane implements AutoCloseable {
             @Override
             protected void updateItem(Entry entry, boolean empty) {
                 super.updateItem(entry, empty);
-                setText(empty || entry == null ? null : entry.label());
+                setText(null);
+                setGraphic(null);
+                setAccessibleText(null);
+                if (!empty && entry != null) {
+                    TextFlow label = highlightedLabel(entry.label(), entry.query());
+                    label.prefWidthProperty().bind(Bindings.max(0, widthProperty().subtract(20)));
+                    setGraphic(label);
+                    setAccessibleText(entry.label());
+                }
             }
         });
         status.setId("palette-status");
@@ -142,12 +162,17 @@ final class CommandPalette extends StackPane implements AutoCloseable {
         }
         if (!isVisible()) {
             previousFocus = host.getScene().getFocusOwner();
+            results.getItems().clear();
         }
         setVisible(true);
         toFront();
         resizeToHost();
-        query.setText(commands ? ">" : "");
-        refresh();
+        String initialQuery = commands ? ">" : "";
+        if (query.getText().equals(initialQuery)) {
+            refresh();
+        } else {
+            query.setText(initialQuery);
+        }
         query.requestFocus();
         query.positionCaret(query.getLength());
     }
@@ -178,7 +203,6 @@ final class CommandPalette extends StackPane implements AutoCloseable {
         if (!isVisible() || closed) {
             return;
         }
-        results.getItems().clear();
         String text = query.getText().stripLeading();
         if (text.startsWith(">")) {
             List<Entry> commands = Arrays.stream(EditorShortcuts.Command.values())
@@ -186,14 +210,15 @@ final class CommandPalette extends StackPane implements AutoCloseable {
                             && command != EditorShortcuts.Command.QUICK_OPEN)
                     .filter(enabled)
                     .filter(command -> PaletteFileSearch.matches(command.label(), text.substring(1)))
-                    .map(command -> new Entry(command.help(), command, null)).toList();
-            results.getItems().setAll(commands);
-            results.getSelectionModel().selectFirst();
+                    .map(command -> new Entry(command.help(), command, null, text.substring(1))).toList();
+            publish(commands);
             status.setText("Commands • Enter to run • Esc to close");
             return;
         }
         Path root = folder.get();
-        if (root == null) {
+        List<Path> history = List.copyOf(recentFiles.get());
+        if (root == null && history.isEmpty()) {
+            publish(List.of());
             status.setText("Open a folder to search its files. Type > to search commands.");
             return;
         }
@@ -201,30 +226,102 @@ final class CommandPalette extends StackPane implements AutoCloseable {
         long requestedRevision = revision;
         pending = worker.schedule(() -> {
             try {
-                var found = PaletteFileSearch.search(root, text);
+                List<Path> recent = new ArrayList<>();
+                for (Path file : history) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        throw new CancellationException("Recent search superseded");
+                    }
+                    if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)
+                            && PaletteFileSearch.matches(fileLabel(root, file), text)) {
+                        recent.add(file);
+                    }
+                }
+                boolean recentOnly = text.isBlank() && !recent.isEmpty();
+                var found = root == null || recentOnly ? new PaletteFileSearch.Result(List.of(), false, 0)
+                        : PaletteFileSearch.search(root, text);
+                var paths = new LinkedHashSet<>(recent);
+                paths.addAll(found.files());
+                boolean limited = found.limited() || paths.size() > 200;
+                List<Entry> entries = paths.stream().limit(200)
+                        .map(file -> new Entry(fileLabel(root, file), null, file, text)).toList();
                 Platform.runLater(() -> {
-                    if (closed || !isVisible() || revision != requestedRevision || !root.equals(folder.get())) {
+                    if (closed || !isVisible() || revision != requestedRevision
+                            || !java.util.Objects.equals(root, folder.get())) {
                         return;
                     }
-                    results.getItems().setAll(found.files().stream()
-                            .map(file -> new Entry(root.relativize(file).toString(), null, file)).toList());
-                    results.getSelectionModel().selectFirst();
-                    status.setText((found.limited() ? "First 200 matches • Narrow your search" : "Files in " + root)
-                            + (found.unreadable() == 0 ? "" : " • Some paths could not be read"));
+                    publish(entries);
+                    String message = recentOnly || root == null ? "Recent files • Enter to open"
+                            : limited ? "First 200 matches • Narrow your search" : "Files in " + root;
+                    status.setText(message + (found.unreadable() == 0 ? "" : " • Some paths could not be read"));
                 });
             } catch (CancellationException cancelled) {
                 // Another query or closing the palette superseded this search.
             } catch (IOException | RuntimeException failure) {
                 Platform.runLater(() -> {
                     if (!closed && isVisible() && revision == requestedRevision) {
-                        status.setText("Unable to search this folder: " + failure.getMessage());
+                        publish(List.of());
+                        status.setText("Unable to search files: " + failure.getMessage());
                     }
                 });
             }
         }, 150, TimeUnit.MILLISECONDS);
     }
 
+    private void publish(List<Entry> entries) {
+        Entry selected = results.getSelectionModel().getSelectedItem();
+        // Replace in one change: keep existing rows until their successor is ready.
+        results.getItems().setAll(entries);
+        int selectedIndex = -1;
+        if (selected != null) {
+            for (int index = 0; index < entries.size(); index++) {
+                Entry entry = entries.get(index);
+                if (java.util.Objects.equals(entry.file(), selected.file()) && entry.command() == selected.command()) {
+                    selectedIndex = index;
+                    break;
+                }
+            }
+        }
+        if (selectedIndex >= 0) {
+            results.getSelectionModel().select(selectedIndex);
+        } else {
+            results.getSelectionModel().selectFirst();
+        }
+        displayedRevision = revision;
+    }
+
+    private static String fileLabel(Path root, Path file) {
+        return root != null && file.startsWith(root) ? root.relativize(file).toString() : file.toString();
+    }
+
+    private static TextFlow highlightedLabel(String label, String query) {
+        TextFlow flow = new TextFlow();
+        int cursor = 0;
+        for (var range : PaletteMatch.ranges(label, query).orElse(List.of())) {
+            if (range.start() > cursor) {
+                flow.getChildren().add(labelText(label.substring(cursor, range.start()), false));
+            }
+            flow.getChildren().add(labelText(label.substring(range.start(), range.end()), true));
+            cursor = range.end();
+        }
+        if (cursor < label.length()) {
+            flow.getChildren().add(labelText(label.substring(cursor), false));
+        }
+        return flow;
+    }
+
+    private static Text labelText(String value, boolean matched) {
+        Text text = new Text(value);
+        text.getStyleClass().add("palette-result-text");
+        if (matched) {
+            text.getStyleClass().add("palette-match");
+        }
+        return text;
+    }
+
     private void activate() {
+        if (displayedRevision != revision) {
+            return;
+        }
         Entry entry = results.getSelectionModel().getSelectedItem();
         if (entry == null) {
             return;
