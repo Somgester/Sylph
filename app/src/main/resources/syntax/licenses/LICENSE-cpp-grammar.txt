@@ -1,0 +1,27 @@
+Bundled grammars: cpp.tmLanguage.json, cpp.embedded.macro.tmLanguage.json
+Source: https://github.com/jeff-hykin/better-cpp-syntax/tree/06f4011c0b5ccb85fcbcbaebbb73d2fda93365bf
+cpp.tmLanguage.json original SHA-256: 65fa1beadd091131884626e50f02cf5a024a997511a35a494b3727aa851d5b84
+cpp.embedded.macro.tmLanguage.json original SHA-256: a9e81fc18b1cd5176889433faab65e74b64f4fb57f5210fab5326f8fb454a0c0
+Local changes: remove unbundled optional assembly, GLSL and embedded-regex includes; retain string coloring for raw GLSL content; normalize equivalent optional whitespace and comment-banner repeats for Joni; format JSON for review. Macro and ordinary C/C++ grammar includes remain intact.
+
+MIT License
+
+Copyright (c) 2019 Jeff Hykin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

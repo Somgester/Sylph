@@ -20,6 +20,7 @@ class SyntaxGrammarsTest {
         SyntaxGrammars grammars = new SyntaxGrammars();
         var grammar = grammars.forLanguage(language).orElseThrow();
         String source = switch (language) {
+            case C, CPP -> "const char *message = \"hello\"; int answer = 42;";
             case JAVA -> "class Example { String message = \"hello\"; int answer = 42; }";
             case JSON -> "{\"message\": \"hello\", \"answer\": 42}";
             case PYTHON -> "message = \"hello\"; answer = 42";

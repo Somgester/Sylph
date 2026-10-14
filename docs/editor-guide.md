@@ -61,6 +61,8 @@ The editor also exposes undo, redo, cut, copy, paste, and select-all through its
 
 | Language | Recognized extensions |
 | --- | --- |
+| C | `.c`, `.i` |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.c++`, `.h`, `.hpp`, `.hh`, `.hxx`, `.h++`, `.ii`, `.inl`, `.ipp`, `.tpp`, `.txx`, `.cppm`, `.ccm`, `.cxxm`, `.c++m`, `.ixx`, `.ino`, uppercase `.C` |
 | Java | `.java` |
 | JSON | `.json` |
 | Python | `.py`, `.pyw`, `.pyi` |
@@ -71,9 +73,9 @@ The editor also exposes undo, redo, cut, copy, paste, and select-all through its
 | Shell | `.sh`, `.bash`, `.zsh`, `.ksh`, `.zsh-theme` |
 | Markdown preview | `.md`, `.markdown` |
 
-Names are matched without case sensitivity. Shell also recognizes `.bashrc`, `.bash_aliases`, `.bash_profile`, `.bash_login`, `.bash_logout`, `.profile`, `.envrc`, and dotted or undotted `zshrc`, `zshenv`, `zprofile`, `zlogin`, `zlogout`.
+Names are matched without case sensitivity except the conventional C/C++ distinction: `.c` is C and uppercase `.C` is C++. Shared `.h` headers default to C++; detection does not inspect their contents. Shell also recognizes `.bashrc`, `.bash_aliases`, `.bash_profile`, `.bash_login`, `.bash_logout`, `.profile`, `.envrc`, and dotted or undotted `zshrc`, `zshenv`, `zprofile`, `zlogin`, `zlogout`.
 
-Other files remain editable as plain text. Detection uses the filename, not the shebang. Markdown has preview support but no TextMate source highlighting. C and C++ grammars are not currently registered. Syntax colors do not run, compile, or type-check the source.
+Other files remain editable as plain text. Detection uses the filename, not the shebang. Markdown has preview support but no TextMate source highlighting. Syntax colors do not run, compile, or type-check the source. C/C++ includes keyword/builtin-type, function, number, string, comment, and preprocessor highlighting; C++ also supports templates, raw strings, and its bundled macro grammar. Autocomplete and compiler integration are not implemented by these grammars.
 
 ## Markdown preview
 

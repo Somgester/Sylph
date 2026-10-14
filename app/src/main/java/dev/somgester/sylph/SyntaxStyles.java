@@ -104,7 +104,7 @@ final class SyntaxStyles {
             return "number";
         }
         if (matches(scope, "keyword") || matches(scope, "storage.modifier") || matches(scope, "storage.type.function")
-                || matches(scope, "constant.language")) {
+                || matches(scope, "storage.type.template") || matches(scope, "constant.language")) {
             return "keyword";
         }
         if (matches(scope, "entity.name.function") || matches(scope, "support.function")) {

@@ -11,15 +11,18 @@ import org.eclipse.tm4e.core.registry.Registry;
 // One instance belongs to one tokenizer worker; TM4E registries are not shared across threads.
 final class SyntaxGrammars {
 
-    private static final Map<String, String> RESOURCES = Map.of(
-            "source.java", "/syntax/grammars/java.tmLanguage.json",
-            "source.json", "/syntax/grammars/JSON.tmLanguage.json",
-            "source.python", "/syntax/grammars/MagicPython.tmLanguage.json",
-            "source.js", "/syntax/grammars/JavaScript.tmLanguage.json",
-            "source.js.jsx", "/syntax/grammars/JavaScriptReact.tmLanguage.json",
-            "source.ts", "/syntax/grammars/TypeScript.tmLanguage.json",
-            "source.tsx", "/syntax/grammars/TypeScriptReact.tmLanguage.json",
-            "source.shell", "/syntax/grammars/shell-unix-bash.tmLanguage.json");
+    private static final Map<String, String> RESOURCES = Map.ofEntries(
+            Map.entry("source.java", "/syntax/grammars/java.tmLanguage.json"),
+            Map.entry("source.json", "/syntax/grammars/JSON.tmLanguage.json"),
+            Map.entry("source.python", "/syntax/grammars/MagicPython.tmLanguage.json"),
+            Map.entry("source.js", "/syntax/grammars/JavaScript.tmLanguage.json"),
+            Map.entry("source.js.jsx", "/syntax/grammars/JavaScriptReact.tmLanguage.json"),
+            Map.entry("source.ts", "/syntax/grammars/TypeScript.tmLanguage.json"),
+            Map.entry("source.tsx", "/syntax/grammars/TypeScriptReact.tmLanguage.json"),
+            Map.entry("source.shell", "/syntax/grammars/shell-unix-bash.tmLanguage.json"),
+            Map.entry("source.c", "/syntax/grammars/c.tmLanguage.json"),
+            Map.entry("source.cpp", "/syntax/grammars/cpp.tmLanguage.json"),
+            Map.entry("source.cpp.embedded.macro", "/syntax/grammars/cpp.embedded.macro.tmLanguage.json"));
 
     private final Registry registry = new Registry(new IRegistryOptions() {
         @Override
@@ -31,6 +34,8 @@ final class SyntaxGrammars {
 
     Optional<IGrammar> forLanguage(EditorLanguage language) {
         String scope = switch (language) {
+            case C -> "source.c";
+            case CPP -> "source.cpp";
             case JAVA -> "source.java";
             case JSON -> "source.json";
             case PYTHON -> "source.python";

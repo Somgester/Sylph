@@ -20,7 +20,7 @@ A grammar's non-advancing-match guard is different from a timeout. It can stop t
 
 ## Bundled grammars
 
-Resources live in [syntax/grammars](../app/src/main/resources/syntax/grammars); notices live in [syntax/licenses](../app/src/main/resources/syntax/licenses). Java, JSON, Python, JavaScript/JSX, TypeScript/TSX, and shell use these packaged resources without runtime network requests. Preserve the upstream licenses when updating them.
+Resources live in [syntax/grammars](../app/src/main/resources/syntax/grammars); notices live in [syntax/licenses](../app/src/main/resources/syntax/licenses). C/C++, Java, JSON, Python, JavaScript/JSX, TypeScript/TSX, and shell use these packaged resources without runtime network requests. Preserve the upstream licenses when updating them.
 
 The shell grammar notice records pinned VS Code/upstream revisions, its original checksum, and local TM4E compatibility changes:
 
@@ -30,6 +30,14 @@ The shell grammar notice records pinned VS Code/upstream revisions, its original
 - Escape literal XOR carets so they do not become zero-width beginning-of-line assertions.
 
 Do not overwrite these adaptations with an upstream download unless equivalent fixes are verified. Shell regression coverage includes functions, statements, arithmetic, substitutions, heredocs, multiline quotes, and incomplete edits. Restart a running Sylph instance after changing grammar resources, because grammars are cached.
+
+## C and C++ resources
+
+C uses the pinned VS Code conversion of `better-c-syntax`. C++ and its required `source.cpp.embedded.macro` grammar come from a pinned MIT-licensed `better-cpp-syntax` revision. Separate notices preserve the upstream licenses, revisions, and original checksums. The registry loads the macro grammar and its references back to the main C++ grammar.
+
+Local adaptations remove optional assembly, GLSL, and embedded-regex includes that are not packaged in Sylph. Their containing strings retain lexical coloring. C++ also simplifies equivalent optional noncapturing whitespace and comment-banner repeats for Joni, preventing redundant-repeat warnings without changing captures. JSON is formatted for review. No assembly or shader language support is claimed.
+
+Tests cover extension conventions, representative colors, preprocessor directives, continued macros, templates/lambdas, raw-string custom delimiters, multiline comment edits, Unicode offsets, incremental/full equivalence, incomplete edits, and rendered colors in both themes. A C lexical grammar does not infer arbitrary typedef names as semantic types; that needs richer language tooling.
 
 ## Adding a language
 

@@ -29,6 +29,10 @@ class SyntaxStylesTest {
         "variable.parameter.positional.shell, property",
         "variable.other.assignment.shell, property",
         "variable.language.special.shell, property",
+        "storage.type.template.cpp, keyword",
+        "storage.type.c, type",
+        "entity.name.type.struct.cpp, type",
+        "keyword.control.directive.include.cpp, keyword",
         "invalid.illegal.json, invalid"
     })
     void grammarScopesMapToSharedCssCategories(String scope, String category) {

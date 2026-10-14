@@ -253,6 +253,9 @@ class EditorSyntaxTest {
 
     @ParameterizedTest
     @CsvSource({
+        "main.c, C",
+        "main.cpp, CPP",
+        "header.h, CPP",
         "script.py, PYTHON",
         "script.js, JAVASCRIPT",
         "Component.jsx, JAVASCRIPT_JSX",

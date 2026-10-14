@@ -63,6 +63,11 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/main/resources/syntax/licenses/LICENSE-shell-grammar.txt](../app/src/main/resources/syntax/licenses/LICENSE-shell-grammar.txt) | Shell provenance, pinned revisions, checksum, adaptations, and upstream license. |
 | [app/src/main/resources/syntax/licenses/LICENSE-typescript-grammars.txt](../app/src/main/resources/syntax/licenses/LICENSE-typescript-grammars.txt) | TypeScript/TSX grammar upstream license. |
 | [app/src/main/resources/syntax/licenses/LICENSE-vscode.txt](../app/src/main/resources/syntax/licenses/LICENSE-vscode.txt) | VS Code license notice for bundled resources derived from that project. |
+| [app/src/main/resources/syntax/grammars/c.tmLanguage.json](../app/src/main/resources/syntax/grammars/c.tmLanguage.json) | C grammar with optional unbundled embeddings removed. |
+| [app/src/main/resources/syntax/grammars/cpp.tmLanguage.json](../app/src/main/resources/syntax/grammars/cpp.tmLanguage.json) | C++ grammar, including templates, raw strings, and documented Joni compatibility adaptations. |
+| [app/src/main/resources/syntax/grammars/cpp.embedded.macro.tmLanguage.json](../app/src/main/resources/syntax/grammars/cpp.embedded.macro.tmLanguage.json) | Required C++ macro grammar and references to the main C++ repository. |
+| [app/src/main/resources/syntax/licenses/LICENSE-c-grammar.txt](../app/src/main/resources/syntax/licenses/LICENSE-c-grammar.txt) | C grammar source revisions, original checksum, local adaptations, and MIT license. |
+| [app/src/main/resources/syntax/licenses/LICENSE-cpp-grammar.txt](../app/src/main/resources/syntax/licenses/LICENSE-cpp-grammar.txt) | C++/macro grammar provenance, original checksums, adaptations, and MIT license. |
 
 ## Tests and support
 
@@ -98,6 +103,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/test/java/dev/somgester/sylph/PaletteFileSearchTest.java](../app/src/test/java/dev/somgester/sylph/PaletteFileSearchTest.java) | Relative-path matching, exclusions, symlinks, result limits, and interruption. |
 | [app/src/test/java/dev/somgester/sylph/PaletteMatchTest.java](../app/src/test/java/dev/somgester/sylph/PaletteMatchTest.java) | Exact match ranges, multi-word/repeated/overlapping queries, Unicode offsets, and literal regex characters. |
 | [app/src/test/java/dev/somgester/sylph/RecentFilesTest.java](../app/src/test/java/dev/somgester/sylph/RecentFilesTest.java) | Normalized deduplication, newest-first persistence, bounded history, and storage failure fallback. |
+| [app/src/test/java/dev/somgester/sylph/CppSyntaxTest.java](../app/src/test/java/dev/somgester/sylph/CppSyntaxTest.java) | C/C++ preprocessor colors, multiline state, raw strings, templates/lambdas/macros, and incomplete-edit loop regressions. |
 
 ## Scripts and build configuration
 

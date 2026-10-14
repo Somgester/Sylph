@@ -12,7 +12,7 @@ class AdditionalSyntaxTest {
 
     @ParameterizedTest
     @EnumSource(value = EditorLanguage.class,
-            names = {"PYTHON", "JAVASCRIPT", "JAVASCRIPT_JSX", "TYPESCRIPT", "TYPESCRIPT_TSX"})
+            names = {"C", "CPP", "PYTHON", "JAVASCRIPT", "JAVASCRIPT_JSX", "TYPESCRIPT", "TYPESCRIPT_TSX"})
     void newGrammarsColorFunctionsKeywordsStringsNumbersAndComments(EditorLanguage language) {
         String source = sample(language);
         var result = complete(new SyntaxTokenizer(), source, language);
@@ -69,6 +69,9 @@ class AdditionalSyntaxTest {
 
     static String sample(EditorLanguage language) {
         return switch (language) {
+            case C -> "int greet(void) {\n    const char *message = \"hello\";\n    return 42; // note\n}\n";
+            case CPP -> "class Greeter {\npublic:\n    int greet() {\n        const char *message = \"hello\";\n"
+                    + "        return 42; // note\n    }\n};\n";
             case SHELL -> "#!/usr/bin/env bash\ngreet() {\n    local name=\"hello\"\n"
                     + "    if [ \"$name\" ]; then\n        echo $((42)) # note\n    fi\n}\n";
             case PYTHON -> "def greet(name):\n    message = \"hello\"\n    return 42  # note\n";
