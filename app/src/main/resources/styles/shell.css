@@ -114,3 +114,61 @@
 .context-menu .check-menu-item:checked .check {
     -fx-background-color: -shell-accent;
 }
+
+#open-palette {
+    -fx-background-color: -shell-hover;
+    -fx-text-fill: -shell-text;
+    -fx-font-family: "System";
+    -fx-font-size: 12px;
+    -fx-padding: 3px 10px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: -shell-border;
+    -fx-max-height: 26px;
+}
+
+#open-palette:focused {
+    -fx-border-color: -shell-accent;
+}
+
+#command-palette {
+    -fx-background-color: rgba(0, 0, 0, 0.25);
+}
+
+#palette-panel {
+    -fx-background-color: -shell-surface;
+    -fx-border-color: -shell-border;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-padding: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 16, 0.1, 0, 5);
+}
+
+#palette-query {
+    -fx-background-color: -shell-hover;
+    -fx-text-fill: -shell-text;
+    -fx-prompt-text-fill: -shell-text;
+    -fx-border-color: -shell-accent;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+}
+
+#palette-results {
+    -fx-background-color: -shell-surface;
+    -fx-pref-height: 240px;
+    -fx-border-width: 0;
+}
+
+#palette-results .list-cell {
+    -fx-background-color: -shell-surface;
+    -fx-text-fill: -shell-text;
+    -fx-padding: 8px;
+}
+
+#palette-results .list-cell:filled:selected {
+    -fx-background-color: -shell-hover;
+}
+
+#palette-results .label, #palette-status {
+    -fx-text-fill: -shell-text;
+}

@@ -1,6 +1,9 @@
 package dev.somgester.sylph;
 
+import java.util.ArrayList;
+import java.util.List;
 import javafx.beans.binding.Bindings;
+import javafx.beans.value.ChangeListener;
 import javafx.css.PseudoClass;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -23,7 +26,9 @@ import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.util.StringConverter;
 
-final class SettingsPage extends ScrollPane {
+final class SettingsPage extends ScrollPane implements AutoCloseable {
+
+    private final List<Runnable> cleanup = new ArrayList<>();
 
     SettingsPage(AppSettings settings, AutoSaveController autoSave, Runnable onBack) {
         setId("settings-page");
@@ -60,14 +65,17 @@ final class SettingsPage extends ScrollPane {
                 settings.darkThemeProperty().set((Boolean) selected.getUserData());
             }
         });
-        settings.darkThemeProperty().addListener((observable, oldValue, isDark) ->
-                themes.selectToggle(isDark ? dark : light));
+        ChangeListener<Boolean> themeListener = (observable, oldValue, isDark) ->
+                themes.selectToggle(isDark ? dark : light);
+        settings.darkThemeProperty().addListener(themeListener);
+        cleanup.add(() -> settings.darkThemeProperty().removeListener(themeListener));
         HBox themeChoices = new HBox(16, themeCard(dark, true), themeCard(light, false));
         VBox appearance = section("Appearance", "Choose the theme that feels comfortable for you.", themeChoices);
 
         CheckBox enabled = new CheckBox("Save changes automatically");
         enabled.setId("autosave-toggle");
         enabled.selectedProperty().bindBidirectional(settings.autoSaveProperty());
+        cleanup.add(() -> enabled.selectedProperty().unbindBidirectional(settings.autoSaveProperty()));
         ComboBox<Integer> delays = new ComboBox<>();
         delays.setId("autosave-delay");
         followPopupTheme(delays);
@@ -90,8 +98,9 @@ final class SettingsPage extends ScrollPane {
                 settings.delaySecondsProperty().set(seconds);
             }
         });
-        settings.delaySecondsProperty().addListener((observable, oldValue, seconds) ->
-                delays.setValue(seconds.intValue()));
+        ChangeListener<Number> delayListener = (observable, oldValue, seconds) -> delays.setValue(seconds.intValue());
+        settings.delaySecondsProperty().addListener(delayListener);
+        cleanup.add(() -> settings.delaySecondsProperty().removeListener(delayListener));
         HBox delayRow = new HBox(16, label("Save after", "settings-field-label"), delays);
         delayRow.setAlignment(Pos.CENTER_LEFT);
         delayRow.disableProperty().bind(settings.autoSaveProperty().not());
@@ -125,6 +134,13 @@ final class SettingsPage extends ScrollPane {
         canvas.setMinHeight(Region.USE_PREF_SIZE);
         canvas.getStyleClass().add("settings-canvas");
         setContent(canvas);
+    }
+
+    @Override
+    public void close() {
+        cleanup.forEach(Runnable::run);
+        cleanup.clear();
+        setContent(null);
     }
 
     private static void followPopupTheme(ComboBox<Integer> combo) {

@@ -28,6 +28,8 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/main/java/dev/somgester/sylph/SyntaxHighlighter.java](../app/src/main/java/dev/somgester/sylph/SyntaxHighlighter.java) | Debounced worker scheduling, cancellation/revision checks, bounded retry, and JavaFX style application. |
 | [app/src/main/java/dev/somgester/sylph/SyntaxStyles.java](../app/src/main/java/dev/somgester/sylph/SyntaxStyles.java) | TextMate scope-to-CSS mapping and incremental style-span patches. |
 | [app/src/main/java/dev/somgester/sylph/SyntaxTokenizer.java](../app/src/main/java/dev/somgester/sylph/SyntaxTokenizer.java) | Line tokenization, multiline state cache, UTF-16 offsets, reuse, interruption, and timeout handling. |
+| [app/src/main/java/dev/somgester/sylph/CommandPalette.java](../app/src/main/java/dev/somgester/sylph/CommandPalette.java) | In-scene command/file search panel, keyboard navigation, query cancellation, and guarded activation. |
+| [app/src/main/java/dev/somgester/sylph/PaletteFileSearch.java](../app/src/main/java/dev/somgester/sylph/PaletteFileSearch.java) | Background relative-path matching with capped results, skipped cache/dependency trees, and no symlink traversal. |
 
 ## Stylesheets
 
@@ -90,6 +92,8 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/test/java/dev/somgester/sylph/SyntaxStylesTest.java](../app/src/test/java/dev/somgester/sylph/SyntaxStylesTest.java) | Scope categories, span coverage, and changed-region patches. |
 | [app/src/test/java/dev/somgester/sylph/SyntaxTokenizerTest.java](../app/src/test/java/dev/somgester/sylph/SyntaxTokenizerTest.java) | Multiline grammar states, Unicode offsets, blank lines, timeouts, cancellation, and immutable results. |
 | [app/src/test/java/dev/somgester/sylph/UnsavedChangesTest.java](../app/src/test/java/dev/somgester/sylph/UnsavedChangesTest.java) | Save/Discard/Cancel flows and autosave suspension across confirmations and file choosers. |
+| [app/src/test/java/dev/somgester/sylph/CommandPaletteTest.java](../app/src/test/java/dev/somgester/sylph/CommandPaletteTest.java) | Centered layout, search activation, command/focus behavior, and reload Save/Discard/Cancel with autosave protection. |
+| [app/src/test/java/dev/somgester/sylph/PaletteFileSearchTest.java](../app/src/test/java/dev/somgester/sylph/PaletteFileSearchTest.java) | Relative-path matching, exclusions, symlinks, result limits, and interruption. |
 
 ## Scripts and build configuration
 

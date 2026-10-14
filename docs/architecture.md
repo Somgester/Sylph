@@ -12,6 +12,7 @@ flowchart TB
 
     subgraph ui["JavaFX UI and document state"]
         commands["EditorChrome / EditorShortcuts"]
+        palette["CommandPalette: in-scene overlay"]
         sidebar["Sidebar"]
         session["EditorSession"]
         view["EditorView / CodeArea"]
@@ -23,6 +24,10 @@ flowchart TB
 
     commands -->|commands| app
     sidebar -->|selected file| app
+    commands -->|search entry and shortcuts| palette
+    palette -->|commands and selected files| app
+    palette -->|query| search["PaletteFileSearch: cancellable worker"]
+    search -->|relative-path matches on JavaFX thread| palette
     app -->|guarded open and save| session
     app -->|compose| view
     app -->|show or hide| preview
@@ -98,6 +103,12 @@ These checks detect external modifications but are not a filesystem lock or a gu
 `dark.css` and `light.css` supply theme colors. `shell.css`, `editor.css`, and `settings.css` style JavaFX components using those values. `markdown.css` is browser CSS embedded into preview HTML; it is not a JavaFX stylesheet.
 
 `MarkdownRenderer` parses Markdown with table and strikethrough extensions and cleans the complete generated body through `MarkdownHtml`. Cleaning the full body preserves paired inline HTML and block structure. Preview pages also include a restrictive content policy, and WebView JavaScript is disabled. Same-document scroll restoration belongs to `MarkdownPreview`, not the renderer.
+
+## Command palette and window reload
+
+`CommandPalette` is an unmanaged overlay attached to the scene's `BorderPane`. It inherits theme colors, resizes with its host, retains the previous focus owner, and routes chosen files through the existing guarded open flow. Commands share `EditorShortcuts`; availability is checked before display and activation. `PaletteFileSearch` scans on a dedicated cancellable worker with capped matches and skips dependency/cache trees and symlinks. Query revisions reject stale results.
+
+Reload uses the existing file-action suspension and unsaved decision before disposing the old palette, settings listeners, editor, autosave controller, and session. It reconstructs the scene with the same preferences, restores window dimensions, and reopens the saved path and workspace folder. The old title and theme bindings are released before replacement.
 
 ## Maintenance boundaries
 

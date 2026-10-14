@@ -10,6 +10,9 @@ import javafx.scene.input.KeyEvent;
 final class EditorShortcuts {
 
     enum Command {
+        PALETTE("Command Palette", KeyCode.P, KeyCombination.SHIFT_DOWN),
+        QUICK_OPEN("Search Files", KeyCode.P),
+        RELOAD("Reload Window", KeyCode.R, KeyCombination.ALT_DOWN),
         OPEN_FILE("Open File", KeyCode.O),
         OPEN_FOLDER("Open Folder", KeyCode.O, KeyCombination.SHIFT_DOWN),
         SAVE("Save", KeyCode.S),

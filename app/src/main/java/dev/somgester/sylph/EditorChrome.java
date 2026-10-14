@@ -67,7 +67,10 @@ final class EditorChrome extends VBox {
         MenuItem preview = item(EditorShortcuts.Command.PREVIEW, execute, session);
         preview.disableProperty().bind(session.languageProperty().isNotEqualTo(EditorLanguage.MARKDOWN)
                 .or(session.busyProperty()));
-        view.getItems().addAll(sidebar, preview, item(EditorShortcuts.Command.SETTINGS, execute, session));
+        view.getItems().addAll(sidebar, preview, item(EditorShortcuts.Command.SETTINGS, execute, session),
+                new SeparatorMenuItem(), item(EditorShortcuts.Command.PALETTE, execute, session),
+                item(EditorShortcuts.Command.QUICK_OPEN, execute, session),
+                item(EditorShortcuts.Command.RELOAD, execute, session));
         MenuBar menus = new MenuBar(file, edit, view);
         menus.setUseSystemMenuBar(false);
         menus.setId("main-menu");
@@ -75,9 +78,26 @@ final class EditorChrome extends VBox {
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox actions = new HBox(2, openFile, openFolder, save);
         actions.getStyleClass().add("file-actions");
-        HBox toolbar = new HBox(6, menus, actions, spacer, sidebarButton, preferences);
+        HBox left = new HBox(6, menus, actions);
+        left.setAlignment(Pos.CENTER_LEFT);
+        HBox right = new HBox(6, sidebarButton, preferences);
+        right.setAlignment(Pos.CENTER_RIGHT);
+        HBox row = new HBox(left, spacer, right);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Button palette = new Button("Search files or commands…");
+        palette.setId("open-palette");
+        palette.setMinWidth(0);
+        palette.setAccessibleText("Search files or commands");
+        palette.setTooltip(new Tooltip(EditorShortcuts.Command.QUICK_OPEN.help() + "\n"
+                + EditorShortcuts.Command.PALETTE.help()));
+        palette.setOnAction(event -> execute.accept(EditorShortcuts.Command.QUICK_OPEN));
+        StackPane toolbar = new StackPane(row, palette);
         toolbar.setId("toolbar");
-        toolbar.setAlignment(Pos.CENTER_LEFT);
+        palette.prefWidthProperty().bind(Bindings.createDoubleBinding(() ->
+                Math.max(0, Math.min(360, toolbar.getWidth()
+                        - 2 * Math.max(left.prefWidth(-1), right.prefWidth(-1)) - 44)),
+                toolbar.widthProperty(), left.layoutBoundsProperty(), right.layoutBoundsProperty()));
+        palette.setMaxWidth(Region.USE_PREF_SIZE);
 
         StackPane brand = AppIcon.logo(24);
         brand.setId("brand");
@@ -118,7 +138,7 @@ final class EditorChrome extends VBox {
         item.setAccelerator(command.shortcut());
         item.setOnAction(event -> execute.accept(command));
         if (command == EditorShortcuts.Command.OPEN_FILE || command == EditorShortcuts.Command.SAVE
-                || command == EditorShortcuts.Command.SAVE_AS) {
+                || command == EditorShortcuts.Command.SAVE_AS || command == EditorShortcuts.Command.RELOAD) {
             item.disableProperty().bind(session.busyProperty());
         }
         return item;

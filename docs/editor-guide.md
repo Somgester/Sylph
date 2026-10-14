@@ -22,12 +22,23 @@ An untitled document needs its first manual save before autosave has a destinati
 
 Autosave pauses throughout unsaved-change confirmations and associated file selection. Cancel releases the pause and restarts scheduling. Save failures pause autosave; save manually or toggle it off and on to retry. Discard is a decision about unsaved edits, not an undo of changes that were already saved before the prompt.
 
+## Command palette and file search
+
+The centered search entry shares the top row with the File/Edit/View menus and save actions. Click it or press Mod+P to search regular files beneath the opened folder. Queries match words in relative paths without case sensitivity; search skips `.git`, `.gradle`, and `node_modules`, does not follow symbolic links, and displays at most 200 matches. Narrow the query if results are capped. File search runs in the background and cancels superseded queries.
+
+Press Mod+Shift+P, or start a query with `>`, to search application commands, including Reload Window. Use Up/Down to select, Enter or double-click to activate, and Esc or a click outside the panel to dismiss. Tab keeps focus within the panel. Commands unavailable in the current state are omitted.
+
+Reload Window rebuilds the scene and reopens the current folder and saved file. Unsaved changes receive the same Save/Discard/Cancel decision as file switching, with autosave paused during the decision. Reload resets undo history, preview visibility, and sidebar presentation; theme and autosave preferences remain. Cancel retains the current scene and edits. The palette appears inside the existing window and follows both themes.
+
 ## Shortcuts
 
 Use Ctrl on Linux/Windows and Cmd on macOS wherever `Mod` appears.
 
 | Action | Shortcut |
 | --- | --- |
+| Search files | Mod+P |
+| Command palette | Mod+Shift+P |
+| Reload window | Mod+Alt+R |
 | Open file | Mod+O |
 | Open folder | Mod+Shift+O |
 | Open folder, alternate chord | Mod+K, then Mod+O within 1.5 seconds |

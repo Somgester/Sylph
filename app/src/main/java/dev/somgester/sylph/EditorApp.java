@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.function.Consumer;
 import javafx.application.Application;
 import javafx.beans.binding.Bindings;
+import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
@@ -58,6 +59,10 @@ public class EditorApp extends Application {
     private SplitPane previewSplit;
 
     private boolean previewVisible;
+
+    private CommandPalette palette;
+
+    private ChangeListener<Boolean> themeListener;
 
     private final class FileAction implements AutoCloseable {
 
@@ -155,10 +160,13 @@ public class EditorApp extends Application {
             String name = path == null ? "Untitled" : path.getFileName().toString();
             return (session.dirtyProperty().get() ? "* " : "") + name + " — Sylph";
         }, session.pathProperty(), session.dirtyProperty()));
-        settings.darkThemeProperty().addListener((observable, oldValue, dark) -> applyTheme(scene, dark));
+        themeListener = (observable, oldValue, dark) -> applyTheme(scene, dark);
+        settings.darkThemeProperty().addListener(themeListener);
+        palette = new CommandPalette(root, sidebar::getRootDirectory, this::openFile,
+                this::executeCommand, this::commandEnabled);
         EditorShortcuts.install(scene, this::executeCommand);
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (settingsVisible && event.getCode() == KeyCode.ESCAPE) {
+            if (!palette.isVisible() && settingsVisible && event.getCode() == KeyCode.ESCAPE) {
                 showEditor();
                 event.consume();
             }
@@ -249,7 +257,13 @@ public class EditorApp extends Application {
     }
 
     private void executeCommand(EditorShortcuts.Command command) {
+        if (command != EditorShortcuts.Command.PALETTE && command != EditorShortcuts.Command.QUICK_OPEN) {
+            palette.hide();
+        }
         switch (command) {
+            case PALETTE -> palette.show(true);
+            case QUICK_OPEN -> palette.show(false);
+            case RELOAD -> reloadWindow();
             case OPEN_FILE -> openFileDialog();
             case OPEN_FOLDER -> openFolderDialog(stage, sidebar, status);
             case SAVE -> saveDocument(false, () -> { });
@@ -264,6 +278,46 @@ public class EditorApp extends Application {
             case AUTOSAVE -> settings.autoSaveProperty().set(!settings.autoSaveProperty().get());
             default -> throw new IllegalArgumentException("Unknown command: " + command);
         }
+    }
+
+    private boolean commandEnabled(EditorShortcuts.Command command) {
+        return switch (command) {
+            case OPEN_FILE, SAVE, SAVE_AS, RELOAD -> !session.busyProperty().get() && !fileActionInProgress;
+            case PREVIEW -> session.languageProperty().get() == EditorLanguage.MARKDOWN
+                    && !session.busyProperty().get();
+            case SIDEBAR -> !settingsVisible;
+            default -> true;
+        };
+    }
+
+    private void reloadWindow() {
+        FileAction action = beginFileAction();
+        if (action == null) {
+            status.setText("Please wait for the file operation to finish.");
+            return;
+        }
+        action.run(() -> afterUnsavedCheck(() -> {
+            Path file = session.pathProperty().get();
+            Path directory = sidebar.getRootDirectory();
+            double width = stage.getWidth();
+            double height = stage.getHeight();
+            action.close();
+            closeResources();
+            stage.titleProperty().unbind();
+            settingsVisible = false;
+            previewVisible = false;
+            markdownPreview = null;
+            previewSplit = null;
+            createScene(stage, settings);
+            stage.setWidth(width);
+            stage.setHeight(height);
+            if (directory != null) {
+                openFolder(directory, sidebar, status);
+            }
+            if (file != null) {
+                openFile(file);
+            }
+        }, action));
     }
 
     private void openFileDialog() {
@@ -399,6 +453,15 @@ public class EditorApp extends Application {
     }
 
     void closeResources() {
+        if (palette != null) {
+            palette.close();
+        }
+        if (settingsPage != null) {
+            settingsPage.close();
+        }
+        if (settings != null && themeListener != null) {
+            settings.darkThemeProperty().removeListener(themeListener);
+        }
         if (markdownPreview != null) {
             markdownPreview.close();
         }
