@@ -1,6 +1,7 @@
 package dev.somgester.sylph;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -18,6 +19,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
@@ -115,6 +117,7 @@ public class EditorApp extends Application {
         root.setId("root");
         sidebar = new Sidebar();
         sidebar.setOnOpenFile(this::openFile);
+        sidebar.setOnWorkspaceAction(this::workspaceAction);
         // Foreground file operations block navigation; background autosaves must not dim the sidebar.
         sidebar.getTreeView().disableProperty().bind(session.editingBlockedProperty());
         status = new Label(session.statusProperty().get());
@@ -285,12 +288,139 @@ public class EditorApp extends Application {
 
     private boolean commandEnabled(EditorShortcuts.Command command) {
         return switch (command) {
-            case OPEN_FILE, SAVE, SAVE_AS, RELOAD -> !session.busyProperty().get() && !fileActionInProgress;
+            case OPEN_FILE, OPEN_FOLDER, SAVE, SAVE_AS, RELOAD ->
+                    !session.busyProperty().get() && !fileActionInProgress;
             case PREVIEW -> session.languageProperty().get() == EditorLanguage.MARKDOWN
                     && !session.busyProperty().get();
             case SIDEBAR -> !settingsVisible;
             default -> true;
         };
+    }
+
+    void workspaceAction(Sidebar.WorkspaceAction command, Path selected) {
+        Path workspace = sidebar.getRootDirectory();
+        if (workspace == null || selected == null) {
+            status.setText("Open a folder before changing workspace files.");
+            return;
+        }
+        Path target = selected.toAbsolutePath().normalize();
+        if (!target.startsWith(workspace) || command == Sidebar.WorkspaceAction.DELETE && target.equals(workspace)) {
+            status.setText("Choose an entry inside the workspace; the workspace root is protected.");
+            return;
+        }
+        FileAction action = beginFileAction();
+        if (action == null) {
+            status.setText("Please wait for the file operation to finish.");
+            return;
+        }
+        action.run(() -> {
+            if (command == Sidebar.WorkspaceAction.DELETE) {
+                Runnable next = () -> deleteWorkspaceEntry(workspace, target, action);
+                try {
+                    if (containsDocument(target)) {
+                        afterUnsavedCheck(next, action);
+                    } else {
+                        next.run();
+                    }
+                } catch (IOException error) {
+                    action.finishWith(() -> showFileError(error));
+                }
+            } else {
+                boolean folder = command == Sidebar.WorkspaceAction.NEW_FOLDER;
+                Path directory = Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS) ? target : target.getParent();
+                Runnable next = () -> createWorkspaceEntry(workspace, directory, folder, action);
+                if (folder) {
+                    next.run();
+                } else {
+                    afterUnsavedCheck(next, action);
+                }
+            }
+        });
+    }
+
+    private boolean containsDocument(Path target) throws IOException {
+        Path current = session.pathProperty().get();
+        if (current == null || current.startsWith(target)) {
+            return current != null;
+        }
+        // Resolve parent aliases without following the selected entry if it is itself a link.
+        Path document = current.getParent().toRealPath().resolve(current.getFileName());
+        Path entry = target.getParent().toRealPath().resolve(target.getFileName());
+        return document.startsWith(entry);
+    }
+
+    private void createWorkspaceEntry(Path workspace, Path directory, boolean folder, FileAction action) {
+        String name = chooseWorkspaceName(folder, directory);
+        if (name == null) {
+            action.close();
+            return;
+        }
+        WorkspaceFileService files = new WorkspaceFileService();
+        session.mutateWorkspace(folder ? "Creating folder…" : "Creating file…",
+                () -> files.create(workspace, directory, name, folder), created -> action.run(() -> {
+                    refreshWorkspace(directory, created);
+                    if (folder) {
+                        action.finishWith(() -> status.setText("Created folder  |  " + created.getFileName()));
+                    } else {
+                        loadFile(created, action);
+                    }
+                }), error -> action.finishWith(() -> showFileError(error)));
+    }
+
+    private void deleteWorkspaceEntry(Path workspace, Path target, FileAction action) {
+        if (!confirmWorkspaceDelete(target)) {
+            action.close();
+            return;
+        }
+        final boolean deletingDocument;
+        try {
+            // Save As may have changed the active path. Capture this before deletion removes it.
+            deletingDocument = containsDocument(target);
+        } catch (IOException error) {
+            action.finishWith(() -> showFileError(error));
+            return;
+        }
+        WorkspaceFileService files = new WorkspaceFileService();
+        session.mutateWorkspace("Deleting  |  " + target.getFileName(), () -> files.delete(workspace, target),
+                deleted -> action.finishWith(() -> {
+                    if (deletingDocument) {
+                        session.clearDocument();
+                        editorView.documentOpened();
+                        showEditor();
+                    }
+                    recentFiles.removeUnder(deleted);
+                    sidebar.forgetEntry(deleted);
+                    refreshWorkspace(deleted.getParent(), deleted.getParent());
+                    status.setText("Deleted  |  " + deleted.getFileName());
+                }), error -> action.finishWith(() -> {
+                    sidebar.forgetEntry(target);
+                    refreshWorkspace(target.getParent(), target.getParent());
+                    showFileError(error);
+                }));
+    }
+
+    private void refreshWorkspace(Path directory, Path selected) {
+        sidebar.refreshDirectory(directory, selected,
+                error -> status.setText("Unable to refresh workspace  |  " + error.getMessage()));
+    }
+
+    String chooseWorkspaceName(boolean folder, Path directory) {
+        TextInputDialog prompt = new TextInputDialog(folder ? "new-folder" : "untitled.txt");
+        prompt.initOwner(stage);
+        prompt.setTitle(folder ? "New Folder" : "New File");
+        prompt.setHeaderText("Create in " + directory);
+        prompt.setContentText("Name:");
+        return prompt.showAndWait().orElse(null);
+    }
+
+    boolean confirmWorkspaceDelete(Path target) {
+        Alert prompt = new Alert(Alert.AlertType.CONFIRMATION,
+                "Delete " + target + "?\nFolders and all their contents will be permanently deleted. "
+                        + "This cannot be undone.", ButtonType.YES, ButtonType.CANCEL);
+        prompt.initOwner(stage);
+        prompt.setTitle("Delete workspace entry");
+        prompt.setHeaderText("Permanently delete this entry?");
+        return prompt.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.YES;
     }
 
     private void reloadWindow() {
@@ -462,6 +592,9 @@ public class EditorApp extends Application {
     }
 
     void closeResources() {
+        if (sidebar != null) {
+            sidebar.close();
+        }
         if (palette != null) {
             palette.close();
         }
@@ -486,6 +619,10 @@ public class EditorApp extends Application {
     }
 
     private void openFolderDialog(Stage stage, Sidebar sidebar, Label status) {
+        if (session.busyProperty().get() || fileActionInProgress) {
+            status.setText("Please wait for the file operation to finish.");
+            return;
+        }
         DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle("Open Folder");
         try {

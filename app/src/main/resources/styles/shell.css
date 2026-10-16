@@ -183,3 +183,31 @@
     -fx-fill: -shell-accent;
     -fx-font-weight: bold;
 }
+
+#workspace-actions .label {
+    -fx-text-fill: -shell-text;
+    -fx-font-family: "System";
+    -fx-font-size: 12px;
+}
+
+#sidebar .tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -shell-text;
+}
+
+#sidebar .tree-cell:filled:hover {
+    -fx-background-color: -shell-hover;
+}
+
+#sidebar .tree-cell:filled:selected {
+    -fx-background-color: -shell-hover;
+    -fx-text-fill: -shell-accent;
+}
+
+#sidebar .tree-cell > .tree-disclosure-node > .arrow {
+    -fx-background-color: -shell-text;
+}
+
+#sidebar .tree-cell:filled:selected > .tree-disclosure-node > .arrow {
+    -fx-background-color: -shell-accent;
+}

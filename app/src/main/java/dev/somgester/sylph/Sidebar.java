@@ -13,24 +13,40 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
-public class Sidebar extends VBox {
+public class Sidebar extends VBox implements AutoCloseable {
+
+    enum WorkspaceAction { NEW_FILE, NEW_FOLDER, DELETE }
+
+    private BiConsumer<WorkspaceAction, Path> onWorkspaceAction = (action, path) -> { };
+
+    private final BooleanProperty workspaceOpen = new SimpleBooleanProperty();
+
+    private final Map<Path, Long> refreshRevisions = new HashMap<>();
 
     static final double DEFAULT_WIDTH = 210.0;
 
@@ -72,6 +88,14 @@ public class Sidebar extends VBox {
         treeView.setPrefWidth(DEFAULT_WIDTH);
         treeView.setCellFactory(param -> new TreeCell<Path>() {
             {
+                ContextMenu menu = workspaceMenu(() -> getItem(), true);
+                setOnContextMenuRequested(event -> {
+                    if (!isEmpty() && getItem() != null) {
+                        getTreeView().getSelectionModel().select(getTreeItem());
+                    }
+                });
+                emptyProperty().addListener((observable, previous, empty) -> setContextMenu(empty ? null : menu));
+                setContextMenu(menu);
                 setOnMouseClicked(event -> {
                     if (!isEmpty() && event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1) {
                         openFile(getItem());
@@ -99,8 +123,13 @@ public class Sidebar extends VBox {
             TreeItem<Path> selected = treeView.getSelectionModel().getSelectedItem();
             if (event.getCode() == KeyCode.ENTER && selected != null && openFile(selected.getValue())) {
                 event.consume();
+            } else if (event.getCode() == KeyCode.DELETE && selected != null && selected.getValue() != null
+                    && !selected.getValue().equals(rootDirectory)) {
+                onWorkspaceAction.accept(WorkspaceAction.DELETE, selected.getValue());
+                event.consume();
             }
         });
+        treeView.setContextMenu(workspaceMenu(() -> rootDirectory, false));
         TreeItem<Path> placeholder = new TreeItem<>(null);
         placeholder.setExpanded(true);
         treeView.setRoot(placeholder);
@@ -132,7 +161,137 @@ public class Sidebar extends VBox {
             }
         });
         content.getChildren().add(dragHandle);
-        getChildren().add(content);
+        Label explorer = new Label("Explorer");
+        explorer.setMinWidth(0);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox header = new HBox(4, explorer, spacer,
+                createButton(WorkspaceAction.NEW_FILE, AppIcon.Symbol.FILE, "new-workspace-file", "New File"),
+                createButton(WorkspaceAction.NEW_FOLDER, AppIcon.Symbol.FOLDER, "new-workspace-folder", "New Folder"));
+        header.setId("workspace-actions");
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(0, 8, 6, 10));
+        getChildren().addAll(header, content);
+    }
+
+    void setOnWorkspaceAction(BiConsumer<WorkspaceAction, Path> handler) {
+        onWorkspaceAction = Objects.requireNonNull(handler, "handler");
+    }
+
+    private Path selectedPath() {
+        TreeItem<Path> selected = treeView.getSelectionModel().getSelectedItem();
+        return selected == null || selected.getValue() == null ? rootDirectory : selected.getValue();
+    }
+
+    private Button createButton(WorkspaceAction action, AppIcon.Symbol symbol, String id, String label) {
+        Button button = new Button();
+        button.setId(id);
+        button.setGraphic(AppIcon.symbol(symbol));
+        button.getStyleClass().add("chrome-action");
+        button.setAccessibleText(label);
+        button.setTooltip(new Tooltip(label));
+        button.disableProperty().bind(workspaceOpen.not().or(treeView.disabledProperty()));
+        button.setOnAction(event -> onWorkspaceAction.accept(action, selectedPath()));
+        return button;
+    }
+
+    private ContextMenu workspaceMenu(java.util.function.Supplier<Path> target, boolean includeDelete) {
+        ContextMenu menu = new ContextMenu();
+        MenuItem file = new MenuItem("New File…");
+        MenuItem folder = new MenuItem("New Folder…");
+        MenuItem delete = new MenuItem("Delete…");
+        file.setOnAction(event -> onWorkspaceAction.accept(WorkspaceAction.NEW_FILE, (Path) menu.getUserData()));
+        folder.setOnAction(event -> onWorkspaceAction.accept(WorkspaceAction.NEW_FOLDER, (Path) menu.getUserData()));
+        delete.setOnAction(event -> onWorkspaceAction.accept(WorkspaceAction.DELETE, (Path) menu.getUserData()));
+        menu.getItems().addAll(file, folder);
+        if (includeDelete) {
+            menu.getItems().add(delete);
+        }
+        menu.setOnShowing(event -> {
+            Path path = target.get();
+            menu.setUserData(path);
+            boolean unavailable = path == null || rootDirectory == null || treeView.isDisabled();
+            file.setDisable(unavailable);
+            folder.setDisable(unavailable);
+            delete.setDisable(unavailable || path.equals(rootDirectory));
+        });
+        return menu;
+    }
+
+    void forgetEntry(Path path) {
+        TreeItem<Path> entry = findNode(treeView.getRoot(), path);
+        if (entry != null && entry.getParent() != null) {
+            entry.getParent().getChildren().remove(entry);
+        }
+    }
+
+    void refreshDirectory(Path directory, Path selection, Consumer<Throwable> onError) {
+        TreeItem<Path> parent = findNode(treeView.getRoot(), directory);
+        if (parent == null) {
+            return;
+        }
+        long rootGeneration = loadGeneration;
+        long revision = refreshRevisions.merge(directory, 1L, Long::sum);
+        Task<List<Path>> task = new Task<>() {
+            @Override
+            protected List<Path> call() throws IOException {
+                return listChildren(directory);
+            }
+        };
+        task.setOnSucceeded(event -> {
+            if (loadGeneration != rootGeneration || !Objects.equals(refreshRevisions.get(directory), revision)
+                    || findNode(treeView.getRoot(), directory) != parent) {
+                return;
+            }
+            Map<Path, TreeItem<Path>> existing = new HashMap<>();
+            for (TreeItem<Path> child : parent.getChildren()) {
+                if (child.getValue() != null) {
+                    existing.put(child.getValue(), child);
+                }
+            }
+            List<TreeItem<Path>> children = task.getValue().stream()
+                    .map(path -> existing.containsKey(path) ? existing.get(path) : createNode(path)).toList();
+            parent.getChildren().setAll(children);
+            parent.setExpanded(true);
+            TreeItem<Path> selected = findNode(parent, selection);
+            if (selected != null) {
+                treeView.getSelectionModel().select(selected);
+                treeView.scrollTo(treeView.getRow(selected));
+            }
+        });
+        task.setOnFailed(event -> {
+            if (loadGeneration == rootGeneration && Objects.equals(refreshRevisions.get(directory), revision)
+                    && findNode(treeView.getRoot(), directory) == parent) {
+                onError.accept(task.getException());
+            }
+        });
+        Thread loader = new Thread(task, "sylph-sidebar-refresh");
+        loader.setDaemon(true);
+        loader.start();
+    }
+
+    private static TreeItem<Path> findNode(TreeItem<Path> item, Path path) {
+        if (Objects.equals(item.getValue(), path)) {
+            return item;
+        }
+        for (TreeItem<Path> child : item.getChildren()) {
+            if (child.getValue() != null) {
+                TreeItem<Path> found = findNode(child, path);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public void close() {
+        loadGeneration++;
+        refreshRevisions.clear();
+        workspaceOpen.set(false);
+        onOpenFile = path -> { };
+        onWorkspaceAction = (action, path) -> { };
     }
 
     public Region getDragHandle() {
@@ -208,6 +367,8 @@ public class Sidebar extends VBox {
             throw new IllegalArgumentException("Not a directory: " + directory);
         }
         loadGeneration++;
+        refreshRevisions.clear();
+        workspaceOpen.set(true);
         this.rootDirectory = directory.toAbsolutePath().normalize();
         TreeItem<Path> root = createNode(this.rootDirectory);
         loadChildren(root);
@@ -227,6 +388,8 @@ public class Sidebar extends VBox {
         }
         Path normalized = directory.toAbsolutePath().normalize();
         loadGeneration++;
+        refreshRevisions.clear();
+        workspaceOpen.set(true);
         long generation = loadGeneration;
         this.rootDirectory = normalized;
         TreeItem<Path> loadingRoot = new TreeItem<>(normalized);
@@ -239,23 +402,14 @@ public class Sidebar extends VBox {
             }
         };
         task.setOnSucceeded(event -> {
-            if (generation != loadGeneration || !normalized.equals(rootDirectory)) {
+            if (generation != loadGeneration || !normalized.equals(rootDirectory)
+                    || refreshRevisions.containsKey(normalized)) {
                 return;
             }
-            TreeItem<Path> root = new TreeItem<>(normalized);
-            for (Path child : task.getValue()) {
-                root.getChildren().add(createNode(child));
-            }
-            root.setExpanded(true);
-            treeView.setRoot(root);
+            loadingRoot.getChildren().setAll(task.getValue().stream().map(Sidebar::createNode).toList());
         });
         task.setOnFailed(event -> {
-            if (generation != loadGeneration || !normalized.equals(rootDirectory)) {
-                return;
-            }
-            TreeItem<Path> emptyRoot = new TreeItem<>(normalized);
-            emptyRoot.setExpanded(true);
-            treeView.setRoot(emptyRoot);
+            // A workspace refresh may already have superseded the initial listing.
         });
         Thread loader = new Thread(task, "sylph-sidebar-loader");
         loader.setDaemon(true);

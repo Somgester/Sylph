@@ -58,6 +58,19 @@ final class RecentFiles {
         next.add(normalized);
         files.stream().filter(path -> !path.equals(normalized)).limit(LIMIT - 1).forEach(next::add);
         files = List.copyOf(next);
+        persist();
+    }
+
+    void removeUnder(Path deleted) {
+        Path target = deleted.toAbsolutePath().normalize();
+        List<Path> remaining = files.stream().filter(file -> !file.startsWith(target)).toList();
+        if (!remaining.equals(files)) {
+            files = remaining;
+            persist();
+        }
+    }
+
+    private void persist() {
         try {
             store.save(files);
         } catch (BackingStoreException | SecurityException failure) {

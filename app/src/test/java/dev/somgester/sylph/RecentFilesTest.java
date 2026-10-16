@@ -52,6 +52,20 @@ class RecentFilesTest {
     }
 
     @Test
+    void deletingAFolderRemovesItsFilesButKeepsSimilarlyNamedSiblings() {
+        MemoryStore store = new MemoryStore();
+        RecentFiles recent = new RecentFiles(store);
+        Path folder = Path.of("workspace/source").toAbsolutePath();
+        Path sibling = Path.of("workspace/source-extra/keep.txt").toAbsolutePath();
+        recent.record(folder.resolve("one.txt"));
+        recent.record(folder.resolve("nested/two.txt"));
+        recent.record(sibling);
+        recent.removeUnder(folder);
+        assertEquals(List.of(sibling), recent.files());
+        assertEquals(recent.files(), new RecentFiles(store).files());
+    }
+
+    @Test
     void persistenceFailureKeepsSessionHistoryUsable() {
         RecentFiles recent = new RecentFiles(new RecentFiles.Store() {
             @Override

@@ -23,7 +23,7 @@ flowchart TB
     end
 
     commands -->|commands| app
-    sidebar -->|selected file| app
+    sidebar -->|selected file or workspace action| app
     commands -->|search entry and shortcuts| palette
     palette -->|commands and selected files| app
     palette -->|query| search["PaletteFileSearch: cancellable worker"]
@@ -42,10 +42,14 @@ flowchart TB
 
     subgraph io["File IO worker"]
         files["EditorFileService"]
+        workspaceFiles["WorkspaceFileService"]
     end
     session -->|read or save snapshot| files
     files <-->|validated UTF-8 data| disk[("Filesystem")]
     files -->|completion on JavaFX thread| session
+    session -->|create or delete| workspaceFiles
+    workspaceFiles -->|scoped mutation| disk
+    workspaceFiles -->|completion on JavaFX thread| session
 
     subgraph syntax["Syntax worker"]
         tokenizer["SyntaxTokenizer: incremental line cache"]
@@ -79,6 +83,8 @@ Arrows show commands and data flow, not every constructor dependency. Worker res
 `EditorSession` exposes observable text, path, language, dirty state, busy state, editing-blocked state, and status. Its executor performs file tasks away from the JavaFX thread. Completion handlers accept the current operation only, so late results cannot replace a newer state or resurrect a closed session.
 
 `EditorView` synchronizes plain-text changes with the session and owns selection, line numbers, undo/redo, and the syntax highlighter. Style changes must never become document edits or trigger saves. A successful open marks a new document even when its text equals the previous document; Save As changes the path without resetting editing history.
+
+`WorkspaceFileService` validates workspace containment and names, creates without replacement, and deletes selected trees relative to `SecureDirectoryStream` handles without following symlinks. Deletion opens all ancestors without following links and fails before mutation if secure handles are unavailable. Active-document checks resolve parent-directory aliases before the unsaved decision and capture the affected-document state before deletion, so completion does not depend on resolving a removed path. `EditorSession.mutateWorkspace` runs these operations on the existing file worker. `EditorApp` holds the file-action autosave suspension across prompts and worker completion, clearing the active document only after a successful affected deletion. Sidebar context menus capture the target path when shown; directory refreshes retain existing nodes and reject superseded results.
 
 `EditorFileService` returns snapshots containing path, normalized text, line-ending convention, BOM flag, and a SHA-256 digest. Save compares on-disk content with the expected digest, writes a temporary sibling, preserves existing POSIX permissions when supported, rechecks the digest, and atomically replaces an existing destination. New destinations use a move without replacement. Temporary files are cleaned up in `finally`.
 

@@ -4,13 +4,23 @@
 
 ## Files and folders
 
-Open a file through the File menu, toolbar, or shortcut. Open a folder to populate the sidebar, then single-click a file or press Enter on its selected row to load it. Directories are listed before files, with names sorted without case sensitivity. The sidebar can be resized or collapsed.
+Open a file through the File menu, toolbar, or shortcut. Open a folder to populate the sidebar, then single-click a file or press Enter on its selected row to load it. Directories are listed before files, with names sorted without case sensitivity. The sidebar can be resized or collapsed. Selected entries use the active theme’s accent text and selection surface, including when focus returns to the editor.
 
 Sylph edits one active document. Opening another document resets its selection, caret, and undo history. Save As keeps the current document's history and selects its language from the successful destination path. Failed or cancelled opens keep the current document.
 
 Files must be regular UTF-8 text files. Symbolic links, special files, invalid UTF-8, and unsupported control characters (including DEL) are rejected. Tabs and line breaks are accepted. There is currently no explicit 5 MiB limit: the complete file is read into memory, so large files still consume memory and processing time.
 
 UTF-8 BOMs are preserved. Line endings are normalized to LF while editing; saves use the detected original convention. A file with mixed line endings is normalized to one convention on an edited save, rather than preserving each individual line ending.
+
+## Create and delete workspace entries
+
+Open a folder to enable the sidebar's New File and New Folder buttons. Creation uses the selected directory, the parent of a selected file, or the workspace root when nothing is selected. Right-click a row for the same actions, or right-click empty sidebar space to create at the workspace root. Enter a single filename/folder name; nested paths, absolute paths, and existing names are refused.
+
+New files are created empty and opened with the appropriate language and fresh undo history. New folders preserve the active document. Creating a file checks unsaved edits before switching; cancelling a prompt keeps the current document. Directory listings refresh asynchronously while preserving other loaded/expanded nodes.
+
+Right-click an entry and choose Delete, or press Delete with a non-root sidebar entry selected. Deletion always asks for confirmation and permanently removes the selected entry; folders include their contents. The opened workspace root is protected. Symbolic links are unlinked rather than followed, and actions through symbolic-link parent directories are refused. Deletion uses secure directory handles to prevent concurrent folder swaps from redirecting it outside the workspace. It is refused on filesystems without that support, or when any ancestor of the workspace path is a symbolic link.
+
+Deleting an active file or a folder containing it first offers Save/Discard/Cancel, including when the active file was opened through a symbolic-link folder alias. Autosave pauses through the decisions and operation. After successful deletion, the affected editor returns to an empty untitled document, its undo history is cleared, and deleted paths leave recent-file history. Cancelling or a failed operation retains editor text. Recursive deletion is not transactional: a filesystem failure can leave a partially deleted folder, and the refreshed sidebar shows the remaining entries.
 
 ## Save and autosave
 

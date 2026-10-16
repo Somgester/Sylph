@@ -32,6 +32,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/main/java/dev/somgester/sylph/PaletteFileSearch.java](../app/src/main/java/dev/somgester/sylph/PaletteFileSearch.java) | Background relative-path matching with capped results, skipped cache/dependency trees, and no symlink traversal. |
 | [app/src/main/java/dev/somgester/sylph/PaletteMatch.java](../app/src/main/java/dev/somgester/sylph/PaletteMatch.java) | Shared Unicode-aware literal query matching and merged UTF-16 highlight ranges. |
 | [app/src/main/java/dev/somgester/sylph/RecentFiles.java](../app/src/main/java/dev/somgester/sylph/RecentFiles.java) | Bounded newest-first successful file history with production preferences and an injectable store. |
+| [app/src/main/java/dev/somgester/sylph/WorkspaceFileService.java](../app/src/main/java/dev/somgester/sylph/WorkspaceFileService.java) | Scoped file/folder creation and recursive deletion, name validation, workspace boundaries, and symlink handling. |
 
 ## Stylesheets
 
@@ -104,6 +105,8 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/test/java/dev/somgester/sylph/PaletteMatchTest.java](../app/src/test/java/dev/somgester/sylph/PaletteMatchTest.java) | Exact match ranges, multi-word/repeated/overlapping queries, Unicode offsets, and literal regex characters. |
 | [app/src/test/java/dev/somgester/sylph/RecentFilesTest.java](../app/src/test/java/dev/somgester/sylph/RecentFilesTest.java) | Normalized deduplication, newest-first persistence, bounded history, and storage failure fallback. |
 | [app/src/test/java/dev/somgester/sylph/CppSyntaxTest.java](../app/src/test/java/dev/somgester/sylph/CppSyntaxTest.java) | C/C++ preprocessor colors, multiline state, raw strings, templates/lambdas/macros, and incomplete-edit loop regressions. |
+| [app/src/test/java/dev/somgester/sylph/WorkspaceFileServiceTest.java](../app/src/test/java/dev/somgester/sylph/WorkspaceFileServiceTest.java) | Creation/deletion on temporary trees, duplicates, invalid names, containment, symlinks, directory-swap protection, unsupported filesystems, and cancellation. |
+| [app/src/test/java/dev/somgester/sylph/WorkspaceActionsTest.java](../app/src/test/java/dev/somgester/sylph/WorkspaceActionsTest.java) | Headless create buttons/context actions, nested refresh, unsaved delete choices through direct and aliased paths, autosave suspension, and failure preservation. |
 
 ## Scripts and build configuration
 

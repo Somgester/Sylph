@@ -48,7 +48,7 @@ Headless testing still needs the platform libraries required by JavaFX and WebVi
 
 Generated HTML results are in `app/build/reports/tests/test/index.html`; XML results are under `app/build/test-results/test/`. Checkstyle reports are under `app/build/reports/checkstyle/`. These are generated output, not files to edit or commit.
 
-The suite exercises palette commands/file search, exact match colors in both themes, recent history and guarded scene reload, filesystem validation and external-change detection, delayed/immediate autosave, unsaved-change dialog suspension, sidebar navigation, editor undo/selection, themes and popup controls, syntax state/cancellation/incremental updates, and sanitized Markdown preview with scroll restoration. The [file reference](file-reference.md) describes each test class.
+The suite exercises workspace create/delete safety and lifecycle, palette commands/file search, exact match colors in both themes, recent history and guarded scene reload, filesystem validation and external-change detection, delayed/immediate autosave, unsaved-change dialog suspension, sidebar navigation, editor undo/selection, themes and popup controls, syntax state/cancellation/incremental updates, and sanitized Markdown preview with scroll restoration. The [file reference](file-reference.md) describes each test class.
 
 Test totals are intentionally not frozen in these docs. An `UP-TO-DATE` task reuses earlier results; use `--rerun-tasks` when fresh execution is needed.
 

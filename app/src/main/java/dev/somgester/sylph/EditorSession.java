@@ -2,6 +2,7 @@ package dev.somgester.sylph;
 
 import java.nio.file.Path;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -45,7 +46,7 @@ final class EditorSession implements AutoCloseable {
 
     private EditorFileService.Snapshot snapshot = new EditorFileService.Snapshot(null, "", "\n", false, null);
 
-    private Task<EditorFileService.Snapshot> operation;
+    private Task<?> operation;
 
     private boolean closed;
 
@@ -164,7 +165,41 @@ final class EditorSession implements AutoCloseable {
         submit(task, !automatic, (automatic ? "Autosaving…" : "Saving…"));
     }
 
-    private void submit(Task<EditorFileService.Snapshot> task, boolean blockEditing, String description) {
+    void mutateWorkspace(String description, Callable<Path> mutation, Consumer<Path> onChanged,
+            Consumer<Throwable> onError) {
+        requireAvailable();
+        Task<Path> task = new Task<>() {
+            @Override
+            protected Path call() throws Exception {
+                return mutation.call();
+            }
+        };
+        task.setOnSucceeded(event -> {
+            if (isCurrent(task)) {
+                finish();
+                onChanged.accept(task.getValue());
+            }
+        });
+        task.setOnFailed(event -> {
+            if (isCurrent(task)) {
+                finish();
+                onError.accept(task.getException());
+            }
+        });
+        submit(task, true, description);
+    }
+
+    void clearDocument() {
+        requireAvailable();
+        snapshot = new EditorFileService.Snapshot(null, "", "\n", false, null);
+        path.set(null);
+        savedText.set("");
+        text.set("");
+        completedOperations.set(completedOperations.get() + 1);
+        status.set("Ready  |  Untitled");
+    }
+
+    private void submit(Task<?> task, boolean blockEditing, String description) {
         operation = task;
         editingBlocked.set(blockEditing);
         busy.set(true);
