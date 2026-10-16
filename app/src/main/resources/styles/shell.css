@@ -211,3 +211,56 @@
 #sidebar .tree-cell:filled:selected > .tree-disclosure-node > .arrow {
     -fx-background-color: -shell-accent;
 }
+
+/* Editor and terminal tabs share the application theme. */
+#terminal-workspace, #editor-tabs, #terminal-panel, .terminal-view {
+    -fx-background-color: -shell-surface;
+    -fx-padding: 0;
+}
+
+#editor-tabs > .tab-header-area > .tab-header-background,
+#terminal-panel > .tab-header-area > .tab-header-background {
+    -fx-background-color: -shell-surface;
+}
+
+#editor-tabs .tab, #terminal-panel .tab {
+    -fx-background-color: -shell-surface;
+    -fx-padding: 4 10;
+}
+
+#editor-tabs .tab:selected, #terminal-panel .tab:selected {
+    -fx-background-color: -shell-hover;
+}
+
+#editor-tabs .tab-label, #terminal-panel .tab-label, .terminal-status {
+    -fx-text-fill: -shell-text;
+}
+
+#editor-tabs .tab-close-button, #terminal-panel .tab-close-button {
+    -fx-background-color: -shell-text;
+}
+
+.terminal-duplicate {
+    -fx-background-color: transparent;
+    -fx-text-fill: -shell-text;
+    -fx-padding: 0 4;
+}
+
+.terminal-duplicate:hover {
+    -fx-background-color: -shell-hover;
+    -fx-text-fill: -shell-accent;
+}
+
+.terminal-status {
+    -fx-padding: 3 8;
+    -fx-font-size: 11px;
+}
+
+#terminal-workspace > .split-pane-divider {
+    -fx-background-color: -shell-border;
+    -fx-padding: 2;
+}
+
+#terminal-workspace > .split-pane-divider:hover {
+    -fx-background-color: -shell-accent;
+}

@@ -64,6 +64,12 @@ flowchart TB
     styles -->|patch via JavaFX thread| highlighter
     highlighter -->|apply current styles| view
 
+    app -->|terminal commands| terminalTabs["TerminalWorkspace: file and terminal tabs"]
+    terminalTabs --> terminalView["TerminalView / local xterm.js WebView"]
+    terminalView <-->|input, resize, acknowledged output| bridge["TerminalBridge"]
+    bridge <-->|PTY streams| terminalSession["TerminalSession: startup, IO, cleanup workers"]
+    terminalSession <-->|interactive process| shell["User shell / pty4j"]
+
     subgraph markdown["Markdown worker"]
         renderer["MarkdownRenderer: CommonMark"]
         sanitizer["MarkdownHtml: sanitization"]
@@ -110,11 +116,19 @@ These checks detect external modifications but are not a filesystem lock or a gu
 
 `MarkdownRenderer` parses Markdown with table and strikethrough extensions and cleans the complete generated body through `MarkdownHtml`. Cleaning the full body preserves paired inline HTML and block structure. Preview pages also include a restrictive content policy, and WebView JavaScript is disabled. Same-document scroll restoration belongs to `MarkdownPreview`, not the renderer.
 
+## Terminal lifecycle
+
+`TerminalWorkspace` is created lazily when the first terminal command runs. It preserves the existing document view inside an unclosable file tab, adds terminal tabs in the editor or a vertical split panel, and closes sessions when tabs are removed. Hiding the panel retains processes; duplicate starts an independent session in the same initial folder.
+
+`TerminalSession` owns a real pty4j process and separate reader/input workers. UTF-8 output crosses to `TerminalView` one chunk at a time, with an acknowledgement from xterm.js before reading the next chunk. `TerminalBridge` is public for WebKit's reflective calls and exposes only input/resize/acknowledgement operations. Output crosses the bridge as data. Startup and termination run outside JavaFX; a close during startup waits for process registration before cleanup. Closing releases streams and terminates observed descendants as well as the shell. `TerminalPage` embeds bundled assets with a fresh script nonce so resource loading works from both class directories and packaged JARs. The local terminal page uses a restrictive content policy and does not share Markdown's WebView or document session.
+
+See the [terminal guide](terminal.md) for shortcuts, shell selection, dependency maintenance, and platform verification limits.
+
 ## Command palette and window reload
 
 `CommandPalette` is an unmanaged overlay attached to the scene's `BorderPane`. It inherits theme colors, resizes with its host, retains the previous focus owner, and routes chosen files through the existing guarded open flow. Commands share `EditorShortcuts`; availability is checked before display and activation. `PaletteFileSearch` scans on a dedicated cancellable worker with capped matches and skips dependency/cache trees and symlinks. Query revisions reject stale results. Existing rows remain visible during a search, replacements publish in a single list update, and activation requires the displayed revision to match the current query. Matching selections survive replacements. `PaletteMatch` shares literal, case-insensitive query matching and UTF-16 highlight ranges; row graphics use theme-aware TextFlow spans. `RecentFiles` keeps a bounded, normalized history and persists it in production through Java preferences; tests use an isolated memory store. Only successful foreground opens/saves reorder history, and recent-file existence checks run on the search worker.
 
-Reload uses the existing file-action suspension and unsaved decision before disposing the old palette, settings listeners, editor, autosave controller, and session. It reconstructs the scene with the same preferences, restores window dimensions, and reopens the saved path and workspace folder. The old title and theme bindings are released before replacement.
+Reload uses the existing file-action suspension and unsaved decision before disposing terminal sessions, the old palette, settings listeners, editor, autosave controller, and session. It reconstructs the scene with the same preferences, restores window dimensions, and reopens the saved path and workspace folder. The old title and theme bindings are released before replacement.
 
 ## Maintenance boundaries
 

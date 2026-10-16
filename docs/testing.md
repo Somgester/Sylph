@@ -48,6 +48,8 @@ Headless testing still needs the platform libraries required by JavaFX and WebVi
 
 Generated HTML results are in `app/build/reports/tests/test/index.html`; XML results are under `app/build/test-results/test/`. Checkstyle reports are under `app/build/reports/checkstyle/`. These are generated output, not files to edit or commit.
 
+Terminal checks exercise real Unix PTY input/output, working directories, Unicode/ANSI output, resizing, Ctrl+C, child cleanup, startup/close races, and headless terminal tabs, duplication, clipboard routing, theme changes, sustained output, and reload. Test shells bypass personal shell startup files. Linux evidence does not verify Windows/macOS desktop behavior.
+
 The suite exercises workspace create/delete safety and lifecycle, palette commands/file search, exact match colors in both themes, recent history and guarded scene reload, filesystem validation and external-change detection, delayed/immediate autosave, unsaved-change dialog suspension, sidebar navigation, editor undo/selection, themes and popup controls, syntax state/cancellation/incremental updates, and sanitized Markdown preview with scroll restoration. The [file reference](file-reference.md) describes each test class.
 
 Test totals are intentionally not frozen in these docs. An `UP-TO-DATE` task reuses earlier results; use `--rerun-tasks` when fresh execution is needed.
@@ -66,6 +68,8 @@ Test totals are intentionally not frozen in these docs. An `UP-TO-DATE` task reu
 | Autosave pauses after a disk error | Read the status, resolve the cause, then save manually or toggle autosave. |
 | File changed outside Sylph | Reopen to read disk contents, or Save As elsewhere to preserve editor edits. |
 | Shell grammar loop messages | Restart after updating the grammar. If reproduced, capture the file and smallest triggering edit; do not merely suppress the logs. |
+| Terminal reports a startup failure | Read the tab status, verify the working folder and shell executable, and check native-library extraction permissions. |
+| Terminal paste opens Markdown preview | Ensure terminal has focus; Ctrl+Shift+V belongs to terminal paste there. |
 | Markdown links/images are inactive | This is current preview behavior: links are text and images are placeholders. |
 | `bwrap: loopback: Failed RTM_NEWADDR` | The external sandbox failed before project inspection or checks ran. Restore sandbox access; this output is not a Sylph build/test verdict. |
 

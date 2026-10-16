@@ -1,6 +1,7 @@
 package dev.somgester.sylph;
 
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import javafx.scene.Scene;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
@@ -20,6 +21,8 @@ final class EditorShortcuts {
         SIDEBAR("Toggle Sidebar", KeyCode.B),
         SETTINGS("Settings", KeyCode.COMMA),
         PREVIEW("Preview", KeyCode.V, KeyCombination.SHIFT_DOWN),
+        TERMINAL_PANEL("Toggle Terminal Panel", KeyCode.BACK_QUOTE, KeyCombination.SHIFT_DOWN),
+        TERMINAL_EDITOR("New Terminal in Editor", KeyCode.BACK_QUOTE),
         AUTOSAVE("Toggle Autosave", KeyCode.S, KeyCombination.ALT_DOWN);
 
         private final String label;
@@ -50,6 +53,10 @@ final class EditorShortcuts {
     private EditorShortcuts() { }
 
     static void install(Scene scene, Consumer<Command> action) {
+        install(scene, action, command -> true);
+    }
+
+    static void install(Scene scene, Consumer<Command> action, Predicate<Command> enabled) {
         KeyCombination chordStart = new KeyCodeCombination(KeyCode.K, KeyCombination.SHORTCUT_DOWN);
         long[] armedAt = {0L};
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
@@ -64,7 +71,7 @@ final class EditorShortcuts {
                 armedAt[0] = 0L;
             }
             for (Command command : Command.values()) {
-                if (command.shortcut().match(event)) {
+                if (command.shortcut().match(event) && enabled.test(command)) {
                     action.accept(chord && command == Command.OPEN_FILE ? Command.OPEN_FOLDER : command);
                     event.consume();
                     return;

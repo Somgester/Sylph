@@ -33,6 +33,11 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/main/java/dev/somgester/sylph/PaletteMatch.java](../app/src/main/java/dev/somgester/sylph/PaletteMatch.java) | Shared Unicode-aware literal query matching and merged UTF-16 highlight ranges. |
 | [app/src/main/java/dev/somgester/sylph/RecentFiles.java](../app/src/main/java/dev/somgester/sylph/RecentFiles.java) | Bounded newest-first successful file history with production preferences and an injectable store. |
 | [app/src/main/java/dev/somgester/sylph/WorkspaceFileService.java](../app/src/main/java/dev/somgester/sylph/WorkspaceFileService.java) | Scoped file/folder creation and recursive deletion, name validation, workspace boundaries, and symlink handling. |
+| [app/src/main/java/dev/somgester/sylph/TerminalSession.java](../app/src/main/java/dev/somgester/sylph/TerminalSession.java) | PTY shell startup, ordered input, UTF-8 output, resize, and process cleanup. |
+| [app/src/main/java/dev/somgester/sylph/TerminalView.java](../app/src/main/java/dev/somgester/sylph/TerminalView.java) | Local terminal WebView, theme and clipboard routing, and renderer backpressure. |
+| [app/src/main/java/dev/somgester/sylph/TerminalPage.java](../app/src/main/java/dev/somgester/sylph/TerminalPage.java) | Self-contained renderer page with embedded resources and per-page CSP nonce. |
+| [app/src/main/java/dev/somgester/sylph/TerminalBridge.java](../app/src/main/java/dev/somgester/sylph/TerminalBridge.java) | Public WebKit bridge for terminal input, binary input, resize, and output acknowledgement. |
+| [app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java](../app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java) | Editor/file tabs, resizable terminal panel, duplication, and tab disposal. |
 
 ## Stylesheets
 
@@ -107,6 +112,9 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/test/java/dev/somgester/sylph/CppSyntaxTest.java](../app/src/test/java/dev/somgester/sylph/CppSyntaxTest.java) | C/C++ preprocessor colors, multiline state, raw strings, templates/lambdas/macros, and incomplete-edit loop regressions. |
 | [app/src/test/java/dev/somgester/sylph/WorkspaceFileServiceTest.java](../app/src/test/java/dev/somgester/sylph/WorkspaceFileServiceTest.java) | Creation/deletion on temporary trees, duplicates, invalid names, containment, symlinks, directory-swap protection, unsupported filesystems, and cancellation. |
 | [app/src/test/java/dev/somgester/sylph/WorkspaceActionsTest.java](../app/src/test/java/dev/somgester/sylph/WorkspaceActionsTest.java) | Headless create buttons/context actions, nested refresh, unsaved delete choices through direct and aliased paths, autosave suspension, and failure preservation. |
+| [app/src/test/java/dev/somgester/sylph/TerminalSessionTest.java](../app/src/test/java/dev/somgester/sylph/TerminalSessionTest.java) | Real Unix shell/PTY behavior, resize, interruption, startup failure, and process cleanup. |
+| [app/src/test/java/dev/somgester/sylph/TerminalPageTest.java](../app/src/test/java/dev/somgester/sylph/TerminalPageTest.java) | Offline renderer assets and per-page script authorization. |
+| [app/src/test/java/dev/somgester/sylph/TerminalWorkspaceTest.java](../app/src/test/java/dev/somgester/sylph/TerminalWorkspaceTest.java) | Headless terminal layouts, document preservation, duplication, clipboard, rendering, themes, output, and reload. |
 
 ## Scripts and build configuration
 
@@ -132,6 +140,20 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [settings.gradle](../settings.gradle) | Names the root project, includes app, and configures the Foojay toolchain resolver. |
 | [test.sh](../test.sh) | Runs the Gradle test task and forwards arguments. |
 
+## Terminal resources
+
+| File | Responsibility |
+| --- | --- |
+| [app/src/main/resources/terminal/index.html](../app/src/main/resources/terminal/index.html) | Local terminal page and content policy. |
+| [app/src/main/resources/terminal/terminal.js](../app/src/main/resources/terminal/terminal.js) | Sylph xterm.js/bridge integration, theme, clipboard paste, and resize. |
+| [app/src/main/resources/terminal/terminal.css](../app/src/main/resources/terminal/terminal.css) | Browser terminal container sizing. |
+| [app/src/main/resources/terminal/xterm.js](../app/src/main/resources/terminal/xterm.js) | Pinned upstream terminal emulator. |
+| [app/src/main/resources/terminal/xterm.css](../app/src/main/resources/terminal/xterm.css) | Upstream terminal styles. |
+| [app/src/main/resources/terminal/addon-fit.js](../app/src/main/resources/terminal/addon-fit.js) | Pinned upstream terminal sizing addon. |
+| [app/src/main/resources/terminal/LICENSE-xterm.txt](../app/src/main/resources/terminal/LICENSE-xterm.txt) | Upstream terminal MIT notice. |
+| [app/src/main/resources/terminal/LICENSE-fit.txt](../app/src/main/resources/terminal/LICENSE-fit.txt) | Upstream fit addon MIT notice. |
+| [app/src/main/resources/terminal/THIRD-PARTY.md](../app/src/main/resources/terminal/THIRD-PARTY.md) | Pinned versions, sources, licenses, and archive integrity. |
+
 ## Documentation files
 
 | File | Responsibility |
@@ -143,3 +165,4 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [docs/syntax-highlighting.md](syntax-highlighting.md) | TextMate pipeline, incremental cache, fallbacks, shell adaptations, and adding languages. |
 | [docs/testing.md](testing.md) | Headless checks, reports, regression areas, and troubleshooting. |
 | [docs/file-reference.md](file-reference.md) | This complete repository file map. |
+| [docs/terminal.md](terminal.md) | Integrated terminal behavior, lifecycle, dependencies, and platform limits. |

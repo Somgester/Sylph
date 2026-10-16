@@ -31,6 +31,8 @@ dependencies {
     implementation libs.jsoup
     implementation libs.commonmark.tables
     implementation libs.commonmark.strikethrough
+    runtimeOnly libs.slf4j.jdk14
+    implementation libs.pty4j
     implementation libs.richtextfx
     implementation libs.tm4e.core
     // The update-site artifact has no transitive dependency metadata.

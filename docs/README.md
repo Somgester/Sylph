@@ -4,6 +4,7 @@
 - [Editor features and shortcuts](editor-guide.md)
 - [Architecture and data flow](architecture.md)
 - [Syntax highlighting and grammar maintenance](syntax-highlighting.md)
+- [Integrated terminal](terminal.md)
 - [Testing and troubleshooting](testing.md)
 - [Complete file reference](file-reference.md)
 

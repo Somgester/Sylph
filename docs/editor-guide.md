@@ -46,6 +46,10 @@ Press Mod+Shift+P, or start a query with `>`, to search application commands, in
 
 Reload Window rebuilds the scene and reopens the current folder and saved file. Unsaved changes receive the same Save/Discard/Cancel decision as file switching, with autosave paused during the decision. Reload resets undo history, preview visibility, and sidebar presentation; theme and autosave preferences remain. Cancel retains the current scene and edits. The palette appears inside the existing window and follows both themes.
 
+## Integrated terminal
+
+Mod+Shift+Backtick toggles the bottom terminal panel; Mod+Backtick creates a terminal tab in the editor area. Select the document tab to return to the file. Tabs provide duplicate and close controls. New shells start in the opened workspace, falling back to the active file's parent or Sylph's working directory. Duplicate uses the same starting folder and starts an independent shell. See the [terminal guide](terminal.md) for clipboard keys, lifecycle, and platform details.
+
 ## Shortcuts
 
 Use Ctrl on Linux/Windows and Cmd on macOS wherever `Mod` appears.
@@ -63,6 +67,8 @@ Use Ctrl on Linux/Windows and Cmd on macOS wherever `Mod` appears.
 | Toggle sidebar | Mod+B |
 | Settings | Mod+, |
 | Toggle Markdown preview | Mod+Shift+V |
+| Toggle terminal panel | Mod+Shift+Backtick |
+| New terminal in editor | Mod+Backtick |
 | Toggle autosave | Mod+Alt+S |
 
 The editor also exposes undo, redo, cut, copy, paste, and select-all through its editing controls and menus. Application commands share the definitions in [EditorShortcuts.java](../app/src/main/java/dev/somgester/sylph/EditorShortcuts.java).

@@ -70,7 +70,9 @@ final class EditorChrome extends VBox {
         view.getItems().addAll(sidebar, preview, item(EditorShortcuts.Command.SETTINGS, execute, session),
                 new SeparatorMenuItem(), item(EditorShortcuts.Command.PALETTE, execute, session),
                 item(EditorShortcuts.Command.QUICK_OPEN, execute, session),
-                item(EditorShortcuts.Command.RELOAD, execute, session));
+                item(EditorShortcuts.Command.RELOAD, execute, session), new SeparatorMenuItem(),
+                item(EditorShortcuts.Command.TERMINAL_PANEL, execute, session),
+                item(EditorShortcuts.Command.TERMINAL_EDITOR, execute, session));
         MenuBar menus = new MenuBar(file, edit, view);
         menus.setUseSystemMenuBar(false);
         menus.setId("main-menu");

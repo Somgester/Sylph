@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-@@NONCE@@'; style-src 'unsafe-inline'; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <style>@@xterm.css@@</style>
+  <style>@@terminal.css@@</style>
+  <script nonce="@@NONCE@@">@@xterm.js@@
+  </script>
+  <script nonce="@@NONCE@@">@@addon-fit.js@@
+  </script>
+  <script nonce="@@NONCE@@">@@terminal.js@@
+  </script>
+  <title>Sylph terminal</title>
+</head>
+<body><div id="terminal"></div></body>
+</html>

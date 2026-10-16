@@ -12,6 +12,7 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
+import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
@@ -61,6 +62,8 @@ public class EditorApp extends Application {
     private SplitPane previewSplit;
 
     private boolean previewVisible;
+
+    private TerminalWorkspace terminals;
 
     private CommandPalette palette;
 
@@ -170,7 +173,8 @@ public class EditorApp extends Application {
         settings.darkThemeProperty().addListener(themeListener);
         palette = new CommandPalette(root, sidebar::getRootDirectory, recentFiles::files, this::openFile,
                 this::executeCommand, this::commandEnabled);
-        EditorShortcuts.install(scene, this::executeCommand);
+        EditorShortcuts.install(scene, this::executeCommand,
+                command -> command != EditorShortcuts.Command.PREVIEW || !TerminalView.ownsFocus(scene));
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (!palette.isVisible() && settingsVisible && event.getCode() == KeyCode.ESCAPE) {
                 showEditor();
@@ -212,6 +216,9 @@ public class EditorApp extends Application {
         settingsVisible = false;
         root.setLeft(sidebar);
         showDocument();
+        if (terminals != null) {
+            terminals.selectDocument();
+        }
         sidebarButton.setDisable(false);
         editor.requestFocus();
     }
@@ -247,15 +254,23 @@ public class EditorApp extends Application {
         double divider = previewSplit == null || previewSplit.getDividers().isEmpty()
                 ? 0.5 : previewSplit.getDividerPositions()[0];
         root.setCenter(null);
+        if (terminals != null) {
+            terminals.setDocument(null);
+        }
         if (previewSplit != null) {
             previewSplit.getItems().clear();
         }
+        Node document = editorView;
         if (previewVisible) {
             previewSplit.getItems().setAll(editorView, markdownPreview);
             previewSplit.setDividerPositions(divider);
-            root.setCenter(previewSplit);
+            document = previewSplit;
+        }
+        if (terminals == null) {
+            root.setCenter(document);
         } else {
-            root.setCenter(editorView);
+            terminals.setDocument(document);
+            root.setCenter(terminals);
         }
         if (markdownPreview != null) {
             markdownPreview.setActive(previewVisible);
@@ -279,11 +294,37 @@ public class EditorApp extends Application {
                     sidebar.toggleCollapsed();
                 }
             }
+            case TERMINAL_PANEL -> openTerminal(false);
+            case TERMINAL_EDITOR -> openTerminal(true);
             case SETTINGS -> toggleSettings();
             case PREVIEW -> toggleMarkdownPreview();
             case AUTOSAVE -> settings.autoSaveProperty().set(!settings.autoSaveProperty().get());
             default -> throw new IllegalArgumentException("Unknown command: " + command);
         }
+    }
+
+    private void openTerminal(boolean inEditor) {
+        if (settingsVisible) {
+            showEditor();
+        }
+        if (terminals == null) {
+            terminals = new TerminalWorkspace(session, this::createTerminal, editor::requestFocus);
+            showDocument();
+        }
+        Path directory = sidebar.getRootDirectory();
+        if (directory == null) {
+            Path file = session.pathProperty().get();
+            directory = file == null ? Path.of(System.getProperty("user.dir")) : file.getParent();
+        }
+        if (inEditor) {
+            terminals.open(directory, true);
+        } else {
+            terminals.togglePanel(directory);
+        }
+    }
+
+    TerminalView createTerminal(Path directory) {
+        return new TerminalView(directory, settings);
     }
 
     private boolean commandEnabled(EditorShortcuts.Command command) {
@@ -441,6 +482,7 @@ public class EditorApp extends Application {
             previewVisible = false;
             markdownPreview = null;
             previewSplit = null;
+            terminals = null;
             createScene(stage, settings);
             stage.setWidth(width);
             stage.setHeight(height);
@@ -472,7 +514,7 @@ public class EditorApp extends Application {
         Path normalized = file.toAbsolutePath().normalize();
         if (normalized.equals(session.pathProperty().get())) {
             recentFiles.record(normalized);
-            editor.requestFocus();
+            showEditor();
             return;
         }
         FileAction action = beginFileAction();
@@ -592,6 +634,9 @@ public class EditorApp extends Application {
     }
 
     void closeResources() {
+        if (terminals != null) {
+            terminals.close();
+        }
         if (sidebar != null) {
             sidebar.close();
         }
