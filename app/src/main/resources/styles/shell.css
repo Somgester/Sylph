@@ -48,10 +48,15 @@
     -fx-border-color: -shell-accent;
 }
 
-#open-kiro {
+#open-kiro, #list-kiro-sessions {
     -fx-min-width: 52px;
     -fx-pref-width: 52px;
     -fx-text-fill: -shell-text;
+}
+
+#list-kiro-sessions {
+    -fx-min-width: 76px;
+    -fx-pref-width: 76px;
 }
 
 .chrome-action .action-icon {

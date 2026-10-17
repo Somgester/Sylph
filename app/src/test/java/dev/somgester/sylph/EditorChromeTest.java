@@ -29,7 +29,7 @@ class EditorChromeTest {
     }
 
     @Test
-    void kiroLabelIsReadableAndUnclippedInBothThemesAtMinimumWindowWidth() throws Exception {
+    void kiroButtonsAreReadableAndUnclippedInBothThemesAtMinimumWindowWidth() throws Exception {
         FxTestSupport.onFxThread(() -> {
             EditorSession session = new EditorSession(new EditorFileService());
             EditorView editor = new EditorView(session);
@@ -50,6 +50,12 @@ class EditorChromeTest {
                     assertEquals("Kiro", ((Text) kiro.lookup(".text")).getText());
                     assertTrue(kiro.getWidth() >= 52);
                     assertTrue(kiro.localToScene(kiro.getBoundsInLocal()).getMaxX() <= scene.getWidth());
+                    Button sessions = chrome.kiroSessionsButton();
+                    assertTrue(sessions.isVisible());
+                    assertEquals("Sessions", ((Text) sessions.lookup(".text")).getText());
+                    assertTrue(sessions.getWidth() >= 76);
+                    assertEquals(kiro.getTextFill(), sessions.getTextFill());
+                    assertTrue(sessions.localToScene(sessions.getBoundsInLocal()).getMaxX() <= scene.getWidth());
                     if (previous != null) {
                         assertFalse(previous.equals(kiro.getTextFill()));
                     }

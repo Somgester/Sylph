@@ -37,7 +37,8 @@ import javafx.scene.text.TextFlow;
 // An in-scene overlay: no extra window, and theme values inherit from the editor.
 final class CommandPalette extends StackPane implements AutoCloseable {
 
-    private record Entry(String label, EditorShortcuts.Command command, Path file, String query) { }
+    private record Entry(String label, EditorShortcuts.Command command, Path file, String query,
+            KiroSessions.Session session) { }
 
     private final BorderPane host;
 
@@ -50,6 +51,14 @@ final class CommandPalette extends StackPane implements AutoCloseable {
     private final Consumer<EditorShortcuts.Command> execute;
 
     private final Predicate<EditorShortcuts.Command> enabled;
+
+    private final KiroSessions.Loader loadSessions;
+
+    private final Consumer<KiroSessions.Session> resumeSession;
+
+    private boolean sessionsMode;
+
+    private KiroSessions.Listing sessionListing;
 
     private final TextField query = new TextField();
 
@@ -77,13 +86,16 @@ final class CommandPalette extends StackPane implements AutoCloseable {
 
     @SuppressWarnings("this-escape")
     CommandPalette(BorderPane host, Supplier<Path> folder, Supplier<List<Path>> recentFiles, Consumer<Path> openFile,
-            Consumer<EditorShortcuts.Command> execute, Predicate<EditorShortcuts.Command> enabled) {
+            Consumer<EditorShortcuts.Command> execute, Predicate<EditorShortcuts.Command> enabled,
+            KiroSessions.Loader loadSessions, Consumer<KiroSessions.Session> resumeSession) {
         this.host = host;
         this.folder = folder;
         this.recentFiles = recentFiles;
         this.openFile = openFile;
         this.execute = execute;
         this.enabled = enabled;
+        this.loadSessions = loadSessions;
+        this.resumeSession = resumeSession;
         setId("command-palette");
         setManaged(false);
         setVisible(false);
@@ -160,6 +172,20 @@ final class CommandPalette extends StackPane implements AutoCloseable {
         if (closed) {
             return;
         }
+        sessionsMode = false;
+        sessionListing = null;
+        query.setPromptText("Search files, or type > for commands");
+        reveal();
+        String initialQuery = commands ? ">" : "";
+        if (query.getText().equals(initialQuery)) {
+            refresh();
+        } else {
+            query.setText(initialQuery);
+        }
+        query.positionCaret(query.getLength());
+    }
+
+    private void reveal() {
         if (!isVisible()) {
             previousFocus = host.getScene().getFocusOwner();
             results.getItems().clear();
@@ -167,14 +193,56 @@ final class CommandPalette extends StackPane implements AutoCloseable {
         setVisible(true);
         toFront();
         resizeToHost();
-        String initialQuery = commands ? ">" : "";
-        if (query.getText().equals(initialQuery)) {
-            refresh();
-        } else {
-            query.setText(initialQuery);
-        }
         query.requestFocus();
-        query.positionCaret(query.getLength());
+    }
+
+    void showKiroSessions() {
+        if (closed) {
+            return;
+        }
+        cancelSearch();
+        sessionsMode = true;
+        sessionListing = null;
+        query.setPromptText("Search Kiro sessions across all workspaces");
+        reveal();
+        query.clear();
+        publish(List.of());
+        status.setText("Loading Kiro sessions…");
+        long requestedRevision = revision;
+        pending = worker.submit(() -> {
+            try {
+                var listing = loadSessions.load();
+                Platform.runLater(() -> {
+                    if (!closed && isVisible() && sessionsMode && revision == requestedRevision) {
+                        sessionListing = listing;
+                        filterSessions();
+                    }
+                });
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | RuntimeException failure) {
+                Platform.runLater(() -> {
+                    if (!closed && isVisible() && sessionsMode && revision == requestedRevision) {
+                        publish(List.of());
+                        status.setText("Unable to list Kiro sessions: " + failure.getMessage());
+                    }
+                });
+            }
+        });
+    }
+
+    private void filterSessions() {
+        if (sessionListing == null) {
+            return;
+        }
+        String text = query.getText();
+        List<Entry> matches = sessionListing.sessions().stream()
+                .filter(session -> PaletteFileSearch.matches(session.label(), text))
+                .map(session -> new Entry(session.label(), null, null, text, session)).toList();
+        publish(matches);
+        String message = sessionListing.sessions().isEmpty() ? "No saved Kiro sessions"
+                : matches.isEmpty() ? "No matching Kiro sessions" : "Kiro sessions • Enter to resume • Esc to close";
+        status.setText(message + (sessionListing.complete() ? "" : " • Some session stores could not be listed"));
     }
 
     void hide() {
@@ -199,6 +267,10 @@ final class CommandPalette extends StackPane implements AutoCloseable {
     }
 
     private void refresh() {
+        if (sessionsMode && isVisible() && !closed) {
+            filterSessions();
+            return;
+        }
         cancelSearch();
         if (!isVisible() || closed) {
             return;
@@ -210,7 +282,7 @@ final class CommandPalette extends StackPane implements AutoCloseable {
                             && command != EditorShortcuts.Command.QUICK_OPEN)
                     .filter(enabled)
                     .filter(command -> PaletteFileSearch.matches(command.label(), text.substring(1)))
-                    .map(command -> new Entry(command.help(), command, null, text.substring(1))).toList();
+                    .map(command -> new Entry(command.help(), command, null, text.substring(1), null)).toList();
             publish(commands);
             status.setText("Commands • Enter to run • Esc to close");
             return;
@@ -243,7 +315,7 @@ final class CommandPalette extends StackPane implements AutoCloseable {
                 paths.addAll(found.files());
                 boolean limited = found.limited() || paths.size() > 200;
                 List<Entry> entries = paths.stream().limit(200)
-                        .map(file -> new Entry(fileLabel(root, file), null, file, text)).toList();
+                        .map(file -> new Entry(fileLabel(root, file), null, file, text, null)).toList();
                 Platform.runLater(() -> {
                     if (closed || !isVisible() || revision != requestedRevision
                             || !java.util.Objects.equals(root, folder.get())) {
@@ -275,7 +347,8 @@ final class CommandPalette extends StackPane implements AutoCloseable {
         if (selected != null) {
             for (int index = 0; index < entries.size(); index++) {
                 Entry entry = entries.get(index);
-                if (java.util.Objects.equals(entry.file(), selected.file()) && entry.command() == selected.command()) {
+                if (java.util.Objects.equals(entry.file(), selected.file()) && entry.command() == selected.command()
+                        && java.util.Objects.equals(entry.session(), selected.session())) {
                     selectedIndex = index;
                     break;
                 }
@@ -335,7 +408,9 @@ final class CommandPalette extends StackPane implements AutoCloseable {
             return;
         }
         hide();
-        if (entry.file() != null) {
+        if (entry.session() != null) {
+            resumeSession.accept(entry.session());
+        } else if (entry.file() != null) {
             openFile.accept(entry.file());
         } else {
             execute.accept(entry.command());

@@ -7,6 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.io.IOException;
+import java.time.Instant;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import javafx.application.Platform;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -37,6 +43,17 @@ class CommandPaletteTest {
 
     private static final class ScriptedApp extends EditorApp {
         private File choice;
+
+        private KiroSessions.Loader sessionLoader = () -> new KiroSessions.Listing(List.of(), true);
+
+        private final AtomicInteger sessionLoads = new AtomicInteger();
+
+        @Override
+        KiroSessions.Listing loadKiroSessions() throws IOException, InterruptedException {
+            assertFalse(Platform.isFxApplicationThread());
+            sessionLoads.incrementAndGet();
+            return sessionLoader.load();
+        }
 
         @Override
         File chooseOpenFile() {
@@ -390,6 +407,129 @@ class CommandPaletteTest {
                 return null;
             });
         }
+    }
+
+    @Test
+    void sessionsButtonLoadsAllWorkspacesAndFiltersWithoutReloadingOrLosingSelection() throws Exception {
+        create();
+        FxTestSupport.onFxThread(() -> {
+            app.sessionLoader = () -> new KiroSessions.Listing(List.of(
+                    new KiroSessions.Session("first-id", "Fix colors", directory, Instant.EPOCH),
+                    new KiroSessions.Session("second-id", "Fix palette", directory.resolve("other"), Instant.EPOCH),
+                    new KiroSessions.Session("third-id", "Review", directory.resolve("third"), Instant.EPOCH)), true);
+            ((Button) stage.getScene().lookup("#list-kiro-sessions")).fire();
+            return null;
+        });
+        FxTestSupport.await(() -> results().getItems().size() == 3);
+        FxTestSupport.onFxThread(() -> {
+            results().getSelectionModel().select(1);
+            query().setText("fix");
+            assertEquals(2, results().getItems().size());
+            assertTrue(results().getSelectionModel().getSelectedItem().toString().contains("second-id"));
+            query().setText("colors");
+            assertEquals(1, results().getItems().size());
+            assertTrue(results().getItems().getFirst().toString().contains("first-id"));
+            query().setText("other");
+            assertEquals(1, results().getItems().size());
+            assertTrue(results().getItems().getFirst().toString().contains("second-id"));
+            assertEquals(1, app.sessionLoads.get());
+            EditorShortcutsTest.press(stage.getScene(), KeyCode.P, true, false, true);
+            assertEquals(">", query().getText());
+            assertFalse(results().getItems().getFirst().toString().contains("second-id"));
+            return null;
+        });
+    }
+
+    @Test
+    void typingWhileSessionsLoadFiltersTheArrivingListWithoutRestartingTheProcess() throws Exception {
+        create();
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            FxTestSupport.onFxThread(() -> {
+                app.sessionLoader = () -> {
+                    started.countDown();
+                    if (!release.await(5, TimeUnit.SECONDS)) {
+                        throw new IOException("Test loader timed out");
+                    }
+                    return new KiroSessions.Listing(List.of(
+                            new KiroSessions.Session("one", "Colors", directory, Instant.EPOCH),
+                            new KiroSessions.Session("two", "Other", directory, Instant.EPOCH)), true);
+                };
+                ((Button) stage.getScene().lookup("#list-kiro-sessions")).fire();
+                return null;
+            });
+            assertTrue(started.await(3, TimeUnit.SECONDS));
+            FxTestSupport.onFxThread(() -> {
+                query().setText("colors");
+                return null;
+            });
+            release.countDown();
+            FxTestSupport.await(() -> results().getItems().size() == 1);
+            assertEquals(1, app.sessionLoads.get());
+            assertTrue(FxTestSupport.onFxThread(() -> results().getItems().getFirst().toString().contains("one")));
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void sessionErrorsEmptyListsAndPartialListsHaveDistinctMessagesAndButtonRefreshes() throws Exception {
+        create();
+        FxTestSupport.onFxThread(() -> {
+            app.sessionLoader = () -> { throw new IOException("CLI unavailable"); };
+            ((Button) stage.getScene().lookup("#list-kiro-sessions")).fire();
+            return null;
+        });
+        FxTestSupport.await(() -> sessionStatus().contains("CLI unavailable"));
+        FxTestSupport.onFxThread(() -> {
+            assertTrue(results().getItems().isEmpty());
+            app.sessionLoader = () -> new KiroSessions.Listing(List.of(), true);
+            ((Button) stage.getScene().lookup("#list-kiro-sessions")).fire();
+            return null;
+        });
+        FxTestSupport.await(() -> sessionStatus().contains("No saved Kiro sessions"));
+        FxTestSupport.onFxThread(() -> {
+            app.sessionLoader = () -> new KiroSessions.Listing(List.of(
+                    new KiroSessions.Session("id", "Available", directory, Instant.EPOCH)), false);
+            ((Button) stage.getScene().lookup("#list-kiro-sessions")).fire();
+            return null;
+        });
+        FxTestSupport.await(() -> sessionStatus().contains("Some session stores could not be listed"));
+        assertEquals(3, app.sessionLoads.get());
+        assertEquals(1, FxTestSupport.onFxThread(() -> results().getItems().size()));
+    }
+
+    @Test
+    void closingPaletteCancelsSessionListing() throws Exception {
+        create();
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch cancelled = new CountDownLatch(1);
+        FxTestSupport.onFxThread(() -> {
+            app.sessionLoader = () -> {
+                started.countDown();
+                try {
+                    new CountDownLatch(1).await(5, TimeUnit.SECONDS);
+                    throw new IOException("Expected cancellation");
+                } catch (InterruptedException interrupted) {
+                    cancelled.countDown();
+                    throw interrupted;
+                }
+            };
+            ((Button) stage.getScene().lookup("#list-kiro-sessions")).fire();
+            return null;
+        });
+        assertTrue(started.await(3, TimeUnit.SECONDS));
+        FxTestSupport.onFxThread(() -> {
+            key(KeyCode.ESCAPE);
+            assertFalse(palette().isVisible());
+            return null;
+        });
+        assertTrue(cancelled.await(3, TimeUnit.SECONDS));
+    }
+
+    private String sessionStatus() {
+        return ((javafx.scene.control.Label) stage.getScene().lookup("#palette-status")).getText();
     }
 
     private static String read(Path file) {

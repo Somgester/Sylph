@@ -49,6 +49,13 @@ class TerminalWorkspaceTest {
 
         private Path commandDirectory;
 
+        private KiroSessions.Listing savedSessions = new KiroSessions.Listing(List.of(), true);
+
+        @Override
+        KiroSessions.Listing loadKiroSessions() {
+            return savedSessions;
+        }
+
         @Override
         TerminalView createTerminal(Path directory) {
             var environment = new HashMap<>(System.getenv());
@@ -176,6 +183,48 @@ class TerminalWorkspaceTest {
             assertEquals(3, ((TabPane) scene.lookup("#editor-tabs")).getTabs().size());
             assertEquals("unsaved document", editor.getText());
             assertTrue(editor.isUndoAvailable());
+            return null;
+        });
+    }
+
+    @Test
+    void selectingKiroSessionResumesItsIdInItsOriginalWorkspace() throws Exception {
+        Path savedFolder = Files.createDirectory(directory.resolve("previous project"));
+        Path commands = Files.createDirectory(directory.resolve("commands"));
+        Path executable = Files.writeString(commands.resolve("kiro-cli"), """
+                #!/bin/sh
+                test "$#" -eq 3 || exit 2
+                test "$1 $2" = 'chat --resume-id' || exit 3
+                printf '%s' "$PWD" > resume-cwd
+                printf '%s' "$3" > resume-id
+                printf 'SYLPH_SESSION_RESUMED\n'
+                """);
+        assertTrue(executable.toFile().setExecutable(true));
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            app.commandDirectory = commands;
+            app.savedSessions = new KiroSessions.Listing(List.of(new KiroSessions.Session("session-123", "Previous",
+                    savedFolder, java.time.Instant.EPOCH)), true);
+            editor.replaceText("keep my edits");
+            ((Button) scene.lookup("#list-kiro-sessions")).fire();
+            return null;
+        });
+        FxTestSupport.await(() -> ((javafx.scene.control.ListView<?>) scene.lookup("#palette-results"))
+                .getItems().size() == 1);
+        FxTestSupport.onFxThread(() -> {
+            scene.lookup("#palette-query").fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.ENTER,
+                    false, false, false, false));
+            return null;
+        });
+        TerminalView terminal = selected("#editor-tabs");
+        awaitShell(terminal);
+        FxTestSupport.await(() -> Files.exists(savedFolder.resolve("resume-id"))
+                && Files.readString(savedFolder.resolve("resume-id")).equals("session-123")
+                && screen(terminal).contains("SYLPH_SESSION_RESUMED"));
+        assertEquals(savedFolder.toString(), Files.readString(savedFolder.resolve("resume-cwd")));
+        FxTestSupport.onFxThread(() -> {
+            assertEquals("keep my edits", editor.getText());
+            assertFalse(scene.lookup("#command-palette").isVisible());
             return null;
         });
     }

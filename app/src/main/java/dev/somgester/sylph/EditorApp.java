@@ -151,6 +151,7 @@ public class EditorApp extends Application {
         editor = editorView.area();
         chrome = new EditorChrome(session, settings, editorView, this::executeCommand);
         chrome.kiroButton().setOnAction(event -> openKiroTerminal());
+        chrome.kiroSessionsButton().setOnAction(event -> palette.showKiroSessions());
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
         terminals = new TerminalWorkspace(this::createTerminal, () -> editor.requestFocus(),
@@ -183,7 +184,7 @@ public class EditorApp extends Application {
         themeListener = (observable, oldValue, dark) -> applyTheme(scene, dark);
         settings.darkThemeProperty().addListener(themeListener);
         palette = new CommandPalette(root, sidebar::getRootDirectory, recentFiles::files, this::openFile,
-                this::executeCommand, this::commandEnabled);
+                this::executeCommand, this::commandEnabled, this::loadKiroSessions, this::resumeKiroSession);
         EditorShortcuts.install(scene, this::executeCommand,
                 command -> command != EditorShortcuts.Command.PREVIEW || !TerminalView.ownsFocus(scene));
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
@@ -372,6 +373,20 @@ public class EditorApp extends Application {
         TerminalView terminal = terminals.open(terminalDirectory(), true);
         if (terminal != null) {
             terminal.session().send("kiro-cli\r");
+        }
+    }
+
+    KiroSessions.Listing loadKiroSessions() throws IOException, InterruptedException {
+        return new KiroSessions().list();
+    }
+
+    private void resumeKiroSession(KiroSessions.Session saved) {
+        if (settingsVisible) {
+            showEditor();
+        }
+        TerminalView terminal = terminals.open(saved.directory(), true);
+        if (terminal != null) {
+            terminal.session().send(saved.resumeCommand());
         }
     }
 

@@ -29,6 +29,7 @@ repositories {
 dependencies {
     implementation libs.commonmark
     implementation libs.jsoup
+    implementation libs.gson
     implementation libs.commonmark.tables
     implementation libs.commonmark.strikethrough
     runtimeOnly libs.slf4j.jdk14
