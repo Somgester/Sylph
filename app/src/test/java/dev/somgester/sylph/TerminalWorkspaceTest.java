@@ -16,6 +16,9 @@ import java.util.concurrent.TimeUnit;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.input.Clipboard;
@@ -42,12 +45,16 @@ class TerminalWorkspaceTest {
 
         private AppSettings settings;
 
+        private TerminalView lastTerminal;
+
         @Override
         TerminalView createTerminal(Path directory) {
             var environment = new HashMap<>(System.getenv());
             environment.put("ENV", "/dev/null");
             environment.put("PS1", "");
-            return new TerminalView(new TerminalSession(directory, List.of("/bin/sh", "-i"), environment), settings);
+            lastTerminal = new TerminalView(
+                    new TerminalSession(directory, List.of("/bin/sh", "-i"), environment), settings);
+            return lastTerminal;
         }
 
         @Override
@@ -206,6 +213,124 @@ class TerminalWorkspaceTest {
             assertEquals(null, scene.lookup("#markdown-preview"));
             return null;
         });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void editMenuTargetsTerminalWithoutEditingOrAutosavingTheDocument(boolean inEditor) throws Exception {
+        Path file = Files.writeString(directory.resolve("keep.txt"), "keep-file");
+        create(true);
+        open(file);
+        FxTestSupport.onFxThread(() -> {
+            editor.selectRange(0, 4);
+            settings.delaySecondsProperty().set(0);
+            settings.autoSaveProperty().set(true);
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, !inEditor, false, true);
+            return null;
+        });
+        TerminalView terminal = selected(inEditor ? "#editor-tabs" : "#terminal-panel");
+        awaitShell(terminal);
+        FxTestSupport.await(() -> TerminalView.ownsFocus(scene));
+        terminal.session().send("printf 'terminal-marker\n'\r");
+        FxTestSupport.await(() -> screen(terminal).contains("terminal-marker"));
+        FxTestSupport.onFxThread(() -> {
+            MenuBar menus = (MenuBar) scene.lookup("#main-menu");
+            Menu edit = menus.getMenus().get(1);
+            edit.show();
+            menus.setFocusTraversable(true);
+            menus.requestFocus();
+            assertTrue(menus.isFocused());
+            for (String label : List.of("Undo", "Redo", "Cut")) {
+                assertTrue(editItem(edit, label).isDisable());
+                editItem(edit, label).fire();
+            }
+            editItem(edit, "Select All").fire();
+            assertEquals("keep", editor.getSelectedText());
+            editItem(edit, "Copy").fire();
+            assertTrue(Clipboard.getSystemClipboard().getString().contains("terminal-marker"));
+            ClipboardContent clipboard = new ClipboardContent();
+            clipboard.putString("printf 'pasted' > menu-paste\n");
+            Clipboard.getSystemClipboard().setContent(clipboard);
+            editItem(edit, "Paste").fire();
+            edit.hide();
+            assertEquals("keep-file", editor.getText());
+            return null;
+        });
+        FxTestSupport.await(() -> Files.exists(directory.resolve("menu-paste"))
+                && Files.readString(directory.resolve("menu-paste")).equals("pasted"));
+        assertEquals("keep-file", Files.readString(file));
+        FxTestSupport.onFxThread(() -> {
+            assertEquals("keep.txt — Sylph", stage.getTitle());
+            settings.autoSaveProperty().set(false);
+            if (inEditor) {
+                ((TabPane) scene.lookup("#editor-tabs")).getSelectionModel().selectFirst();
+            }
+            return null;
+        });
+        FxTestSupport.onFxThread(() -> {
+            editor.requestFocus();
+            Menu edit = ((MenuBar) scene.lookup("#main-menu")).getMenus().get(1);
+            ClipboardContent clipboard = new ClipboardContent();
+            clipboard.putString("document-input");
+            Clipboard.getSystemClipboard().setContent(clipboard);
+            editItem(edit, "Select All").fire();
+            editItem(edit, "Paste").fire();
+            assertEquals("document-input", editor.getText());
+            return null;
+        });
+        assertEquals("keep-file", Files.readString(file));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void terminalLoadHonorsAnEditorFocusChoiceMadeWhileItWasStarting(boolean duplicate) throws Exception {
+        create(true);
+        if (duplicate) {
+            FxTestSupport.onFxThread(() -> {
+                EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+                return null;
+            });
+            awaitShell(selected("#terminal-panel"));
+        }
+        TerminalView terminal = FxTestSupport.onFxThread(() -> {
+            editor.requestFocus();
+            if (duplicate) {
+                TabPane panel = (TabPane) scene.lookup("#terminal-panel");
+                ((Button) panel.getSelectionModel().getSelectedItem().getGraphic()).fire();
+            } else {
+                EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            }
+            TerminalView pending = app.lastTerminal;
+            sessions.add(pending.session());
+            assertTrue(TerminalView.ownsFocus(scene));
+            editor.requestFocus();
+            assertTrue(editor.isFocused());
+            assertFalse(((Label) pending.getBottom()).getText().startsWith("Shell running"));
+            return pending;
+        });
+        awaitShell(terminal);
+        FxTestSupport.onFxThread(() -> {
+            assertTrue(editor.isFocused());
+            editor.appendText("editor keeps typing");
+            return null;
+        });
+        FxTestSupport.onFxThread(() -> {
+            assertTrue(editor.isFocused());
+            assertEquals("editor keeps typing", editor.getText());
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            return null;
+        });
+        FxTestSupport.await(() -> ((WebView) terminal.getCenter()).isFocused());
+        FxTestSupport.onFxThread(() -> {
+            terminal.requestFocus();
+            return null;
+        });
+        FxTestSupport.await(() -> ((WebView) terminal.getCenter()).isFocused());
+    }
+
+    private static MenuItem editItem(Menu menu, String label) {
+        return menu.getItems().stream().filter(item -> label.equals(item.getText())).findFirst().orElseThrow();
     }
 
     @Test

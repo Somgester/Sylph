@@ -46,7 +46,6 @@
             setTheme(dark);
             new ResizeObserver(resize).observe(document.body);
             resize();
-            terminal.focus();
         },
         write(text) { terminal.write(text, () => bridge.drained()); },
         ended(text) { terminal.write('\r\n[' + text + ']\r\n'); terminal.options.disableStdin = true; },

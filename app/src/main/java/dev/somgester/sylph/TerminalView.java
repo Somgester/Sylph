@@ -40,6 +40,8 @@ final class TerminalView extends BorderPane implements AutoCloseable {
 
     private boolean ready;
 
+    private long focusRevision;
+
     private volatile boolean closed;
 
     TerminalView(Path directory, AppSettings settings) {
@@ -53,6 +55,16 @@ final class TerminalView extends BorderPane implements AutoCloseable {
         bridge = new TerminalBridge(session, drained::release);
         getStyleClass().add("terminal-view");
         setMinSize(100, 80);
+        setFocusTraversable(true);
+        focusedProperty().addListener((observable, previous, current) -> {
+            if (current && ready) {
+                Platform.runLater(() -> {
+                    if (!closed && focused(getScene()) == this) {
+                        focusNow();
+                    }
+                });
+            }
+        });
         web.setMinSize(0, 0);
         web.setVisible(false);
         web.setContextMenuEnabled(false);
@@ -93,7 +105,9 @@ final class TerminalView extends BorderPane implements AutoCloseable {
                     ready = true;
                     web.setVisible(true);
                     startSession();
-                    focusTerminal();
+                    if (focused(getScene()) == this) {
+                        focusNow();
+                    }
                 } catch (RuntimeException failure) {
                     failRenderer("Unable to initialize terminal: " + failure.getMessage());
                 }
@@ -171,12 +185,16 @@ final class TerminalView extends BorderPane implements AutoCloseable {
     }
 
     static boolean ownsFocus(Scene scene) {
-        for (Node node = scene.getFocusOwner(); node != null; node = node.getParent()) {
-            if (node instanceof TerminalView) {
-                return true;
+        return focused(scene) != null;
+    }
+
+    private static TerminalView focused(Scene scene) {
+        for (Node node = scene == null ? null : scene.getFocusOwner(); node != null; node = node.getParent()) {
+            if (node instanceof TerminalView terminal) {
+                return terminal;
             }
         }
-        return false;
+        return null;
     }
 
     private void terminalKey(KeyEvent event) {
@@ -209,7 +227,25 @@ final class TerminalView extends BorderPane implements AutoCloseable {
         }
     }
 
-    private void copySelection() {
+    boolean hasSelection() {
+        return canSelectAll() && !((String) call("selection")).isEmpty();
+    }
+
+    boolean canSelectAll() {
+        return ready && !closed && isShowing();
+    }
+
+    boolean canPaste() {
+        return canSelectAll() && !session.completion().isDone();
+    }
+
+    void selectAll() {
+        if (canSelectAll()) {
+            call("selectAll");
+        }
+    }
+
+    void copySelection() {
         if (ready && !closed) {
             String text = (String) call("selection");
             if (!text.isEmpty()) {
@@ -220,21 +256,38 @@ final class TerminalView extends BorderPane implements AutoCloseable {
         }
     }
 
-    private void pasteClipboard() {
+    void pasteClipboard() {
         if (ready && !closed && Clipboard.getSystemClipboard().hasString()) {
             call("paste", Clipboard.getSystemClipboard().getString());
         }
     }
 
-    void focusTerminal() {
+    void focusTerminal(Scene scene) {
+        if (scene == null || closed) {
+            return;
+        }
+        long requested = ++focusRevision;
+        if (getScene() == scene && isShowing()) {
+            focusNow();
+            return;
+        }
+        Node previous = scene.getFocusOwner();
         Platform.runLater(() -> {
-            if (!closed && isShowing()) {
-                web.requestFocus();
-                if (ready) {
-                    call("focus");
-                }
+            if (!closed && requested == focusRevision && getScene() == scene && isShowing()
+                    && scene.getFocusOwner() == previous) {
+                focusNow();
             }
         });
+    }
+
+    private void focusNow() {
+        if (ready) {
+            web.requestFocus();
+            call("focus");
+        } else {
+            // Claim focus while loading so completion only continues an existing focus request.
+            requestFocus();
+        }
     }
 
     private boolean isShowing() {

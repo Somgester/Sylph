@@ -82,6 +82,8 @@ flowchart TB
 
 Arrows show commands and data flow, not every constructor dependency. Worker results return to the JavaFX thread before updating controls.
 
+`EditorEditMenu` tracks the focused document, terminal, or text field and retains that target while menus take focus. It rechecks action availability at activation; unsupported terminal edits cannot mutate the document.
+
 `EditorApp` owns the scene and connects these components. It coordinates dialogs, foreground file actions, theme changes, preview visibility, and shutdown. `EditorChrome` means the surrounding menus/toolbars, not the text document or a browser engine.
 
 ## Document lifecycle and disk work
@@ -118,7 +120,7 @@ These checks detect external modifications but are not a filesystem lock or a gu
 
 ## Terminal lifecycle
 
-`TerminalWorkspace` is created lazily when the first terminal command runs. It preserves the existing document view inside an unclosable file tab, adds terminal tabs in the editor or a vertical split panel, and closes sessions when tabs are removed. Hiding the panel retains processes; duplicate starts an independent session in the same initial folder.
+`TerminalWorkspace` is created lazily when the first terminal command runs. Explicit terminal selection claims focus before loading; renderer completion only continues that request if the terminal still owns focus. It preserves the existing document view inside an unclosable file tab, adds terminal tabs in the editor or a vertical split panel, and closes sessions when tabs are removed. Hiding the panel retains processes; duplicate starts an independent session in the same initial folder.
 
 `TerminalSession` owns a real pty4j process and separate reader/input workers. UTF-8 output crosses to `TerminalView` one chunk at a time, with an acknowledgement from xterm.js before reading the next chunk. `TerminalBridge` is public for WebKit's reflective calls and exposes only input/resize/acknowledgement operations. Output crosses the bridge as data. Startup and termination run outside JavaFX; a close during startup waits for process registration before cleanup. Closing releases streams and terminates observed descendants as well as the shell. `TerminalPage` embeds bundled assets with a fresh script nonce so resource loading works from both class directories and packaged JARs. The local terminal page uses a restrictive content policy and does not share Markdown's WebView or document session.
 

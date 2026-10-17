@@ -14,7 +14,9 @@ Text, selection, undo history, and dirty state are independent of styling. Plain
 
 ## Budgets and failures
 
-Each grammar line receives a 100 ms budget. Early termination leaves the affected remainder unstyled rather than reusing an invalid state. Partial or cancelled caches are not published. The highlighter retries once to accommodate first-use regex compilation; a persistent timeout remains a fallback, not proof of successful highlighting. Runtime failures are logged and clear stale colors; later edits can recover.
+Each grammar line receives a 100 ms budget. If it stops early, the tokenizer retries that line once from its original incoming state with a 1 second budget for lazy regex compilation. Later lines can encounter new grammar paths too, so recovery happens per line instead of restarting the entire document. Cancellation is checked after each attempt. These are cooperative TM4E budgets, not hard deadlines for an individual regex operation.
+
+If the retry also stops early, the affected line and remainder stay unstyled rather than reusing an invalid state. Partial or cancelled caches are not published, and the highlighter does not repeat the whole document. A persistent timeout remains a fallback, not proof of successful highlighting. Runtime failures are logged and clear stale colors; later edits can recover.
 
 A grammar's non-advancing-match guard is different from a timeout. It can stop tokenization even when the returned result looks complete. Regression tests must check actual token categories and loop diagnostics, not merely output length or `complete()`.
 

@@ -12,6 +12,10 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.MenuBar;
+import javafx.scene.control.TextField;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
+import javafx.stage.Stage;
 import javafx.scene.layout.BorderPane;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -133,6 +137,38 @@ class EditorChromeTest {
                 assertFalse(items.get(4).isDisable());
                 return null;
             } finally {
+                editor.close();
+                session.close();
+            }
+        });
+    }
+
+    @Test
+    void editMenuPastesIntoFocusedTextFieldInsteadOfTheDocument() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            EditorSession session = new EditorSession(new EditorFileService());
+            EditorView editor = new EditorView(session);
+            Stage stage = new Stage();
+            try {
+                editor.area().replaceText("keep-document");
+                editor.area().selectAll();
+                EditorChrome chrome = new EditorChrome(session, settings(), editor, command -> { });
+                TextField input = new TextField("old-input");
+                BorderPane root = new BorderPane(input, chrome, null, null, null);
+                stage.setScene(new Scene(root));
+                stage.show();
+                input.requestFocus();
+                input.selectAll();
+                ClipboardContent clipboard = new ClipboardContent();
+                clipboard.putString("field-input");
+                Clipboard.getSystemClipboard().setContent(clipboard);
+                var edit = ((MenuBar) chrome.lookup("#main-menu")).getMenus().get(1);
+                edit.getItems().get(5).fire();
+                assertEquals("field-input", input.getText());
+                assertEquals("keep-document", editor.area().getText());
+                return null;
+            } finally {
+                stage.hide();
                 editor.close();
                 session.close();
             }

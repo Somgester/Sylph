@@ -2,6 +2,7 @@ package dev.somgester.sylph;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -111,26 +112,82 @@ class SyntaxTokenizerTest {
     }
 
     @Test
+    void eachColdLineRetriesFromItsOriginalStateAndCompletesInOneDocumentPass() {
+        var realGrammar = new SyntaxGrammars().forLanguage(EditorLanguage.JAVA).orElseThrow();
+        String text = "class Example {\n/* unfinished\ncontinued */ int answer = 42;\n}";
+        var expected = tokenizer.tokenize(text, EditorLanguage.JAVA);
+        assertTrue(expected.complete());
+        AtomicInteger calls = new AtomicInteger();
+        List<IStateStack> incoming = new ArrayList<>();
+        IGrammar coldGrammar = (IGrammar) Proxy.newProxyInstance(IGrammar.class.getClassLoader(),
+                new Class<?>[] {IGrammar.class}, (proxy, method, arguments) -> {
+                    assertEquals("tokenizeLine", method.getName());
+                    int call = calls.getAndIncrement();
+                    assertEquals(Duration.ofMillis(call % 2 == 0 ? 100 : 1000), arguments[2]);
+                    if (call % 2 == 0) {
+                        incoming.add((IStateStack) arguments[1]);
+                    } else {
+                        assertSame(incoming.getLast(), arguments[1]);
+                    }
+                    var result = realGrammar.tokenizeLine((String) arguments[0],
+                            (IStateStack) arguments[1], Duration.ofSeconds(2));
+                    assertFalse(result.isStoppedEarly());
+                    return call % 2 == 0 ? stoppedEarly(result) : result;
+                });
+        var cold = new SyntaxTokenizer(language -> Optional.of(coldGrammar));
+        var result = cold.tokenize(text, EditorLanguage.JAVA);
+        assertTrue(result.complete());
+        assertEquals(expected, result);
+        assertEquals(8, calls.get());
+        assertEquals(result, cold.tokenize(text, EditorLanguage.JAVA));
+        assertEquals(8, calls.get(), "Completed retry results must be reusable");
+    }
+
+    @Test
     void timeoutKeepsCompletedLinesAndLeavesRemainingLinesUnstyled() {
         var realGrammar = new SyntaxGrammars().forLanguage(EditorLanguage.JAVA).orElseThrow();
         AtomicInteger calls = new AtomicInteger();
         IGrammar boundedGrammar = (IGrammar) Proxy.newProxyInstance(IGrammar.class.getClassLoader(),
                 new Class<?>[] {IGrammar.class}, (proxy, method, arguments) -> {
                     assertEquals("tokenizeLine", method.getName());
-                    assertEquals(Duration.ofMillis(100), arguments[2]);
+                    int call = calls.incrementAndGet();
+                    assertEquals(Duration.ofMillis(call == 3 ? 1000 : 100), arguments[2]);
                     var result = realGrammar.tokenizeLine((String) arguments[0],
                             (IStateStack) arguments[1], (Duration) arguments[2]);
-                    return calls.incrementAndGet() == 2 ? stoppedEarly(result) : result;
+                    return call >= 2 ? stoppedEarly(result) : result;
                 });
         var bounded = new SyntaxTokenizer(language -> Optional.of(boundedGrammar));
         String text = "class Example {}\n/* unfinished\ncontinued */ class Next {}";
         var result = bounded.tokenize(text, EditorLanguage.JAVA);
         assertFalse(result.complete());
-        assertEquals(2, calls.get());
+        assertEquals(3, calls.get());
         assertTrue(scopesAt(result, 6).contains("entity.name.type.class.java"));
         assertTrue(result.lines().subList(1, 3).stream().flatMap(line -> line.tokens().stream())
                 .allMatch(token -> token.scopes().isEmpty()));
         assertCoverage(result, text);
+    }
+
+    @Test
+    void cancellationAfterTimedOutAttemptPreventsRetry() {
+        var realGrammar = new SyntaxGrammars().forLanguage(EditorLanguage.JAVA).orElseThrow();
+        AtomicInteger calls = new AtomicInteger();
+        IGrammar interruptedGrammar = (IGrammar) Proxy.newProxyInstance(IGrammar.class.getClassLoader(),
+                new Class<?>[] {IGrammar.class}, (proxy, method, arguments) -> {
+                    calls.incrementAndGet();
+                    var result = realGrammar.tokenizeLine((String) arguments[0],
+                            (IStateStack) arguments[1], Duration.ofSeconds(2));
+                    Thread.currentThread().interrupt();
+                    return stoppedEarly(result);
+                });
+        var interrupted = new SyntaxTokenizer(language -> Optional.of(interruptedGrammar));
+        try {
+            assertThrows(CancellationException.class,
+                    () -> interrupted.tokenize("class Example {}", EditorLanguage.JAVA));
+            assertTrue(Thread.currentThread().isInterrupted());
+            assertEquals(1, calls.get());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test

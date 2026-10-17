@@ -87,10 +87,13 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         }
         TerminalView terminal = terminals.get(pane.getSelectionModel().getSelectedItem());
         if (terminal != null) {
-            terminal.focusTerminal();
+            terminal.focusTerminal(getScene());
         } else if (pane == editors) {
+            var scene = getScene();
+            Node previous = scene == null ? null : scene.getFocusOwner();
             Platform.runLater(() -> {
-                if (!closed && getScene() != null && editors.getSelectionModel().getSelectedItem() == document) {
+                if (!closed && getScene() == scene && scene != null && scene.getFocusOwner() == previous
+                        && editors.getSelectionModel().getSelectedItem() == document) {
                     focusDocument.run();
                 }
             });
@@ -116,7 +119,7 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
             showPanel();
             TerminalView selected = terminals.get(panel.getSelectionModel().getSelectedItem());
             if (selected != null) {
-                selected.focusTerminal();
+                selected.focusTerminal(getScene());
             }
         }
     }
@@ -141,7 +144,12 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         if (!inEditor) {
             showPanel();
         }
-        view.focusTerminal();
+        // Attach new tab contents before the explicit focus request, rather than stealing focus later.
+        if (getScene() != null) {
+            getScene().getRoot().applyCss();
+            getScene().getRoot().layout();
+        }
+        view.focusTerminal(getScene());
     }
 
     private void showPanel() {

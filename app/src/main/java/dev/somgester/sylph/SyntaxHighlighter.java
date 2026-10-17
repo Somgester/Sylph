@@ -98,10 +98,6 @@ final class SyntaxHighlighter implements AutoCloseable {
             SyntaxStyles.Snapshot previous, int firstDirty, int lastDirty) {
         try {
             var result = tokenize.apply(text, requestedLanguage);
-            // First-use regex compilation can consume the line budget. Retry once with warm caches.
-            if (!result.complete() && !Thread.currentThread().isInterrupted()) {
-                result = tokenize.apply(text, requestedLanguage);
-            }
             if (Thread.currentThread().isInterrupted()) {
                 return;
             }

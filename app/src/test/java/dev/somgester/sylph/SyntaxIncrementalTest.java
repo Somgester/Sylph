@@ -99,7 +99,7 @@ class SyntaxIncrementalTest {
         String original = "class Example {\nint one = 1;\nint two = 2;\n}";
         var before = complete(original, EditorLanguage.JAVA);
         String edited = original.replace("one = 1", "one = 3");
-        grammars.stopNext = true;
+        grammars.stopsRemaining = 2;
         var partial = tokenizer.tokenize(edited, EditorLanguage.JAVA);
         assertFalse(partial.complete());
         assertTrue(partial.lines().get(2).tokens().stream().allMatch(token -> token.scopes().isEmpty()));
@@ -189,7 +189,7 @@ class SyntaxIncrementalTest {
 
         private final List<String> calls = new ArrayList<>();
 
-        private boolean stopNext;
+        private int stopsRemaining;
 
         private boolean interruptNext;
 
@@ -211,8 +211,8 @@ class SyntaxIncrementalTest {
                             interruptNext = false;
                             Thread.currentThread().interrupt();
                         }
-                        if (stopNext) {
-                            stopNext = false;
+                        if (stopsRemaining > 0) {
+                            stopsRemaining--;
                             return stoppedEarly(result);
                         }
                         return result;

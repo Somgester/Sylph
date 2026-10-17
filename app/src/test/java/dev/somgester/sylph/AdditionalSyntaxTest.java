@@ -13,9 +13,10 @@ class AdditionalSyntaxTest {
     @ParameterizedTest
     @EnumSource(value = EditorLanguage.class,
             names = {"C", "CPP", "PYTHON", "JAVASCRIPT", "JAVASCRIPT_JSX", "TYPESCRIPT", "TYPESCRIPT_TSX"})
-    void newGrammarsColorFunctionsKeywordsStringsNumbersAndComments(EditorLanguage language) {
+    void coldGrammarsColorWholeDocumentInOnePass(EditorLanguage language) {
         String source = sample(language);
-        var result = complete(new SyntaxTokenizer(), source, language);
+        var result = new SyntaxTokenizer().tokenize(source, language);
+        assertTrue(result.complete());
         assertEquals("syntax-function", styleAt(result, source.indexOf("greet")).iterator().next());
         assertEquals("syntax-keyword", styleAt(result, source.indexOf("return")).iterator().next());
         assertEquals("syntax-string", styleAt(result, source.indexOf("hello")).iterator().next());

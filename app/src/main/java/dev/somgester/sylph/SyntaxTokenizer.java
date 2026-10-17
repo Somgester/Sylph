@@ -10,6 +10,7 @@ import java.util.function.Function;
 import org.eclipse.tm4e.core.grammar.IGrammar;
 import org.eclipse.tm4e.core.grammar.IStateStack;
 import org.eclipse.tm4e.core.grammar.IToken;
+import org.eclipse.tm4e.core.grammar.ITokenizeLineResult;
 
 // Confined to one worker, including the grammar registry. Results can cross threads.
 final class SyntaxTokenizer {
@@ -35,6 +36,8 @@ final class SyntaxTokenizer {
     }
 
     private static final Duration LINE_TIME_LIMIT = Duration.ofMillis(100);
+
+    private static final Duration LINE_RETRY_TIME_LIMIT = Duration.ofSeconds(1);
 
     private final Function<EditorLanguage, Optional<IGrammar>> grammarForLanguage;
 
@@ -96,8 +99,7 @@ final class SyntaxTokenizer {
                 state = reusable.after();
                 tokens = reusable.tokens();
             } else if (grammar.isPresent() && complete) {
-                var lineResult = grammar.orElseThrow().tokenizeLine(lineText, state, LINE_TIME_LIMIT);
-                checkCancelled();
+                var lineResult = tokenizeLine(grammar.orElseThrow(), lineText, state);
                 if (lineResult.isStoppedEarly()) {
                     // An incomplete state cannot safely seed the following lines.
                     complete = false;
@@ -121,6 +123,18 @@ final class SyntaxTokenizer {
             cache = List.copyOf(nextCache);
         }
         return new Result(text.length(), lines, complete);
+    }
+
+    private static ITokenizeLineResult<IToken[]> tokenizeLine(IGrammar grammar, String text, IStateStack before) {
+        var result = grammar.tokenizeLine(text, before, LINE_TIME_LIMIT);
+        checkCancelled();
+        if (result.isStoppedEarly()) {
+            // New grammar paths compile lazily, including on later lines. Retry this line from its
+            // original state with room for compilation, without restarting completed document work.
+            result = grammar.tokenizeLine(text, before, LINE_RETRY_TIME_LIMIT);
+            checkCancelled();
+        }
+        return result;
     }
 
     private static List<Token> copyTokens(IToken[] source, int length) {

@@ -77,32 +77,6 @@ class SyntaxHighlighterTest {
     }
 
     @Test
-    void firstUseTimeoutRetriesOnceOnTheWorker() throws Exception {
-        AtomicInteger calls = new AtomicInteger();
-        ReadOnlyObjectWrapper<EditorLanguage> language = new ReadOnlyObjectWrapper<>(EditorLanguage.JSON);
-        CodeArea area = FxTestSupport.onFxThread(() -> new CodeArea("42"));
-        SyntaxHighlighter highlighter = FxTestSupport.onFxThread(() -> new SyntaxHighlighter(area, language,
-                (text, requestedLanguage) -> {
-                    assertFalse(Platform.isFxApplicationThread());
-                    if (calls.incrementAndGet() == 1) {
-                        var partial = result(text, "string.quoted.double.json");
-                        return new SyntaxTokenizer.Result(partial.length(), partial.lines(), false);
-                    }
-                    return result(text, "constant.numeric.json");
-                }));
-        try {
-            FxTestSupport.await(() -> area.getStyleOfChar(0).contains("syntax-number"));
-            assertEquals(2, calls.get());
-        } finally {
-            FxTestSupport.onFxThread(() -> {
-                highlighter.close();
-                area.dispose();
-                return null;
-            });
-        }
-    }
-
-    @Test
     void closingWhileWorkerRunsPreventsLatePaintAndEndsWorker() throws Exception {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -140,14 +114,14 @@ class SyntaxHighlighterTest {
     }
 
     @Test
-    void persistentTimeoutStopsAfterOneRetryAndLaterEditCanRecover() throws Exception {
+    void incompleteResultIsNotRetriedAsAWholeDocumentAndLaterEditCanRecover() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         ReadOnlyObjectWrapper<EditorLanguage> language = new ReadOnlyObjectWrapper<>(EditorLanguage.JSON);
         CodeArea area = FxTestSupport.onFxThread(() -> new CodeArea("42"));
         SyntaxHighlighter highlighter = FxTestSupport.onFxThread(() -> new SyntaxHighlighter(area, language,
                 (text, requestedLanguage) -> {
                     int call = calls.incrementAndGet();
-                    if (call <= 2) {
+                    if (call == 1) {
                         var unstyled = new SyntaxTokenizer.Token(0, text.length(), List.of());
                         var line = new SyntaxTokenizer.Line(0, text.length(), List.of(unstyled));
                         return new SyntaxTokenizer.Result(text.length(), List.of(line), false);
@@ -159,13 +133,13 @@ class SyntaxHighlighterTest {
                 area.setStyle(0, area.getLength(), List.of("stale"));
                 return null;
             });
-            FxTestSupport.await(() -> calls.get() == 2 && area.getStyleOfChar(0).isEmpty());
+            FxTestSupport.await(() -> calls.get() == 1 && area.getStyleOfChar(0).isEmpty());
             FxTestSupport.onFxThread(() -> {
                 area.replaceText("43");
                 return null;
             });
             FxTestSupport.await(() -> area.getStyleOfChar(0).contains("syntax-number"));
-            assertEquals(3, calls.get());
+            assertEquals(2, calls.get());
         } finally {
             FxTestSupport.onFxThread(() -> {
                 highlighter.close();
