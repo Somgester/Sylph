@@ -91,8 +91,8 @@ class SettingsPageTest {
                 BorderPane root = (BorderPane) scene.getRoot();
                 root.applyCss();
                 root.layout();
-                EditorView editorView = (EditorView) root.getCenter();
-                CodeArea editor = editorView.area();
+                javafx.scene.Node workspace = root.getCenter();
+                CodeArea editor = app.activeEditor();
                 editor.replaceText("Keep my unsaved work\nwhile changing settings.");
                 boolean mac = System.getProperty("os.name").startsWith("Mac");
                 Event.fireEvent(root, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.COMMA,
@@ -101,11 +101,11 @@ class SettingsPageTest {
                 root.applyCss();
                 root.layout();
                 ((Button) root.lookup("#settings-back")).fire();
-                assertSame(editorView, root.getCenter());
+                assertSame(workspace, root.getCenter());
                 ((Button) root.lookup("#open-settings")).fire();
                 Event.fireEvent(root, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.ESCAPE,
                         false, false, false, false));
-                assertSame(editorView, root.getCenter());
+                assertSame(workspace, root.getCenter());
                 assertEquals("Keep my unsaved work\nwhile changing settings.", editor.getText());
                 assertTrue(stage.getTitle().startsWith("* "));
                 EditorShortcutsTest.press(scene, KeyCode.S, false, true, true);

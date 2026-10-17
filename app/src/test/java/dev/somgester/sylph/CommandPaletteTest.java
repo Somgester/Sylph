@@ -424,7 +424,7 @@ class CommandPaletteTest {
     }
 
     private CodeArea editor() {
-        return (CodeArea) stage.getScene().lookup("#editor");
+        return app.activeEditor();
     }
 
     private void key(KeyCode key) {

@@ -15,6 +15,9 @@ import java.util.function.Supplier;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.Scene;
+import javafx.event.Event;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -130,12 +133,11 @@ class UnsavedChangesTest {
     }
 
     @Test
-    void discardWhenOpeningKeepsTheOldFileUntouchedThroughThePickerAndFileSwitch() throws Exception {
+    void openingAnotherTabPreservesEditsAndPausesAutosaveThroughoutThePicker() throws Exception {
         Path file = createAndOpen(1);
         Path next = Files.writeString(directory.resolve("next.txt"), "next file");
         FxTestSupport.onFxThread(() -> {
             editor.replaceText(EDITED);
-            answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.NO, file);
             app.openChoices.add(() -> {
                 pumpPickerEvents(file);
                 return next.toFile();
@@ -143,17 +145,17 @@ class UnsavedChangesTest {
             EditorShortcutsTest.press(scene, KeyCode.O, false, false, true);
             return null;
         });
-        FxTestSupport.await(() -> editor.getText().equals("next file"));
+        FxTestSupport.await(() -> app.activeEditor().getText().equals("next file"));
         assertNoDialogFailure();
-        assertEquals(ORIGINAL, Files.readString(file));
+        assertEquals(EDITED, FxTestSupport.onFxThread(editor::getText));
+        FxTestSupport.await(() -> Files.readString(file).equals(EDITED));
     }
 
     @Test
-    void cancellingTheOpenPickerAfterDiscardKeepsEditsAndRestartsAutosave() throws Exception {
+    void cancellingTheOpenPickerKeepsEditsAndRestartsAutosave() throws Exception {
         Path file = createAndOpen(1);
         FxTestSupport.onFxThread(() -> {
             editor.replaceText(EDITED);
-            answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.NO, file);
             app.openChoices.add(() -> {
                 pumpPickerEvents(file);
                 return null;
@@ -198,21 +200,28 @@ class UnsavedChangesTest {
     }
 
     @Test
-    void choosingSaveBeforeOpeningWritesTheOldFileAndCompletesTheFileSwitch() throws Exception {
+    void closingInactiveTabWithSaveWritesItBeforeRemovingIt() throws Exception {
         Path file = createAndOpen(1);
         Path next = Files.writeString(directory.resolve("next.txt"), "next file");
-        FxTestSupport.onFxThread(() -> {
+        Tab first = FxTestSupport.onFxThread(() -> {
             editor.replaceText(EDITED);
-            answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.YES, file);
+            Tab tab = ((TabPane) scene.lookup("#editor-tabs")).getSelectionModel().getSelectedItem();
             app.openChoices.add(next::toFile);
             EditorShortcutsTest.press(scene, KeyCode.O, false, false, true);
+            return tab;
+        });
+        FxTestSupport.await(() -> app.activeEditor().getText().equals("next file")
+                && !scene.lookup("#open-file").isDisabled());
+        FxTestSupport.onFxThread(() -> {
+            answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.YES, file);
+            Event.fireEvent(first, new Event(Tab.TAB_CLOSE_REQUEST_EVENT));
             return null;
         });
-        FxTestSupport.await(() -> editor.getText().equals("next file"));
+        FxTestSupport.await(() -> !((TabPane) scene.lookup("#editor-tabs")).getTabs().contains(first));
         assertNoDialogFailure();
         assertEquals(EDITED, Files.readString(file));
         FxTestSupport.onFxThread(() -> {
-            editor.replaceText("new file edits");
+            app.activeEditor().replaceText("new file edits");
             return null;
         });
         FxTestSupport.await(() -> Files.readString(next).equals("new file edits"));
@@ -223,7 +232,6 @@ class UnsavedChangesTest {
         Path file = createAndOpen(1);
         FxTestSupport.onFxThread(() -> {
             editor.replaceText(EDITED);
-            answerConfirmationAfterAutosaveWouldHaveRun(ButtonBar.ButtonData.NO, file);
             app.openChoices.add(() -> directory.resolve("missing.txt").toFile());
             app.errorHandler = error -> pumpPickerEvents(file);
             EditorShortcutsTest.press(scene, KeyCode.O, false, false, true);
@@ -243,7 +251,7 @@ class UnsavedChangesTest {
             settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, true, delay)));
             scene = app.createScene(stage, settings);
             stage.show();
-            editor = (CodeArea) scene.getRoot().lookup("#editor");
+            editor = app.activeEditor();
             app.openChoices.add(file::toFile);
             EditorShortcutsTest.press(scene, KeyCode.O, false, false, true);
             return null;

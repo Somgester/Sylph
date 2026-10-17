@@ -3,6 +3,7 @@ package dev.somgester.sylph;
 import java.util.EnumMap;
 import java.util.Map;
 import javafx.beans.value.ChangeListener;
+import javafx.beans.InvalidationListener;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Menu;
@@ -20,13 +21,15 @@ final class EditorEditMenu extends Menu {
         UNDO, REDO, CUT, COPY, PASTE, SELECT_ALL
     }
 
-    private final EditorView editor;
+    private EditorView editor;
 
-    private final EditorSession session;
+    private EditorSession session;
 
     private final Map<Action, MenuItem> items = new EnumMap<>(Action.class);
 
     private final ChangeListener<Node> focusListener = (observable, previous, current) -> focusChanged(current);
+
+    private final InvalidationListener stateListener = observable -> refresh();
 
     private Scene scene;
 
@@ -35,18 +38,28 @@ final class EditorEditMenu extends Menu {
     @SuppressWarnings("this-escape")
     EditorEditMenu(EditorView editor, EditorSession session) {
         super("Edit");
-        this.editor = editor;
-        this.session = session;
-        target = editor.area();
         getItems().addAll(item(Action.UNDO, "Undo", KeyCode.Z),
                 item(Action.REDO, "Redo", KeyCode.Z, KeyCombination.SHIFT_DOWN), new SeparatorMenuItem(),
                 item(Action.CUT, "Cut", KeyCode.X), item(Action.COPY, "Copy", KeyCode.C),
                 item(Action.PASTE, "Paste", KeyCode.V), item(Action.SELECT_ALL, "Select All", KeyCode.A));
-        editor.undoAvailableProperty().addListener(observable -> refresh());
-        editor.redoAvailableProperty().addListener(observable -> refresh());
-        editor.area().selectedTextProperty().addListener(observable -> refresh());
-        session.editingBlockedProperty().addListener(observable -> refresh());
         setOnShowing(event -> refresh());
+        setDocument(editor, session);
+    }
+
+    void setDocument(EditorView current, EditorSession currentSession) {
+        if (editor != null) {
+            editor.undoAvailableProperty().removeListener(stateListener);
+            editor.redoAvailableProperty().removeListener(stateListener);
+            editor.area().selectedTextProperty().removeListener(stateListener);
+            session.editingBlockedProperty().removeListener(stateListener);
+        }
+        editor = current;
+        session = currentSession;
+        target = editor.area();
+        editor.undoAvailableProperty().addListener(stateListener);
+        editor.redoAvailableProperty().addListener(stateListener);
+        editor.area().selectedTextProperty().addListener(stateListener);
+        session.editingBlockedProperty().addListener(stateListener);
         refresh();
     }
 

@@ -166,7 +166,7 @@ class TerminalWorkspaceTest {
             pane.getTabs().removeAll(remove);
             if (inEditor) {
                 assertEquals(1, pane.getTabs().size());
-                assertFalse(pane.getTabs().getFirst().isClosable());
+                assertTrue(pane.getTabs().getFirst().isClosable());
             } else {
                 assertEquals(1, ((TerminalWorkspace) scene.lookup("#terminal-workspace")).getItems().size());
             }
@@ -390,8 +390,8 @@ class TerminalWorkspaceTest {
         FxTestSupport.onFxThread(() -> {
             EditorShortcutsTest.press(scene, KeyCode.R, false, true, true);
             scene = stage.getScene();
-            assertEquals(null, scene.lookup("#terminal-workspace"));
-            assertTrue(scene.lookup("#editor") instanceof CodeArea);
+            assertTrue(scene.lookup("#terminal-workspace") instanceof TerminalWorkspace);
+            assertTrue(app.activeEditor() instanceof CodeArea);
             return null;
         });
         terminal.session().completion().get(5, TimeUnit.SECONDS);
@@ -404,7 +404,7 @@ class TerminalWorkspaceTest {
             settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, false, 2)));
             app.settings = settings;
             scene = app.createScene(stage, settings);
-            editor = (CodeArea) scene.lookup("#editor");
+            editor = app.activeEditor();
             stage.show();
             if (workspace) {
                 app.openFolder(directory, (Sidebar) scene.lookup("#sidebar"), (Label) scene.lookup("#status"));

@@ -59,8 +59,6 @@ class EditorLanguageIntegrationTest {
 
     private Scene scene;
 
-    private CodeArea editor;
-
     private Label language;
 
     @BeforeAll
@@ -76,7 +74,6 @@ class EditorLanguageIntegrationTest {
             stage = new Stage();
             scene = app.createScene(stage, settings);
             stage.show();
-            editor = (CodeArea) scene.getRoot().lookup("#editor");
             language = (Label) scene.getRoot().lookup("#document-language");
             return null;
         });
@@ -100,8 +97,8 @@ class EditorLanguageIntegrationTest {
             FxTestSupport.await(() -> stage.getTitle().equals(name + " — Sylph"));
             FxTestSupport.onFxThread(() -> {
                 assertEquals(EditorLanguage.forPath(file).displayName(), language.getText());
-                assertEquals("{}\n", editor.getText());
-                assertFalse(editor.isUndoAvailable());
+                assertEquals("{}\n", editor().getText());
+                assertFalse(editor().isUndoAvailable());
                 return null;
             });
         }
@@ -118,10 +115,10 @@ class EditorLanguageIntegrationTest {
             FxTestSupport.await(() -> stage.getTitle().equals(name + " — Sylph")
                     && !((Button) scene.getRoot().lookup("#open-file")).isDisabled()
                     && language.getText().equals(shell ? "Shell Script" : "Plain Text")
-                    && editor.getStyleOfChar(keyword).contains("syntax-keyword") == shell);
+                    && editor().getStyleOfChar(keyword).contains("syntax-keyword") == shell);
             FxTestSupport.onFxThread(() -> {
-                assertEquals(source, editor.getText());
-                assertFalse(editor.isUndoAvailable());
+                assertEquals(source, editor().getText());
+                assertFalse(editor().isUndoAvailable());
                 return null;
             });
         }
@@ -137,9 +134,9 @@ class EditorLanguageIntegrationTest {
         open(null);
         FxTestSupport.onFxThread(() -> {
             assertEquals("Java", language.getText());
-            assertEquals("class Sample {}\n", editor.getText());
+            assertEquals("class Sample {}\n", editor().getText());
             assertEquals("Sample.java — Sylph", stage.getTitle());
-            assertFalse(editor.isUndoAvailable());
+            assertFalse(editor().isUndoAvailable());
             return null;
         });
     }
@@ -147,8 +144,8 @@ class EditorLanguageIntegrationTest {
     @Test
     void saveAsChangesLanguageOnlyOnSuccessAndPreservesSelectionAndHistory() throws Exception {
         FxTestSupport.onFxThread(() -> {
-            editor.replaceText("{}");
-            editor.selectRange(0, 1);
+            editor().replaceText("{}");
+            editor().selectRange(0, 1);
             assertEquals("Plain Text", language.getText());
             return null;
         });
@@ -161,8 +158,8 @@ class EditorLanguageIntegrationTest {
         FxTestSupport.onFxThread(() -> {
             assertEquals("JSON", language.getText());
             assertEquals("config.json — Sylph", stage.getTitle());
-            assertEquals("{", editor.getSelectedText());
-            assertTrue(editor.isUndoAvailable());
+            assertEquals("{", editor().getSelectedText());
+            assertTrue(editor().isUndoAvailable());
             return null;
         });
         Path plain = directory.resolve("notes.txt");
@@ -172,11 +169,11 @@ class EditorLanguageIntegrationTest {
         assertEquals("{}", Files.readString(plain));
         FxTestSupport.onFxThread(() -> {
             assertEquals("Plain Text", language.getText());
-            assertEquals("{", editor.getSelectedText());
-            editor.undo();
-            assertEquals("", editor.getText());
-            editor.redo();
-            assertEquals("{}", editor.getText());
+            assertEquals("{", editor().getSelectedText());
+            editor().undo();
+            assertEquals("", editor().getText());
+            editor().redo();
+            assertEquals("{}", editor().getText());
             assertEquals("notes.txt — Sylph", stage.getTitle());
             return null;
         });
@@ -216,4 +213,9 @@ class EditorLanguageIntegrationTest {
             return null;
         });
     }
+
+    private CodeArea editor() {
+        return app.activeEditor();
+    }
+
 }

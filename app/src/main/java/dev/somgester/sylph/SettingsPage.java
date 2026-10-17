@@ -30,6 +30,8 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
 
     private final List<Runnable> cleanup = new ArrayList<>();
 
+    private final Label autoSaveStatus = label("", "settings-description");
+
     SettingsPage(AppSettings settings, AutoSaveController autoSave, Runnable onBack) {
         setId("settings-page");
         setFitToWidth(true);
@@ -104,9 +106,9 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
         HBox delayRow = new HBox(16, label("Save after", "settings-field-label"), delays);
         delayRow.setAlignment(Pos.CENTER_LEFT);
         delayRow.disableProperty().bind(settings.autoSaveProperty().not());
-        Label autoSaveStatus = label("", "settings-description");
         autoSaveStatus.setId("autosave-state");
-        autoSaveStatus.textProperty().bind(autoSave.statusProperty());
+        setAutoSave(autoSave);
+        cleanup.add(() -> autoSaveStatus.textProperty().unbind());
         VBox saving = section("Autosave", "Save every change immediately, or wait until you pause typing.",
                 new VBox(14, enabled, delayRow, autoSaveStatus));
         Label persistence = label("", "settings-description");
@@ -141,6 +143,11 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
         cleanup.forEach(Runnable::run);
         cleanup.clear();
         setContent(null);
+    }
+
+    void setAutoSave(AutoSaveController autoSave) {
+        autoSaveStatus.textProperty().unbind();
+        autoSaveStatus.textProperty().bind(autoSave.statusProperty());
     }
 
     private static void followPopupTheme(ComboBox<Integer> combo) {

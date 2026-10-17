@@ -8,12 +8,13 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import javax.imageio.ImageIO;
 import javafx.concurrent.Worker;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.TabPane;
 import javafx.scene.input.ContextMenuEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.PickResult;
@@ -21,6 +22,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
+import javax.imageio.ImageIO;
 import org.fxmisc.richtext.CodeArea;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -59,8 +61,6 @@ class MarkdownPreviewTest {
 
     private Stage stage;
 
-    private CodeArea editor;
-
     @BeforeAll
     static void initialize() throws InterruptedException {
         FxTestSupport.initialize();
@@ -74,7 +74,6 @@ class MarkdownPreviewTest {
             stage = new Stage();
             scene = app.createScene(stage, settings);
             stage.show();
-            editor = (CodeArea) scene.getRoot().lookup("#editor");
             return null;
         });
     }
@@ -92,8 +91,8 @@ class MarkdownPreviewTest {
     void shortcutOpensLivePreviewAndPreservesUnsavedTextSelectionAndUndo() throws Exception {
         Path file = open("README.md", SOURCE);
         FxTestSupport.onFxThread(() -> {
-            editor.appendText("\nUnsaved edit");
-            editor.selectRange(2, 7);
+            editor().appendText("\nUnsaved edit");
+            editor().selectRange(2, 7);
             EditorShortcutsTest.press(scene, KeyCode.V, true, false, true);
             assertTrue(((BorderPane) scene.getRoot()).getCenter() instanceof SplitPane);
             return null;
@@ -101,19 +100,19 @@ class MarkdownPreviewTest {
         awaitHeading("Hello 世界");
         FxTestSupport.onFxThread(() -> {
             assertTrue(web().getEngine().getDocument().getDocumentElement().getTextContent().contains("Unsaved edit"));
-            assertEquals("Hello", editor.getSelectedText());
-            assertTrue(editor.isUndoAvailable());
+            assertEquals("Hello", editor().getSelectedText());
+            assertTrue(editor().isUndoAvailable());
             assertTrue(stage.getTitle().startsWith("* "));
-            editor.replaceText(2, 7, "Updated");
+            editor().replaceText(2, 7, "Updated");
             return null;
         });
         awaitHeading("Updated 世界");
         FxTestSupport.onFxThread(() -> {
             EditorShortcutsTest.press(scene, KeyCode.V, true, false, true);
-            assertEquals("editor-view", ((BorderPane) scene.getRoot()).getCenter().getId());
-            assertTrue(editor.isUndoAvailable());
-            editor.undo();
-            assertTrue(editor.getText().startsWith("# Hello 世界"));
+            assertEquals("editor-view", documentContent().getId());
+            assertTrue(editor().isUndoAvailable());
+            editor().undo();
+            assertTrue(editor().getText().startsWith("# Hello 世界"));
             return null;
         });
         assertEquals(SOURCE, Files.readString(file));
@@ -123,11 +122,11 @@ class MarkdownPreviewTest {
     void rightClickPreviewRendersBothThemesAndCloseButtonReturnsToSource() throws Exception {
         open("README.MD", SOURCE);
         FxTestSupport.onFxThread(() -> {
-            editor.fireEvent(new ContextMenuEvent(ContextMenuEvent.CONTEXT_MENU_REQUESTED,
-                    30, 30, 100, 100, false, new PickResult(editor, 30, 30)));
-            assertTrue(editor.getContextMenu().isShowing());
+            editor().fireEvent(new ContextMenuEvent(ContextMenuEvent.CONTEXT_MENU_REQUESTED,
+                    30, 30, 100, 100, false, new PickResult(editor(), 30, 30)));
+            assertTrue(editor().getContextMenu().isShowing());
             previewItem().fire();
-            editor.getContextMenu().hide();
+            editor().getContextMenu().hide();
             return null;
         });
         awaitHeading("Hello 世界");
@@ -154,9 +153,9 @@ class MarkdownPreviewTest {
         }
         FxTestSupport.onFxThread(() -> {
             ((Button) scene.getRoot().lookup("#close-markdown-preview")).fire();
-            assertEquals("editor-view", ((BorderPane) scene.getRoot()).getCenter().getId());
-            assertEquals(SOURCE, editor.getText());
-            assertFalse(editor.isUndoAvailable());
+            assertEquals("editor-view", documentContent().getId());
+            assertEquals(SOURCE, editor().getText());
+            assertFalse(editor().isUndoAvailable());
             return null;
         });
     }
@@ -166,7 +165,7 @@ class MarkdownPreviewTest {
         FxTestSupport.onFxThread(() -> {
             assertTrue(previewItem().isDisable());
             EditorShortcutsTest.press(scene, KeyCode.V, true, false, true);
-            assertEquals("editor-view", ((BorderPane) scene.getRoot()).getCenter().getId());
+            assertEquals("editor-view", documentContent().getId());
             return null;
         });
         open("README.md", SOURCE);
@@ -178,8 +177,8 @@ class MarkdownPreviewTest {
         open("notes.txt", "plain file");
         FxTestSupport.onFxThread(() -> {
             assertTrue(previewItem().isDisable());
-            assertEquals("editor-view", ((BorderPane) scene.getRoot()).getCenter().getId());
-            assertEquals("plain file", editor.getText());
+            assertEquals("editor-view", documentContent().getId());
+            assertEquals("plain file", editor().getText());
             return null;
         });
     }
@@ -227,7 +226,7 @@ class MarkdownPreviewTest {
             assertEquals("More", document.getElementsByTagName("summary").item(0).getTextContent());
             assertEquals(2, document.getElementsByTagName("td").getLength());
             assertFalse(web().getEngine().isJavaScriptEnabled());
-            editor.replaceText(editor.getText().replace("HTML heading", "Updated HTML heading"));
+            editor().replaceText(editor().getText().replace("HTML heading", "Updated HTML heading"));
             return null;
         });
         awaitHeading("Updated HTML heading");
@@ -243,7 +242,7 @@ class MarkdownPreviewTest {
         awaitHeading("Long");
         scrollPreviewTo(1000);
         FxTestSupport.onFxThread(() -> {
-            editor.replaceText(2, 6, "Updated");
+            editor().replaceText(2, 6, "Updated");
             return null;
         });
         awaitHeading("Updated");
@@ -272,11 +271,25 @@ class MarkdownPreviewTest {
         });
         awaitHeading("Long");
         scrollPreviewTo(1000);
+        var firstTab = FxTestSupport.onFxThread(() ->
+                ((TabPane) scene.lookup("#editor-tabs"))
+                        .getSelectionModel().getSelectedItem());
         var previousDocument = FxTestSupport.onFxThread(() -> web().getEngine().getDocument());
         open("second.md", text);
-        FxTestSupport.await(() -> web().isVisible() && web().getEngine().getDocument() != null
+        FxTestSupport.onFxThread(() -> {
+            previewItem().fire();
+            return null;
+        });
+        FxTestSupport.await(() -> web() != null && web().isVisible() && web().getEngine().getDocument() != null
                 && !previousDocument.equals(web().getEngine().getDocument()));
         assertPreviewScroll(0);
+        FxTestSupport.onFxThread(() -> {
+            ((TabPane) scene.lookup("#editor-tabs"))
+                    .getSelectionModel().select(firstTab);
+            return null;
+        });
+        awaitHeading("Long");
+        assertPreviewScroll(1000);
     }
 
     @Test
@@ -289,13 +302,13 @@ class MarkdownPreviewTest {
         awaitHeading("Long");
         scrollPreviewTo(1000);
         FxTestSupport.onFxThread(() -> {
-            editor.replaceText("# Short");
+            editor().replaceText("# Short");
             return null;
         });
         awaitHeading("Short");
         assertPreviewScroll(0);
         FxTestSupport.onFxThread(() -> {
-            editor.replaceText("# Longer\n\n" + "Paragraph text.\n\n".repeat(100));
+            editor().replaceText("# Longer\n\n" + "Paragraph text.\n\n".repeat(100));
             return null;
         });
         awaitHeading("Longer");
@@ -324,18 +337,18 @@ class MarkdownPreviewTest {
             ((Button) scene.getRoot().lookup("#open-file")).fire();
             return null;
         });
-        FxTestSupport.await(() -> text.equals(editor.getText())
+        FxTestSupport.await(() -> text.equals(editor().getText())
                 && !((Button) scene.getRoot().lookup("#open-file")).isDisabled());
         return file;
     }
 
     private MenuItem previewItem() {
-        return editor.getContextMenu().getItems().stream().filter(item -> "preview-markdown".equals(item.getId()))
+        return editor().getContextMenu().getItems().stream().filter(item -> "preview-markdown".equals(item.getId()))
                 .findFirst().orElseThrow();
     }
 
     private WebView web() {
-        return (WebView) scene.getRoot().lookup("#markdown-preview-web");
+        return (WebView) documentContent().lookup("#markdown-preview-web");
     }
 
     private void awaitHeading(String title) throws Exception {
@@ -364,4 +377,14 @@ class MarkdownPreviewTest {
         Files.createDirectories(output.getParent());
         ImageIO.write(buffered, "png", output.toFile());
     }
+
+    private CodeArea editor() {
+        return app.activeEditor();
+    }
+
+    private Node documentContent() {
+        return ((TabPane) scene.lookup("#editor-tabs"))
+                .getSelectionModel().getSelectedItem().getContent();
+    }
+
 }

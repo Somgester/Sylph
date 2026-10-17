@@ -3,9 +3,10 @@ package dev.somgester.sylph;
 import java.nio.file.Path;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
@@ -21,7 +22,13 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
 
     private final TabPane panel = new TabPane();
 
-    private final Tab document = new Tab();
+    private Tab document;
+
+    private final Consumer<Tab> selectDocument;
+
+    private final BooleanSupplier canSelectDocument;
+
+    private boolean changingDocuments;
 
     private final Map<Tab, TerminalView> terminals = new IdentityHashMap<>();
 
@@ -36,23 +43,18 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
     private boolean closed;
 
     @SuppressWarnings("this-escape")
-    TerminalWorkspace(EditorSession session, Function<Path, TerminalView> createTerminal, Runnable focusDocument) {
+    TerminalWorkspace(Function<Path, TerminalView> createTerminal, Runnable focusDocument,
+            Consumer<Tab> selectDocument, BooleanSupplier canSelectDocument) {
         this.createTerminal = createTerminal;
         this.focusDocument = focusDocument;
+        this.selectDocument = selectDocument;
+        this.canSelectDocument = canSelectDocument;
         setId("terminal-workspace");
         setOrientation(Orientation.VERTICAL);
         editors.setId("editor-tabs");
         panel.setId("terminal-panel");
         editors.setMinSize(100, 100);
         panel.setMinSize(100, 100);
-        document.setId("document-tab");
-        document.setClosable(false);
-        document.textProperty().bind(Bindings.createStringBinding(() -> {
-            Path path = session.pathProperty().get();
-            return (path == null ? "Untitled" : path.getFileName().toString())
-                    + (session.dirtyProperty().get() ? " •" : "");
-        }, session.pathProperty(), session.dirtyProperty()));
-        editors.getTabs().add(document);
         editors.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         panel.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         installTabLifecycle(editors);
@@ -77,8 +79,17 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
                 focusSelection(editors);
             }
         });
-        pane.getSelectionModel().selectedItemProperty().addListener((observable, previous, selected) ->
-                focusSelection(pane));
+        pane.getSelectionModel().selectedItemProperty().addListener((observable, previous, selected) -> {
+            if (pane == editors && selected != null && !terminals.containsKey(selected)) {
+                if (!changingDocuments && !canSelectDocument.getAsBoolean() && selected != document) {
+                    pane.getSelectionModel().select(previous);
+                    return;
+                }
+                document = selected;
+                selectDocument.accept(selected);
+            }
+            focusSelection(pane);
+        });
     }
 
     private void focusSelection(TabPane pane) {
@@ -100,12 +111,36 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         }
     }
 
-    void setDocument(Node node) {
-        document.setContent(node);
+    void addDocument(Tab tab) {
+        changingDocuments = true;
+        try {
+            editors.getTabs().add(tab);
+            editors.getSelectionModel().select(tab);
+        } finally {
+            changingDocuments = false;
+        }
+    }
+
+    void removeDocument(Tab tab) {
+        changingDocuments = true;
+        try {
+            editors.getTabs().remove(tab);
+        } finally {
+            changingDocuments = false;
+        }
+    }
+
+    void selectDocument(Tab tab) {
+        changingDocuments = true;
+        try {
+            editors.getSelectionModel().select(tab);
+        } finally {
+            changingDocuments = false;
+        }
     }
 
     void selectDocument() {
-        editors.getSelectionModel().select(document);
+        selectDocument(document);
     }
 
     void togglePanel(Path directory) {
@@ -170,7 +205,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
             closed = true;
             terminals.values().forEach(TerminalView::close);
             terminals.clear();
-            document.textProperty().unbind();
             editors.getTabs().clear();
             panel.getTabs().clear();
             getItems().clear();

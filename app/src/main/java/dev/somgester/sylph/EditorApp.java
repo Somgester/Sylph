@@ -6,19 +6,23 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 import javafx.application.Application;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
-import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
-import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.input.KeyCode;
@@ -55,13 +59,19 @@ public class EditorApp extends Application {
 
     private AppSettings settings;
 
-    private boolean fileActionInProgress;
+    private List<EditorDocument> documents;
 
-    private MarkdownPreview markdownPreview;
+    private EditorDocument document;
 
-    private SplitPane previewSplit;
+    private EditorDocument openingDocument;
 
-    private boolean previewVisible;
+    private EditorChrome chrome;
+
+    private Label language;
+
+    private final BooleanProperty foregroundAction = new SimpleBooleanProperty();
+
+    private final ChangeListener<String> statusListener = (observable, previous, message) -> status.setText(message);
 
     private TerminalWorkspace terminals;
 
@@ -73,7 +83,8 @@ public class EditorApp extends Application {
 
     private final class FileAction implements AutoCloseable {
 
-        private final AutoSaveController.Suspension suspension = autoSave.suspend();
+        private final List<AutoSaveController.Suspension> suspensions = documents.stream()
+                .map(item -> item.autoSave.suspend()).toList();
 
         private boolean finished;
 
@@ -98,8 +109,9 @@ public class EditorApp extends Application {
         public void close() {
             if (!finished) {
                 finished = true;
-                fileActionInProgress = false;
-                suspension.close();
+                foregroundAction.set(false);
+                chrome.setFileActionInProgress(false);
+                suspensions.forEach(AutoSaveController.Suspension::close);
             }
         }
     }
@@ -114,15 +126,18 @@ public class EditorApp extends Application {
     Scene createScene(Stage primaryStage, AppSettings settings) {
         stage = primaryStage;
         this.settings = settings;
-        session = new EditorSession(new EditorFileService());
-        autoSave = new AutoSaveController(session, settings);
+        documents = new ArrayList<>();
+        document = createDocument();
+        documents.add(document);
+        session = document.session;
+        autoSave = document.autoSave;
         root = new BorderPane();
         root.setId("root");
         sidebar = new Sidebar();
         sidebar.setOnOpenFile(this::openFile);
         sidebar.setOnWorkspaceAction(this::workspaceAction);
         // Foreground file operations block navigation; background autosaves must not dim the sidebar.
-        sidebar.getTreeView().disableProperty().bind(session.editingBlockedProperty());
+        sidebar.getTreeView().disableProperty().bind(session.editingBlockedProperty().or(foregroundAction));
         status = new Label(session.statusProperty().get());
         status.setId("status");
         status.setPadding(new Insets(8, 14, 8, 14));
@@ -130,25 +145,20 @@ public class EditorApp extends Application {
         Tooltip statusTooltip = new Tooltip();
         statusTooltip.textProperty().bind(status.textProperty());
         status.setTooltip(statusTooltip);
-        session.statusProperty().addListener((observable, oldValue, message) -> status.setText(message));
+        session.statusProperty().addListener(statusListener);
         root.setLeft(sidebar);
-        editorView = new EditorView(session);
+        editorView = document.view;
         editor = editorView.area();
-        editorView.installContextMenu(this::toggleMarkdownPreview);
-        session.languageProperty().addListener((observable, previous, language) -> {
-            if (language != EditorLanguage.MARKDOWN && previewVisible) {
-                previewVisible = false;
-                markdownPreview.setActive(false);
-                if (!settingsVisible) {
-                    showDocument();
-                }
-            }
-        });
-        EditorChrome chrome = new EditorChrome(session, settings, editorView, this::executeCommand);
+        chrome = new EditorChrome(session, settings, editorView, this::executeCommand);
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
-        root.setCenter(editorView);
-        Label language = new Label();
+        terminals = new TerminalWorkspace(this::createTerminal, () -> editor.requestFocus(),
+                tab -> documents.stream().filter(item -> item.tab == tab).findFirst().ifPresent(this::activateDocument),
+                () -> !foregroundAction.get() && documents.stream()
+                        .noneMatch(item -> item.session.editingBlockedProperty().get()));
+        terminals.addDocument(document.tab);
+        root.setCenter(terminals);
+        language = new Label();
         language.setId("document-language");
         language.textProperty().bind(Bindings.createStringBinding(
                 () -> session.languageProperty().get().displayName(), session.languageProperty()));
@@ -187,7 +197,7 @@ public class EditorApp extends Application {
             if (action == null) {
                 status.setText("Please wait for the file operation to finish.");
             } else {
-                action.run(() -> afterUnsavedCheck(() -> action.finishWith(() -> {
+                action.run(() -> afterUnsavedChecks(List.copyOf(documents), 0, () -> action.finishWith(() -> {
                     closeResources();
                     stage.hide();
                 }), action));
@@ -202,9 +212,7 @@ public class EditorApp extends Application {
             showEditor();
         } else {
             settingsVisible = true;
-            if (markdownPreview != null) {
-                markdownPreview.setActive(false);
-            }
+            document.setActive(false);
             root.setLeft(null);
             root.setCenter(settingsPage);
             sidebarButton.setDisable(true);
@@ -224,56 +232,97 @@ public class EditorApp extends Application {
     }
 
     private void toggleMarkdownPreview() {
-        if (previewVisible) {
-            hideMarkdownPreview();
-            return;
-        }
-        if (session.languageProperty().get() != EditorLanguage.MARKDOWN || session.busyProperty().get()) {
-            return;
-        }
-        if (markdownPreview == null) {
-            markdownPreview = new MarkdownPreview(session, settings, this::hideMarkdownPreview);
-            previewSplit = new SplitPane();
-            previewSplit.setId("markdown-workspace");
-        }
-        previewVisible = !previewVisible;
         showEditor();
-    }
-
-    private void hideMarkdownPreview() {
-        previewVisible = false;
-        if (!settingsVisible) {
-            showDocument();
-            editor.requestFocus();
-        } else if (markdownPreview != null) {
-            markdownPreview.setActive(false);
-        }
+        document.togglePreview();
     }
 
     private void showDocument() {
-        double divider = previewSplit == null || previewSplit.getDividers().isEmpty()
-                ? 0.5 : previewSplit.getDividerPositions()[0];
-        root.setCenter(null);
-        if (terminals != null) {
-            terminals.setDocument(null);
+        root.setCenter(terminals);
+        document.setActive(!settingsVisible);
+    }
+
+    private EditorDocument createDocument() {
+        EditorDocument item = new EditorDocument(settings);
+        item.view.installContextMenu(this::toggleMarkdownPreview);
+        item.tab.setOnCloseRequest(event -> {
+            event.consume();
+            closeDocument(item);
+        });
+        return item;
+    }
+
+    private void activateDocument(EditorDocument next) {
+        if (next == document) {
+            return;
         }
-        if (previewSplit != null) {
-            previewSplit.getItems().clear();
+        document.setActive(false);
+        session.statusProperty().removeListener(statusListener);
+        document = next;
+        session = next.session;
+        autoSave = next.autoSave;
+        editorView = next.view;
+        editor = editorView.area();
+        chrome.setDocument(session, editorView);
+        settingsPage.setAutoSave(autoSave);
+        sidebar.getTreeView().disableProperty().unbind();
+        sidebar.getTreeView().disableProperty().bind(session.editingBlockedProperty().or(foregroundAction));
+        status.setText(session.statusProperty().get());
+        session.statusProperty().addListener(statusListener);
+        language.textProperty().unbind();
+        language.textProperty().bind(session.languageProperty().map(EditorLanguage::displayName));
+        stage.titleProperty().unbind();
+        EditorSession selected = session;
+        stage.titleProperty().bind(Bindings.createStringBinding(() -> {
+            Path path = selected.pathProperty().get();
+            return (selected.dirtyProperty().get() ? "* " : "")
+                    + (path == null ? "Untitled" : path.getFileName().toString()) + " — Sylph";
+        }, selected.pathProperty(), selected.dirtyProperty()));
+        next.setActive(!settingsVisible);
+    }
+
+    private void closeDocument(EditorDocument item) {
+        if (!documents.contains(item)) {
+            return;
         }
-        Node document = editorView;
-        if (previewVisible) {
-            previewSplit.getItems().setAll(editorView, markdownPreview);
-            previewSplit.setDividerPositions(divider);
-            document = previewSplit;
-        }
-        if (terminals == null) {
-            root.setCenter(document);
+        FileAction action = beginFileAction();
+        if (action != null) {
+            action.run(() -> {
+                terminals.selectDocument(item.tab);
+                afterUnsavedCheck(() -> action.finishWith(() -> removeDocuments(List.of(item))), action);
+            });
         } else {
-            terminals.setDocument(document);
-            root.setCenter(terminals);
+            status.setText("Please wait for the file operation to finish.");
         }
-        if (markdownPreview != null) {
-            markdownPreview.setActive(previewVisible);
+    }
+
+    private void removeDocuments(List<EditorDocument> removed) {
+        for (EditorDocument item : removed) {
+            documents.remove(item);
+            terminals.removeDocument(item.tab);
+            item.close();
+        }
+        if (documents.isEmpty()) {
+            EditorDocument blank = createDocument();
+            documents.add(blank);
+            terminals.addDocument(blank.tab);
+        } else if (removed.contains(document)) {
+            terminals.selectDocument(documents.getLast().tab);
+        }
+        showEditor();
+    }
+
+    private void afterUnsavedChecks(List<EditorDocument> items, int index, Runnable next, FileAction action) {
+        if (index == items.size()) {
+            next.run();
+        } else {
+            EditorDocument item = items.get(index);
+            Runnable remaining = () -> afterUnsavedChecks(items, index + 1, next, action);
+            if (item.session.dirtyProperty().get()) {
+                terminals.selectDocument(item.tab);
+                afterUnsavedCheck(remaining, action);
+            } else {
+                remaining.run();
+            }
         }
     }
 
@@ -307,10 +356,6 @@ public class EditorApp extends Application {
         if (settingsVisible) {
             showEditor();
         }
-        if (terminals == null) {
-            terminals = new TerminalWorkspace(session, this::createTerminal, editor::requestFocus);
-            showDocument();
-        }
         Path directory = sidebar.getRootDirectory();
         if (directory == null) {
             Path file = session.pathProperty().get();
@@ -323,6 +368,10 @@ public class EditorApp extends Application {
         }
     }
 
+    CodeArea activeEditor() {
+        return editor;
+    }
+
     TerminalView createTerminal(Path directory) {
         return new TerminalView(directory, settings);
     }
@@ -330,7 +379,7 @@ public class EditorApp extends Application {
     private boolean commandEnabled(EditorShortcuts.Command command) {
         return switch (command) {
             case OPEN_FILE, OPEN_FOLDER, SAVE, SAVE_AS, RELOAD ->
-                    !session.busyProperty().get() && !fileActionInProgress;
+                    !foregroundAction.get() && documents.stream().noneMatch(item -> item.session.busyProperty().get());
             case PREVIEW -> session.languageProperty().get() == EditorLanguage.MARKDOWN
                     && !session.busyProperty().get();
             case SIDEBAR -> !settingsVisible;
@@ -358,29 +407,29 @@ public class EditorApp extends Application {
             if (command == Sidebar.WorkspaceAction.DELETE) {
                 Runnable next = () -> deleteWorkspaceEntry(workspace, target, action);
                 try {
-                    if (containsDocument(target)) {
-                        afterUnsavedCheck(next, action);
-                    } else {
-                        next.run();
-                    }
+                    afterUnsavedChecks(documentsUnder(target), 0, next, action);
                 } catch (IOException error) {
                     action.finishWith(() -> showFileError(error));
                 }
             } else {
                 boolean folder = command == Sidebar.WorkspaceAction.NEW_FOLDER;
                 Path directory = Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS) ? target : target.getParent();
-                Runnable next = () -> createWorkspaceEntry(workspace, directory, folder, action);
-                if (folder) {
-                    next.run();
-                } else {
-                    afterUnsavedCheck(next, action);
-                }
+                createWorkspaceEntry(workspace, directory, folder, action);
             }
         });
     }
 
-    private boolean containsDocument(Path target) throws IOException {
-        Path current = session.pathProperty().get();
+    private List<EditorDocument> documentsUnder(Path target) throws IOException {
+        List<EditorDocument> affected = new ArrayList<>();
+        for (EditorDocument item : documents) {
+            if (containsDocument(target, item.session.pathProperty().get())) {
+                affected.add(item);
+            }
+        }
+        return affected;
+    }
+
+    private boolean containsDocument(Path target, Path current) throws IOException {
         if (current == null || current.startsWith(target)) {
             return current != null;
         }
@@ -413,10 +462,10 @@ public class EditorApp extends Application {
             action.close();
             return;
         }
-        final boolean deletingDocument;
+        final List<EditorDocument> deletingDocuments;
         try {
             // Save As may have changed the active path. Capture this before deletion removes it.
-            deletingDocument = containsDocument(target);
+            deletingDocuments = documentsUnder(target);
         } catch (IOException error) {
             action.finishWith(() -> showFileError(error));
             return;
@@ -424,10 +473,8 @@ public class EditorApp extends Application {
         WorkspaceFileService files = new WorkspaceFileService();
         session.mutateWorkspace("Deleting  |  " + target.getFileName(), () -> files.delete(workspace, target),
                 deleted -> action.finishWith(() -> {
-                    if (deletingDocument) {
-                        session.clearDocument();
-                        editorView.documentOpened();
-                        showEditor();
+                    if (!deletingDocuments.isEmpty()) {
+                        removeDocuments(deletingDocuments);
                     }
                     recentFiles.removeUnder(deleted);
                     sidebar.forgetEntry(deleted);
@@ -470,8 +517,11 @@ public class EditorApp extends Application {
             status.setText("Please wait for the file operation to finish.");
             return;
         }
-        action.run(() -> afterUnsavedCheck(() -> {
-            Path file = session.pathProperty().get();
+        EditorDocument selected = document;
+        action.run(() -> afterUnsavedChecks(List.copyOf(documents), 0, () -> {
+            Path file = selected.session.pathProperty().get();
+            List<Path> files = documents.stream().map(item -> item.session.pathProperty().get())
+                    .filter(Objects::nonNull).toList();
             Path directory = sidebar.getRootDirectory();
             double width = stage.getWidth();
             double height = stage.getHeight();
@@ -479,9 +529,6 @@ public class EditorApp extends Application {
             closeResources();
             stage.titleProperty().unbind();
             settingsVisible = false;
-            previewVisible = false;
-            markdownPreview = null;
-            previewSplit = null;
             terminals = null;
             createScene(stage, settings);
             stage.setWidth(width);
@@ -489,10 +536,22 @@ public class EditorApp extends Application {
             if (directory != null) {
                 openFolder(directory, sidebar, status);
             }
-            if (file != null) {
-                openFile(file);
-            }
+            restoreFiles(files, 0, file);
         }, action));
+    }
+
+    private void restoreFiles(List<Path> files, int index, Path active) {
+        if (index == files.size()) {
+            EditorDocument restored = active == null ? null : findDocument(active);
+            if (restored != null) {
+                terminals.selectDocument(restored.tab);
+            }
+            return;
+        }
+        FileAction action = beginFileAction();
+        if (action != null) {
+            action.run(() -> loadFile(files.get(index), action, () -> restoreFiles(files, index + 1, active)));
+        }
     }
 
     private void openFileDialog() {
@@ -500,36 +559,79 @@ public class EditorApp extends Application {
         if (action == null) {
             return;
         }
-        action.run(() -> afterUnsavedCheck(() -> {
+        action.run(() -> {
             File file = chooseOpenFile();
             if (file != null) {
                 loadFile(file.toPath(), action);
             } else {
                 action.close();
             }
-        }, action));
+        });
+    }
+
+    private EditorDocument findDocument(Path file) {
+        Path normalized = file.toAbsolutePath().normalize();
+        return documents.stream().filter(item -> {
+            Path path = item.session.pathProperty().get();
+            if (path == null) {
+                return false;
+            }
+            try {
+                return normalized.equals(path) || Files.isSameFile(normalized, path);
+            } catch (IOException error) {
+                return normalized.equals(path);
+            }
+        }).findFirst().orElse(null);
     }
 
     private void openFile(Path file) {
-        Path normalized = file.toAbsolutePath().normalize();
-        if (normalized.equals(session.pathProperty().get())) {
-            recentFiles.record(normalized);
-            showEditor();
-            return;
-        }
         FileAction action = beginFileAction();
         if (action != null) {
-            action.run(() -> afterUnsavedCheck(() -> loadFile(normalized, action), action));
+            action.run(() -> loadFile(file, action));
         }
     }
 
     private void loadFile(Path file, FileAction action) {
-        session.open(file, () -> action.finishWith(() -> {
-            recentFiles.record(session.pathProperty().get());
-            editorView.documentOpened();
-            showEditor();
-        }),
-                error -> action.finishWith(() -> showFileError(error)));
+        loadFile(file, action, () -> { });
+    }
+
+    private void loadFile(Path file, FileAction action, Runnable afterOpened) {
+        EditorDocument existing = findDocument(file);
+        if (existing != null) {
+            action.finishWith(() -> {
+                terminals.selectDocument(existing.tab);
+                recentFiles.record(existing.session.pathProperty().get());
+                showEditor();
+            });
+            afterOpened.run();
+            return;
+        }
+        boolean reuseBlank = documents.size() == 1 && session.pathProperty().get() == null
+                && !session.dirtyProperty().get();
+        EditorDocument opened = reuseBlank ? document : createDocument();
+        openingDocument = opened;
+        opened.session.open(file, () -> {
+            openingDocument = null;
+            action.finishWith(() -> {
+                if (!reuseBlank) {
+                    documents.add(opened);
+                    terminals.addDocument(opened.tab);
+                }
+                recentFiles.record(opened.session.pathProperty().get());
+                opened.view.documentOpened();
+                showEditor();
+            });
+            afterOpened.run();
+        }, error -> {
+            action.finishWith(() -> {
+                openingDocument = null;
+                if (!reuseBlank) {
+                    opened.close();
+                }
+                showFileError(error);
+            });
+            afterOpened.run();
+        });
     }
 
     File chooseOpenFile() {
@@ -539,11 +641,12 @@ public class EditorApp extends Application {
     }
 
     private FileAction beginFileAction() {
-        if (session.busyProperty().get() || fileActionInProgress) {
+        if (foregroundAction.get() || documents.stream().anyMatch(item -> item.session.busyProperty().get())) {
             return null;
         }
         FileAction action = new FileAction();
-        fileActionInProgress = true;
+        foregroundAction.set(true);
+        chrome.setFileActionInProgress(true);
         return action;
     }
 
@@ -558,7 +661,11 @@ public class EditorApp extends Application {
                 "Save your changes before continuing?", save, discard, ButtonType.CANCEL);
         prompt.initOwner(stage);
         prompt.setTitle("Unsaved changes");
-        prompt.setHeaderText("This file has unsaved changes");
+        Path path = session.pathProperty().get();
+        prompt.setHeaderText("Unsaved changes: " + (path == null ? "Untitled" : path.getFileName()));
+        if (path != null) {
+            prompt.setContentText("Save your changes before continuing?\n" + path);
+        }
         ButtonType choice = prompt.showAndWait().orElse(ButtonType.CANCEL);
         if (choice == save) {
             saveDocument(false, next, action);
@@ -586,6 +693,11 @@ public class EditorApp extends Application {
                 return;
             }
             destination = file.toPath();
+        }
+        EditorDocument other = findDocument(destination);
+        if (other != null && other != document) {
+            action.finishWith(() -> showFileError(new IOException("This file is already open in another tab.")));
+            return;
         }
         Path target = destination;
         Runnable onSaved = () -> action.run(() -> {
@@ -649,22 +761,17 @@ public class EditorApp extends Application {
         if (settings != null && themeListener != null) {
             settings.darkThemeProperty().removeListener(themeListener);
         }
-        if (markdownPreview != null) {
-            markdownPreview.close();
+        if (openingDocument != null && !documents.contains(openingDocument)) {
+            openingDocument.close();
+            openingDocument = null;
         }
-        if (autoSave != null) {
-            autoSave.close();
-        }
-        if (session != null) {
-            session.close();
-        }
-        if (editorView != null) {
-            editorView.close();
+        if (documents != null) {
+            documents.forEach(EditorDocument::close);
         }
     }
 
     private void openFolderDialog(Stage stage, Sidebar sidebar, Label status) {
-        if (session.busyProperty().get() || fileActionInProgress) {
+        if (session.busyProperty().get() || foregroundAction.get()) {
             status.setText("Please wait for the file operation to finish.");
             return;
         }

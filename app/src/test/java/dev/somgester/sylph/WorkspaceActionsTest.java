@@ -181,7 +181,6 @@ class WorkspaceActionsTest {
             assertSame(original, find(sidebar.getTreeView().getRoot(), existing));
             assertTrue(original.isExpanded());
             app.name = "nested.txt";
-            answer(ButtonBar.ButtonData.NO, 30, existing.resolve("keep.txt"), "keep", "Unsaved changes");
             ((Button) scene.lookup("#new-workspace-file")).fire();
             return null;
         });
@@ -462,7 +461,7 @@ class WorkspaceActionsTest {
     }
 
     private CodeArea editor() {
-        return (CodeArea) scene.lookup("#editor");
+        return app.activeEditor();
     }
 
     private static TreeItem<Path> find(TreeItem<Path> node, Path path) {
