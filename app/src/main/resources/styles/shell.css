@@ -48,6 +48,12 @@
     -fx-border-color: -shell-accent;
 }
 
+#open-kiro {
+    -fx-min-width: 52px;
+    -fx-pref-width: 52px;
+    -fx-text-fill: -shell-text;
+}
+
 .chrome-action .action-icon {
     -fx-stroke: -shell-text;
 }

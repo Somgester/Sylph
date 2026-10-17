@@ -159,9 +159,9 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         }
     }
 
-    void open(Path directory, boolean inEditor) {
+    TerminalView open(Path directory, boolean inEditor) {
         if (closed) {
-            return;
+            return null;
         }
         TabPane pane = inEditor ? editors : panel;
         TerminalView view = createTerminal.apply(directory);
@@ -185,6 +185,7 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
             getScene().getRoot().layout();
         }
         view.focusTerminal(getScene());
+        return view;
     }
 
     private void showPanel() {

@@ -27,6 +27,8 @@ final class EditorChrome extends VBox {
 
     private final Button sidebarButton;
 
+    private final Button kiroButton = new Button("Kiro");
+
     private final ObjectProperty<EditorSession> active = new SimpleObjectProperty<>();
 
     private final BooleanProperty fileAction = new SimpleBooleanProperty();
@@ -81,7 +83,11 @@ final class EditorChrome extends VBox {
         actions.getStyleClass().add("file-actions");
         HBox left = new HBox(6, menus, actions);
         left.setAlignment(Pos.CENTER_LEFT);
-        HBox right = new HBox(6, sidebarButton, preferences);
+        kiroButton.setId("open-kiro");
+        kiroButton.setAccessibleText("Open Kiro CLI");
+        kiroButton.setTooltip(new Tooltip("Open a new terminal and run kiro-cli"));
+        kiroButton.getStyleClass().add("chrome-action");
+        HBox right = new HBox(6, kiroButton, sidebarButton, preferences);
         right.setAlignment(Pos.CENTER_RIGHT);
         HBox row = new HBox(left, spacer, right);
         row.setAlignment(Pos.CENTER_LEFT);
@@ -130,6 +136,10 @@ final class EditorChrome extends VBox {
 
     Button sidebarButton() {
         return sidebarButton;
+    }
+
+    Button kiroButton() {
+        return kiroButton;
     }
 
     private static Button action(EditorShortcuts.Command command, AppIcon.Symbol symbol, String id,

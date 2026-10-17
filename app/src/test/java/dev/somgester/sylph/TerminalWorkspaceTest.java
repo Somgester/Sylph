@@ -47,11 +47,16 @@ class TerminalWorkspaceTest {
 
         private TerminalView lastTerminal;
 
+        private Path commandDirectory;
+
         @Override
         TerminalView createTerminal(Path directory) {
             var environment = new HashMap<>(System.getenv());
             environment.put("ENV", "/dev/null");
             environment.put("PS1", "");
+            if (commandDirectory != null) {
+                environment.put("PATH", commandDirectory + File.pathSeparator + environment.getOrDefault("PATH", ""));
+            }
             lastTerminal = new TerminalView(
                     new TerminalSession(directory, List.of("/bin/sh", "-i"), environment), settings);
             return lastTerminal;
@@ -134,6 +139,45 @@ class TerminalWorkspaceTest {
             return null;
         });
         FxTestSupport.await(editor::isFocused);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void kiroButtonRunsCommandOnceInANewTerminalWithoutChangingTheDocument(boolean workspace) throws Exception {
+        Path commands = Files.createDirectory(directory.resolve("commands"));
+        Path kiro = Files.writeString(commands.resolve("kiro-cli"),
+                "#!/bin/sh\nprintf '%s' \"$PWD\" > kiro-cwd\nprintf 'run\\n' >> kiro-runs\n"
+                        + "printf 'SYLPH_KIRO_STARTED\\n'\n");
+        assertTrue(kiro.toFile().setExecutable(true));
+        create(workspace);
+        if (!workspace) {
+            open(Files.writeString(directory.resolve("file.txt"), "original"));
+        }
+        FxTestSupport.onFxThread(() -> {
+            app.commandDirectory = commands;
+            editor.replaceText("unsaved document");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            return null;
+        });
+        TerminalView original = selected("#editor-tabs");
+        FxTestSupport.onFxThread(() -> {
+            ((Button) scene.lookup("#open-kiro")).fire();
+            return null;
+        });
+        TerminalView terminal = selected("#editor-tabs");
+        assertNotSame(original, terminal);
+        assertEquals(directory, terminal.session().directory());
+        awaitShell(terminal);
+        FxTestSupport.await(() -> Files.exists(directory.resolve("kiro-cwd"))
+                && Files.readString(directory.resolve("kiro-cwd")).equals(directory.toString())
+                && screen(terminal).contains("SYLPH_KIRO_STARTED"));
+        assertEquals("run\n", Files.readString(directory.resolve("kiro-runs")));
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(3, ((TabPane) scene.lookup("#editor-tabs")).getTabs().size());
+            assertEquals("unsaved document", editor.getText());
+            assertTrue(editor.isUndoAvailable());
+            return null;
+        });
     }
 
     @ParameterizedTest

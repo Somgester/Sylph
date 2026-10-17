@@ -17,6 +17,7 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.stage.Stage;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.text.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +26,41 @@ class EditorChromeTest {
     @BeforeAll
     static void initialize() throws InterruptedException {
         FxTestSupport.initialize();
+    }
+
+    @Test
+    void kiroLabelIsReadableAndUnclippedInBothThemesAtMinimumWindowWidth() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            EditorSession session = new EditorSession(new EditorFileService());
+            EditorView editor = new EditorView(session);
+            try {
+                EditorChrome chrome = new EditorChrome(session, settings(), editor, command -> { });
+                BorderPane root = new BorderPane();
+                root.setId("root");
+                root.setTop(chrome);
+                Scene scene = new Scene(root, 640, 70);
+                javafx.scene.paint.Paint previous = null;
+                for (String theme : List.of("dark", "light")) {
+                    scene.getStylesheets().setAll(getClass().getResource("/styles/" + theme + ".css")
+                            .toExternalForm(), getClass().getResource("/styles/shell.css").toExternalForm());
+                    root.applyCss();
+                    root.layout();
+                    Button kiro = chrome.kiroButton();
+                    assertTrue(kiro.isVisible());
+                    assertEquals("Kiro", ((Text) kiro.lookup(".text")).getText());
+                    assertTrue(kiro.getWidth() >= 52);
+                    assertTrue(kiro.localToScene(kiro.getBoundsInLocal()).getMaxX() <= scene.getWidth());
+                    if (previous != null) {
+                        assertFalse(previous.equals(kiro.getTextFill()));
+                    }
+                    previous = kiro.getTextFill();
+                }
+                return null;
+            } finally {
+                editor.close();
+                session.close();
+            }
+        });
     }
 
     @Test

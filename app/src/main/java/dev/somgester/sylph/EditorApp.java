@@ -150,6 +150,7 @@ public class EditorApp extends Application {
         editorView = document.view;
         editor = editorView.area();
         chrome = new EditorChrome(session, settings, editorView, this::executeCommand);
+        chrome.kiroButton().setOnAction(event -> openKiroTerminal());
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
         terminals = new TerminalWorkspace(this::createTerminal, () -> editor.requestFocus(),
@@ -356,16 +357,31 @@ public class EditorApp extends Application {
         if (settingsVisible) {
             showEditor();
         }
-        Path directory = sidebar.getRootDirectory();
-        if (directory == null) {
-            Path file = session.pathProperty().get();
-            directory = file == null ? Path.of(System.getProperty("user.dir")) : file.getParent();
-        }
+        Path directory = terminalDirectory();
         if (inEditor) {
             terminals.open(directory, true);
         } else {
             terminals.togglePanel(directory);
         }
+    }
+
+    private void openKiroTerminal() {
+        if (settingsVisible) {
+            showEditor();
+        }
+        TerminalView terminal = terminals.open(terminalDirectory(), true);
+        if (terminal != null) {
+            terminal.session().send("kiro-cli\r");
+        }
+    }
+
+    private Path terminalDirectory() {
+        Path directory = sidebar.getRootDirectory();
+        if (directory == null) {
+            Path file = session.pathProperty().get();
+            directory = file == null ? Path.of(System.getProperty("user.dir")) : file.getParent();
+        }
+        return directory;
     }
 
     CodeArea activeEditor() {
