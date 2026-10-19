@@ -9,28 +9,40 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.ClientInfo;
+import org.eclipse.lsp4j.CompletionCapabilities;
+import org.eclipse.lsp4j.CompletionItemCapabilities;
+import org.eclipse.lsp4j.DefinitionCapabilities;
+import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.DidCloseTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
 import org.eclipse.lsp4j.DidSaveTextDocumentParams;
 import org.eclipse.lsp4j.GeneralClientCapabilities;
+import org.eclipse.lsp4j.HoverCapabilities;
 import org.eclipse.lsp4j.InitializeParams;
-import org.eclipse.lsp4j.InitializedParams;
 import org.eclipse.lsp4j.InitializeResult;
+import org.eclipse.lsp4j.InitializedParams;
+import org.eclipse.lsp4j.MarkupKind;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PositionEncodingKind;
+import org.eclipse.lsp4j.PublishDiagnosticsCapabilities;
+import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ServerCapabilities;
+import org.eclipse.lsp4j.TextDocumentClientCapabilities;
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentItem;
@@ -44,6 +56,16 @@ import org.eclipse.lsp4j.services.LanguageServer;
 
 /** One explicitly configured stdio server. All outgoing document operations are serialized off the UI thread. */
 final class LanguageServerConnection implements AutoCloseable {
+
+    record Diagnostics(String uri, String text, int version, List<Diagnostic> items) {
+        Diagnostics {
+            items = List.copyOf(items);
+        }
+    }
+
+    private final List<Consumer<Diagnostics>> diagnosticListeners = new CopyOnWriteArrayList<>();
+
+    private final Map<String, Integer> versions = new LinkedHashMap<>();
 
     private record Document(String language, String text, int version) { }
 
@@ -106,7 +128,8 @@ final class LanguageServerConnection implements AutoCloseable {
             process = new ProcessBuilder(command).directory(directory.toFile())
                     .redirectError(ProcessBuilder.Redirect.DISCARD).start();
             Launcher<LanguageServer> launcher = new Launcher.Builder<LanguageServer>()
-                    .setLocalService(client).setRemoteInterface(LanguageServer.class)
+                    .setLocalService(new LanguageServerClient(client, this::publishDiagnostics))
+                    .setRemoteInterface(LanguageServer.class)
                     .setInput(process.getInputStream()).setOutput(process.getOutputStream())
                     .setExecutorService(transport).create();
             server = launcher.getRemoteProxy();
@@ -125,6 +148,24 @@ final class LanguageServerConnection implements AutoCloseable {
             var general = new GeneralClientCapabilities();
             general.setPositionEncodings(List.of(PositionEncodingKind.UTF16));
             capabilities.setGeneral(general);
+            var documentCapabilities = new TextDocumentClientCapabilities();
+            var completion = new CompletionCapabilities();
+            var completionItem = new CompletionItemCapabilities();
+            completionItem.setSnippetSupport(false);
+            completionItem.setInsertReplaceSupport(true);
+            completion.setCompletionItem(completionItem);
+            completion.setContextSupport(true);
+            documentCapabilities.setCompletion(completion);
+            var hover = new HoverCapabilities();
+            hover.setContentFormat(List.of(MarkupKind.PLAINTEXT));
+            documentCapabilities.setHover(hover);
+            var definition = new DefinitionCapabilities();
+            definition.setLinkSupport(true);
+            documentCapabilities.setDefinition(definition);
+            var diagnostics = new PublishDiagnosticsCapabilities();
+            diagnostics.setVersionSupport(true);
+            documentCapabilities.setPublishDiagnostics(diagnostics);
+            capabilities.setTextDocument(documentCapabilities);
             var params = new InitializeParams();
             params.setProcessId(Math.toIntExact(ProcessHandle.current().pid()));
             params.setClientInfo(new ClientInfo("Sylph"));
@@ -160,16 +201,37 @@ final class LanguageServerConnection implements AutoCloseable {
         }
     }
 
+    Runnable onDiagnostics(Consumer<Diagnostics> listener) {
+        diagnosticListeners.add(listener);
+        return () -> diagnosticListeners.remove(listener);
+    }
+
+    private void publishDiagnostics(PublishDiagnosticsParams params) {
+        if (params == null || params.getUri() == null || params.getDiagnostics() == null) {
+            return;
+        }
+        enqueue(() -> {
+            Document document = documents.get(params.getUri());
+            if (document != null && (params.getVersion() == null || params.getVersion() == document.version())) {
+                var update = new Diagnostics(params.getUri(), document.text(), document.version(),
+                        params.getDiagnostics());
+                diagnosticListeners.forEach(listener -> listener.accept(update));
+            }
+        });
+    }
+
     CompletableFuture<Void> open(Path path, EditorLanguage language, String text) {
         String uri = uri(path);
         return enqueue(() -> {
             if (documents.containsKey(uri)) {
                 throw new IllegalStateException("Document is already open: " + uri);
             }
-            documents.put(uri, new Document(language.languageServerId(), text, 1));
+            int version = Math.incrementExact(versions.getOrDefault(uri, 0));
+            versions.put(uri, version);
+            documents.put(uri, new Document(language.languageServerId(), text, version));
             if (Boolean.TRUE.equals(sync.getOpenClose())) {
                 server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(
-                        new TextDocumentItem(uri, language.languageServerId(), 1, text)));
+                        new TextDocumentItem(uri, language.languageServerId(), version, text)));
             }
         });
     }
@@ -187,6 +249,7 @@ final class LanguageServerConnection implements AutoCloseable {
         cancelRequests(uri);
         var next = new Document(previous.language(), text, Math.incrementExact(previous.version()));
         documents.put(uri, next);
+        versions.put(uri, next.version());
         TextDocumentSyncKind kind = sync.getChange();
         if (kind == TextDocumentSyncKind.Full || kind == TextDocumentSyncKind.Incremental) {
             var change = new TextDocumentContentChangeEvent(text);
@@ -246,7 +309,7 @@ final class LanguageServerConnection implements AutoCloseable {
             }
             var remote = action.apply(server);
             result.whenComplete((value, error) -> {
-                if (result.isCancelled()) {
+                if (result.isCancelled() || error instanceof TimeoutException) {
                     cancelRemote(remote);
                 }
             });
@@ -377,6 +440,7 @@ final class LanguageServerConnection implements AutoCloseable {
         if (listening != null) {
             listening.cancel(true);
         }
+        diagnosticListeners.clear();
         transport.shutdownNow();
         watchdog.shutdownNow();
     }

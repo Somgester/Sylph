@@ -128,3 +128,48 @@
     -fx-background-color: -shell-hover;
     -fx-text-fill: -shell-accent;
 }
+
+#language-info {
+    -fx-background-color: -shell-surface;
+    -fx-border-color: -shell-border;
+    -fx-padding: 10px;
+}
+
+#language-info .label, #close-language-info {
+    -fx-text-fill: -shell-text;
+}
+
+#language-info .scroll-pane, #language-info .viewport, #definition-list,
+#definition-list .list-cell {
+    -fx-background-color: -shell-surface;
+}
+
+#definition-list .list-cell {
+    -fx-text-fill: -shell-text;
+}
+
+#definition-list .list-cell:filled:selected {
+    -fx-background-color: -shell-hover;
+    -fx-text-fill: -shell-accent;
+}
+
+#editor .diagnostic-error {
+    -fx-text-fill: -syntax-invalid;
+}
+
+#editor .diagnostic-warning {
+    -fx-text-fill: -syntax-number;
+}
+
+#editor .diagnostic-error .text {
+    -fx-fill: -syntax-invalid;
+}
+
+#editor .diagnostic-warning .text {
+    -fx-fill: -syntax-number;
+}
+
+#close-language-info {
+    -fx-background-color: transparent;
+    -fx-padding: 1px 6px;
+}

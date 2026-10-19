@@ -1,6 +1,9 @@
 package dev.somgester.sylph;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +33,7 @@ final class EditorCompletion implements AutoCloseable {
 
     private final InvalidationListener languageListener = observable -> dismiss();
 
-    private final ListView<LanguageCompletions.Suggestion> list = new ListView<>();
+    private final ListView<CompletionEdit> list = new ListView<>();
 
     private final ScheduledThreadPoolExecutor worker = new ScheduledThreadPoolExecutor(1, action -> {
         Thread thread = new Thread(action, "sylph-completion");
@@ -70,7 +73,13 @@ final class EditorCompletion implements AutoCloseable {
 
     private int snapshotCaret;
 
-    private LanguageCompletions.Result result;
+    private List<CompletionEdit> localCandidates = List.of();
+
+    private List<CompletionEdit> serverCandidates = List.of();
+
+    private CompletableFuture<?> serverPending;
+
+    private EditorLanguageFeatures features;
 
     @SuppressWarnings("this-escape")
     EditorCompletion(StackPane host, CodeArea area, ObservableValue<EditorLanguage> language) {
@@ -138,7 +147,8 @@ final class EditorCompletion implements AutoCloseable {
     }
 
     private void keyPressed(KeyEvent event) {
-        if (event.getCode() == KeyCode.SPACE && event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+        if (event.getCode() == KeyCode.SPACE && event.isControlDown()
+                && !event.isShiftDown() && !event.isAltDown() && !event.isMetaDown()) {
             dismiss();
             request(true);
             event.consume();
@@ -184,19 +194,53 @@ final class EditorCompletion implements AutoCloseable {
                 var found = LanguageCompletions.suggest(text, caret, manual ? 0 : 2, requestedLanguage);
                 Platform.runLater(() -> {
                     if (revision == requestedRevision && eligible() && area.getCaretPosition() == caret
-                            && area.getText().equals(text) && !found.suggestions().isEmpty()) {
+                            && area.getText().equals(text)) {
                         snapshot = text;
                         snapshotCaret = caret;
-                        result = found;
-                        list.getItems().setAll(found.suggestions());
-                        list.getSelectionModel().selectFirst();
-                        show();
+                        localCandidates = found.suggestions().stream()
+                                .map(word -> CompletionEdit.local(found, word)).toList();
+                        publish();
+                        if (features != null && revision == requestedRevision) {
+                            var requested = features.complete(text, caret, manual, found);
+                            serverPending = requested;
+                            requested.whenComplete((candidates, error) -> Platform.runLater(() -> {
+                                if (error == null && revision == requestedRevision && eligible()
+                                        && area.getCaretPosition() == caret && area.getText().equals(text)) {
+                                    serverCandidates = candidates;
+                                    publish();
+                                }
+                            }));
+                        }
                     }
                 });
             } catch (CancellationException cancelled) {
                 // A newer edit, navigation, or close superseded this snapshot.
             }
         }, manual ? 0 : 120, TimeUnit.MILLISECONDS);
+    }
+
+    void setLanguageFeatures(EditorLanguageFeatures value) {
+        dismiss();
+        features = value;
+    }
+
+    private void publish() {
+        var selected = list.getSelectionModel().getSelectedItem();
+        boolean preserve = list.getSelectionModel().getSelectedIndex() > 0;
+        var merged = new LinkedHashMap<String, CompletionEdit>();
+        serverCandidates.forEach(word -> merged.putIfAbsent(word.label(), word));
+        localCandidates.forEach(word -> merged.putIfAbsent(word.label(), word));
+        if (merged.isEmpty()) {
+            return;
+        }
+        list.getItems().setAll(merged.values().stream().limit(50).toList());
+        var previous = preserve && selected != null ? merged.get(selected.label()) : null;
+        if (previous != null && list.getItems().contains(previous)) {
+            list.getSelectionModel().select(previous);
+        } else {
+            list.getSelectionModel().selectFirst();
+        }
+        show();
     }
 
     private void show() {
@@ -226,17 +270,14 @@ final class EditorCompletion implements AutoCloseable {
 
     private void accept() {
         var word = list.getSelectionModel().getSelectedItem();
-        var accepted = result;
-        boolean current = word != null && accepted != null && eligible()
+        boolean current = word != null && snapshot != null && eligible()
                 && area.getCaretPosition() == snapshotCaret && area.getText().equals(snapshot);
         dismiss();
         if (current) {
             area.getUndoManager().preventMerge();
             applying = true;
             try {
-                area.replaceText(accepted.start(), accepted.end(), word.text());
-                area.selectRange(accepted.start() + word.selectionStart(),
-                        accepted.start() + word.selectionEnd());
+                word.apply(area);
             } finally {
                 applying = false;
             }
@@ -253,11 +294,16 @@ final class EditorCompletion implements AutoCloseable {
         }
         list.setVisible(false);
         list.getItems().clear();
-        result = null;
+        if (serverPending != null) {
+            serverPending.cancel(true);
+            serverPending = null;
+        }
+        localCandidates = List.of();
+        serverCandidates = List.of();
         snapshot = null;
     }
 
-    private void dismiss() {
+    void dismiss() {
         textRevision++;
         hide();
     }

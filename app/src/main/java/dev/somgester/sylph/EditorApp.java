@@ -23,14 +23,15 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
-import javafx.scene.control.Tooltip;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import org.eclipse.lsp4j.Location;
 import org.fxmisc.richtext.CodeArea;
 
 public class EditorApp extends Application {
@@ -246,6 +247,7 @@ public class EditorApp extends Application {
     private EditorDocument createDocument() {
         EditorDocument item = new EditorDocument(settings);
         item.view.installContextMenu(this::toggleMarkdownPreview);
+        item.view.setOnDefinition(this::openDefinition);
         item.tab.setOnCloseRequest(event -> {
             event.consume();
             closeDocument(item);
@@ -613,6 +615,32 @@ public class EditorApp extends Application {
                 return normalized.equals(path);
             }
         }).findFirst().orElse(null);
+    }
+
+    void openDefinition(Location location) {
+        final Path target;
+        try {
+            target = Path.of(java.net.URI.create(location.getUri()));
+        } catch (IllegalArgumentException | java.nio.file.FileSystemNotFoundException error) {
+            status.setText("Definition location is not a local file.");
+            return;
+        }
+        FileAction action = beginFileAction();
+        if (action != null) {
+            action.run(() -> loadFile(target, action, () -> {
+                EditorDocument opened = findDocument(target);
+                if (opened != null && opened == document) {
+                    var coordinates = new LspText(opened.view.area().getText());
+                    if (coordinates.valid(location.getRange())) {
+                        opened.view.area().selectRange(coordinates.offset(location.getRange().getStart()),
+                                coordinates.offset(location.getRange().getEnd()));
+                        opened.view.area().requestFollowCaret();
+                    } else {
+                        status.setText("Definition range is outside the target document.");
+                    }
+                }
+            }));
+        }
     }
 
     private void openFile(Path file) {

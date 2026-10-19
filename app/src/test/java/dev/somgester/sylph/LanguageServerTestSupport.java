@@ -26,13 +26,21 @@ final class LanguageServerTestSupport implements AutoCloseable {
 
     final Path log;
 
+    final java.util.concurrent.atomic.AtomicInteger diagnosticsReceived
+            = new java.util.concurrent.atomic.AtomicInteger();
+
     LanguageServerTestSupport(Path directory, String capabilities, String mode) throws Exception {
         log = directory.resolve("server-" + java.util.UUID.randomUUID() + ".jsonl");
         String classpath = Path.of(FakeLanguageServer.class.getProtectionDomain().getCodeSource().getLocation().toURI())
                 + File.pathSeparator + Path.of(Gson.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         connection = new LanguageServerConnection(List.of(java, "-cp", classpath, FakeLanguageServer.class.getName(),
-                log.toString(), capabilities, mode), directory, new QuietClient());
+                log.toString(), capabilities, mode), directory, new QuietClient() {
+                    @Override
+                    public void publishDiagnostics(PublishDiagnosticsParams params) {
+                        diagnosticsReceived.incrementAndGet();
+                    }
+                });
     }
 
     List<JsonObject> messages(String method) {
@@ -84,7 +92,7 @@ final class LanguageServerTestSupport implements AutoCloseable {
         return new QuietClient();
     }
 
-    private static final class QuietClient implements LanguageClient {
+    private static class QuietClient implements LanguageClient {
 
         @Override
         public void telemetryEvent(Object object) { }

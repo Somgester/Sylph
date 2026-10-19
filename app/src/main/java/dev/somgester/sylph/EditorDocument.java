@@ -61,6 +61,7 @@ final class EditorDocument implements AutoCloseable {
             languageServer.close();
         }
         languageServer = new LanguageServerDocument(session, connection, onError);
+        view.attachLanguageServer(connection, languageServer);
     }
 
     void setActive(boolean value) {
