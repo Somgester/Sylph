@@ -22,6 +22,10 @@ import javafx.concurrent.Task;
 
 final class EditorSession implements AutoCloseable {
 
+    record SavedDocument(Path path, String text) { }
+
+    private final ReadOnlyObjectWrapper<SavedDocument> lastSave = new ReadOnlyObjectWrapper<>();
+
     private final EditorFileService files;
 
     private final StringProperty text = new SimpleStringProperty("");
@@ -94,6 +98,10 @@ final class EditorSession implements AutoCloseable {
         return completedOperations.getReadOnlyProperty();
     }
 
+    ReadOnlyObjectProperty<SavedDocument> lastSaveProperty() {
+        return lastSave.getReadOnlyProperty();
+    }
+
     void open(Path file, Runnable onOpened, Consumer<Throwable> onError) {
         requireAvailable();
         Task<EditorFileService.Snapshot> task = new Task<>() {
@@ -107,6 +115,7 @@ final class EditorSession implements AutoCloseable {
                 return;
             }
             snapshot = task.getValue();
+            lastSave.set(null);
             path.set(snapshot.path());
             savedText.set(snapshot.text());
             text.set(snapshot.text());
@@ -143,6 +152,7 @@ final class EditorSession implements AutoCloseable {
             snapshot = task.getValue();
             path.set(snapshot.path());
             savedText.set(capturedText);
+            lastSave.set(new SavedDocument(snapshot.path(), capturedText));
             completedOperations.set(completedOperations.get() + 1);
             status.set((automatic ? "Autosaved  |  " : "Saved  |  ") + displayName(snapshot.path()));
             finish();
@@ -192,6 +202,7 @@ final class EditorSession implements AutoCloseable {
     void clearDocument() {
         requireAvailable();
         snapshot = new EditorFileService.Snapshot(null, "", "\n", false, null);
+        lastSave.set(null);
         path.set(null);
         savedText.set("");
         text.set("");

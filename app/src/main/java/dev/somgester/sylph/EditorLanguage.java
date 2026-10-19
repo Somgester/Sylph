@@ -33,6 +33,23 @@ enum EditorLanguage {
         return displayName;
     }
 
+    String languageServerId() {
+        return switch (this) {
+            case PLAIN_TEXT -> "plaintext";
+            case JAVA -> "java";
+            case JSON -> "json";
+            case PYTHON -> "python";
+            case JAVASCRIPT -> "javascript";
+            case JAVASCRIPT_JSX -> "javascriptreact";
+            case TYPESCRIPT -> "typescript";
+            case TYPESCRIPT_TSX -> "typescriptreact";
+            case MARKDOWN -> "markdown";
+            case SHELL -> "shellscript";
+            case C -> "c";
+            case CPP -> "cpp";
+        };
+    }
+
     static EditorLanguage forPath(Path path) {
         if (path == null || path.getFileName() == null) {
             return PLAIN_TEXT;

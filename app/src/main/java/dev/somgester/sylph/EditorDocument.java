@@ -1,6 +1,7 @@
 package dev.somgester.sylph;
 
 import java.nio.file.Path;
+import java.util.function.Consumer;
 import javafx.beans.binding.Bindings;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
@@ -19,6 +20,8 @@ final class EditorDocument implements AutoCloseable {
 
     private final AppSettings settings;
 
+    private LanguageServerDocument languageServer;
+
     private MarkdownPreview preview;
 
     private SplitPane split;
@@ -26,6 +29,8 @@ final class EditorDocument implements AutoCloseable {
     private boolean previewVisible;
 
     private boolean active;
+
+    private boolean closed;
 
     @SuppressWarnings("this-escape")
     EditorDocument(AppSettings settings) {
@@ -46,6 +51,16 @@ final class EditorDocument implements AutoCloseable {
                 hidePreview();
             }
         });
+    }
+
+    void attachLanguageServer(LanguageServerConnection connection, Consumer<Throwable> onError) {
+        if (closed) {
+            throw new IllegalStateException("Document is closed");
+        }
+        if (languageServer != null) {
+            languageServer.close();
+        }
+        languageServer = new LanguageServerDocument(session, connection, onError);
     }
 
     void setActive(boolean value) {
@@ -88,6 +103,13 @@ final class EditorDocument implements AutoCloseable {
 
     @Override
     public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        if (languageServer != null) {
+            languageServer.close();
+        }
         autoSave.close();
         session.close();
         view.close();
