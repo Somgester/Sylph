@@ -31,6 +31,8 @@ final class EditorView extends StackPane implements AutoCloseable {
 
     private final SyntaxHighlighter highlighter;
 
+    private final EditorCompletion completion;
+
     private boolean synchronizing;
 
     private boolean closed;
@@ -75,6 +77,7 @@ final class EditorView extends StackPane implements AutoCloseable {
         historyListener = (observable, previous, available) -> updateHistoryAvailability();
         observeHistory();
         highlighter = new SyntaxHighlighter(area, session.languageProperty());
+        completion = new EditorCompletion(this, area);
     }
 
     CodeArea area() {
@@ -146,6 +149,7 @@ final class EditorView extends StackPane implements AutoCloseable {
     public void close() {
         if (!closed) {
             closed = true;
+            completion.close();
             highlighter.close();
             if (area.getContextMenu() != null) {
                 area.getContextMenu().hide();

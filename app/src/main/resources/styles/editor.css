@@ -107,3 +107,24 @@
 #editor .lineno .text {
     -fx-fill: -editor-gutter-text;
 }
+
+#completion-list {
+    -fx-background-color: -shell-surface;
+    -fx-control-inner-background: -shell-surface;
+    -fx-border-color: -shell-border;
+    -fx-border-width: 1;
+    -fx-padding: 0;
+}
+
+#completion-list .list-cell {
+    -fx-background-color: -shell-surface;
+    -fx-text-fill: -shell-text;
+    -fx-font-family: monospace;
+    -fx-font-size: 13px;
+    -fx-padding: 4px 8px;
+}
+
+#completion-list .list-cell:filled:selected {
+    -fx-background-color: -shell-hover;
+    -fx-text-fill: -shell-accent;
+}
