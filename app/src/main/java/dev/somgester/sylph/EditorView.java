@@ -77,7 +77,7 @@ final class EditorView extends StackPane implements AutoCloseable {
         historyListener = (observable, previous, available) -> updateHistoryAvailability();
         observeHistory();
         highlighter = new SyntaxHighlighter(area, session.languageProperty());
-        completion = new EditorCompletion(this, area);
+        completion = new EditorCompletion(this, area, session.languageProperty());
     }
 
     CodeArea area() {

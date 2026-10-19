@@ -6,6 +6,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javafx.application.Platform;
 import javafx.beans.InvalidationListener;
+import javafx.beans.value.ObservableValue;
 import javafx.event.EventHandler;
 import javafx.scene.Node;
 import javafx.scene.control.ListCell;
@@ -25,7 +26,11 @@ final class EditorCompletion implements AutoCloseable {
 
     private final CodeArea area;
 
-    private final ListView<String> list = new ListView<>();
+    private final ObservableValue<EditorLanguage> language;
+
+    private final InvalidationListener languageListener = observable -> dismiss();
+
+    private final ListView<LanguageCompletions.Suggestion> list = new ListView<>();
 
     private final ScheduledThreadPoolExecutor worker = new ScheduledThreadPoolExecutor(1, action -> {
         Thread thread = new Thread(action, "sylph-completion");
@@ -65,15 +70,17 @@ final class EditorCompletion implements AutoCloseable {
 
     private int snapshotCaret;
 
-    private WordCompletions.Result result;
+    private LanguageCompletions.Result result;
 
     @SuppressWarnings("this-escape")
-    EditorCompletion(StackPane host, CodeArea area) {
+    EditorCompletion(StackPane host, CodeArea area, ObservableValue<EditorLanguage> language) {
         this.host = host;
         this.area = area;
+        this.language = language;
+        language.addListener(languageListener);
         worker.setRemoveOnCancelPolicy(true);
         list.setId("completion-list");
-        list.setAccessibleText("Document word suggestions");
+        list.setAccessibleText("Code and document word suggestions");
         list.setManaged(false);
         list.setVisible(false);
         list.setFocusTraversable(false);
@@ -171,16 +178,17 @@ final class EditorCompletion implements AutoCloseable {
         long requestedRevision = revision;
         String text = area.getText();
         int caret = area.getCaretPosition();
+        EditorLanguage requestedLanguage = language.getValue();
         pending = worker.schedule(() -> {
             try {
-                var found = WordCompletions.suggest(text, caret, manual ? 0 : 2);
+                var found = LanguageCompletions.suggest(text, caret, manual ? 0 : 2, requestedLanguage);
                 Platform.runLater(() -> {
                     if (revision == requestedRevision && eligible() && area.getCaretPosition() == caret
-                            && area.getText().equals(text) && !found.words().isEmpty()) {
+                            && area.getText().equals(text) && !found.suggestions().isEmpty()) {
                         snapshot = text;
                         snapshotCaret = caret;
                         result = found;
-                        list.getItems().setAll(found.words());
+                        list.getItems().setAll(found.suggestions());
                         list.getSelectionModel().selectFirst();
                         show();
                     }
@@ -217,7 +225,7 @@ final class EditorCompletion implements AutoCloseable {
     }
 
     private void accept() {
-        String word = list.getSelectionModel().getSelectedItem();
+        var word = list.getSelectionModel().getSelectedItem();
         var accepted = result;
         boolean current = word != null && accepted != null && eligible()
                 && area.getCaretPosition() == snapshotCaret && area.getText().equals(snapshot);
@@ -226,7 +234,9 @@ final class EditorCompletion implements AutoCloseable {
             area.getUndoManager().preventMerge();
             applying = true;
             try {
-                area.replaceText(accepted.start(), accepted.end(), word);
+                area.replaceText(accepted.start(), accepted.end(), word.text());
+                area.selectRange(accepted.start() + word.selectionStart(),
+                        accepted.start() + word.selectionEnd());
             } finally {
                 applying = false;
             }
@@ -259,6 +269,7 @@ final class EditorCompletion implements AutoCloseable {
             closed = true;
             worker.shutdownNow();
             textChanges.unsubscribe();
+            language.removeListener(languageListener);
             host.removeEventFilter(KeyEvent.KEY_PRESSED, keys);
             area.removeEventFilter(MouseEvent.MOUSE_PRESSED, mouse);
             area.removeEventFilter(ScrollEvent.SCROLL, scroll);

@@ -95,7 +95,8 @@ class EditorCompletionTest {
     void acceptsSelectedSuggestionAsOneUndoableDocumentEdit(KeyCode accept) throws Exception {
         show();
         FxTestSupport.onFxThread(() -> {
-            assertEquals(List.of("alpha", "alphabet", "alphanumeric"), suggestions().getItems());
+            assertEquals(List.of("alpha", "alphabet", "alphanumeric"),
+                    suggestions().getItems().stream().map(Object::toString).toList());
             assertFalse(session.dirtyProperty().get());
             assertFalse(view.area().isUndoAvailable());
             assertTrue(view.area().isFocused());
@@ -163,7 +164,7 @@ class EditorCompletionTest {
             tabs.applyCss();
             tabs.layout();
             ListCell<?> cell = suggestions().lookupAll(".list-cell").stream()
-                    .filter(node -> node instanceof ListCell<?> row && "alphabet".equals(row.getItem()))
+                    .filter(node -> node instanceof ListCell<?> row && "alphabet".equals(row.getText()))
                     .map(node -> (ListCell<?>) node).findFirst().orElseThrow();
             cell.fireEvent(new MouseEvent(MouseEvent.MOUSE_PRESSED, 5, 5, 5, 5, MouseButton.PRIMARY, 1,
                     false, false, false, false, true, false, false, false, false, true,
@@ -241,6 +242,60 @@ class EditorCompletionTest {
             }
             previous = color;
         }
+    }
+
+    @Test
+    void insertsIndentedTemplateSelectsNameAndUndoesInOneStep() throws Exception {
+        Path file = Files.writeString(directory.resolve("Example.java"), "    clsuffix");
+        FxTestSupport.onFxThread(() -> {
+            session.open(file, view::documentOpened, error -> { throw new AssertionError(error); });
+            return null;
+        });
+        FxTestSupport.await(() -> !session.busyProperty().get());
+        FxTestSupport.onFxThread(() -> {
+            view.area().moveTo(6);
+            return null;
+        });
+        show();
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(List.of("class", "class — template"),
+                    suggestions().getItems().stream().map(Object::toString).toList());
+            press(KeyCode.DOWN, false);
+            press(KeyCode.TAB, false);
+            assertEquals("    class ClassName {\n        \n    }", session.textProperty().get());
+            assertEquals("ClassName", view.area().getSelectedText());
+            assertFalse(suggestions().isVisible());
+            view.area().undo();
+            assertEquals("    clsuffix", session.textProperty().get());
+            view.area().redo();
+            assertEquals("    class ClassName {\n        \n    }", session.textProperty().get());
+            return null;
+        });
+    }
+
+    @Test
+    void saveAsChangesSuggestionLanguage() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("def");
+            session.save(directory.resolve("example.py"), false, false, () -> { },
+                    error -> { throw new AssertionError(error); });
+            return null;
+        });
+        FxTestSupport.await(() -> !session.busyProperty().get());
+        show();
+        FxTestSupport.onFxThread(() -> {
+            assertTrue(suggestions().getItems().stream().anyMatch(item -> item.toString().equals("def — template")));
+            session.save(directory.resolve("example.java"), false, false, () -> { },
+                    error -> { throw new AssertionError(error); });
+            return null;
+        });
+        FxTestSupport.await(() -> !session.busyProperty().get());
+        assertFalse(FxTestSupport.onFxThread(() -> suggestions().isVisible()));
+        show();
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(List.of("default"), suggestions().getItems().stream().map(Object::toString).toList());
+            return null;
+        });
     }
 
     private void show() throws Exception {
