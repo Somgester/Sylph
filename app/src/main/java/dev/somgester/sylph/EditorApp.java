@@ -44,6 +44,10 @@ public class EditorApp extends Application {
 
     private SettingsPage settingsPage;
 
+    private LanguageServerManager languageServers;
+
+    private LanguageServerSettings serverSettings;
+
     private CodeArea editor;
 
     private EditorView editorView;
@@ -120,13 +124,20 @@ public class EditorApp extends Application {
     @Override
     public void start(Stage primaryStage) {
         recentFiles = new RecentFiles(RecentFiles.preferencesStore());
-        createScene(primaryStage, new AppSettings(AppSettings.preferencesStore()));
+        createScene(primaryStage, new AppSettings(AppSettings.preferencesStore()),
+                new LanguageServerSettings(LanguageServerSettings.preferencesStore()));
         primaryStage.show();
     }
 
     Scene createScene(Stage primaryStage, AppSettings settings) {
+        return createScene(primaryStage, settings, new LanguageServerSettings(LanguageServerSettings.memoryStore()));
+    }
+
+    Scene createScene(Stage primaryStage, AppSettings settings, LanguageServerSettings servers) {
         stage = primaryStage;
         this.settings = settings;
+        serverSettings = servers;
+        languageServers = new LanguageServerManager(servers);
         documents = new ArrayList<>();
         document = createDocument();
         documents.add(document);
@@ -171,7 +182,7 @@ public class EditorApp extends Application {
         statusBar.setCenter(status);
         statusBar.setRight(language);
         root.setBottom(statusBar);
-        settingsPage = new SettingsPage(settings, autoSave, this::showEditor);
+        settingsPage = new SettingsPage(settings, autoSave, this::showEditor, servers, languageServers);
         Scene scene = new Scene(root, 1100, 700);
         stage.setScene(scene);
         stage.getIcons().setAll(AppIcon.windowIcon());
@@ -246,6 +257,7 @@ public class EditorApp extends Application {
 
     private EditorDocument createDocument() {
         EditorDocument item = new EditorDocument(settings);
+        languageServers.watch(item);
         item.view.installContextMenu(this::toggleMarkdownPreview);
         item.view.setOnDefinition(this::openDefinition);
         item.tab.setOnCloseRequest(event -> {
@@ -563,7 +575,7 @@ public class EditorApp extends Application {
             stage.titleProperty().unbind();
             settingsVisible = false;
             terminals = null;
-            createScene(stage, settings);
+            createScene(stage, settings, serverSettings);
             stage.setWidth(width);
             stage.setHeight(height);
             if (directory != null) {
@@ -805,6 +817,9 @@ public class EditorApp extends Application {
     }
 
     void closeResources() {
+        if (languageServers != null) {
+            languageServers.close();
+        }
         if (terminals != null) {
             terminals.close();
         }
@@ -852,6 +867,9 @@ public class EditorApp extends Application {
 
     void openFolder(Path directory, Sidebar sidebar, Label status) {
         sidebar.setRootDirectoryAsync(directory);
+        if (languageServers != null) {
+            languageServers.setWorkspace(directory);
+        }
         Path normalized = directory.toAbsolutePath().normalize();
         Path fileName = normalized.getFileName();
         String name;

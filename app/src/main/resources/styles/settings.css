@@ -29,7 +29,7 @@
 }
 
 .settings-section {
-    -fx-padding: 16px;
+    -fx-padding: 12px;
     -fx-background-color: -settings-surface;
     -fx-background-radius: 8px;
     -fx-border-color: -settings-border;
@@ -37,7 +37,7 @@
 }
 
 .theme-card {
-    -fx-padding: 12px;
+    -fx-padding: 10px;
     -fx-background-color: -settings-background;
     -fx-background-radius: 6px;
     -fx-border-color: -settings-border;
@@ -172,11 +172,11 @@
     -fx-text-fill: -settings-selection-text;
 }
 
-#settings-keybindings {
+#settings-keybindings, #settings-language-servers {
     -fx-text-fill: -settings-text;
 }
 
-#settings-keybindings > .title {
+#settings-keybindings > .title, #settings-language-servers > .title {
     -fx-background-color: -settings-surface;
     -fx-background-radius: 6px;
     -fx-border-color: -settings-border;
@@ -184,17 +184,17 @@
     -fx-padding: 10px 14px;
 }
 
-#settings-keybindings > .title .arrow {
+#settings-keybindings > .title .arrow, #settings-language-servers > .title .arrow {
     -fx-background-color: -settings-muted;
 }
 
-#settings-keybindings > .content {
+#settings-keybindings > .content, #settings-language-servers > .content {
     -fx-background-color: -settings-surface;
     -fx-border-color: -settings-border;
     -fx-padding: 16px;
 }
 
-#settings-keybindings:focused > .title {
+#settings-keybindings:focused > .title, #settings-language-servers:focused > .title {
     -fx-border-color: -settings-accent;
 }
 
@@ -202,4 +202,32 @@
     -fx-font-family: "Monospaced";
     -fx-font-size: 12px;
     -fx-text-fill: -settings-muted;
+}
+
+#python-server-executable {
+    -fx-background-color: -settings-background;
+    -fx-text-fill: -settings-text;
+    -fx-prompt-text-fill: -settings-muted;
+    -fx-border-color: -settings-border;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-focus-color: -settings-accent;
+    -fx-highlight-fill: -settings-accent;
+}
+
+#python-server-executable:focused {
+    -fx-border-color: -settings-accent;
+}
+
+#python-server-apply {
+    -fx-background-color: -settings-background;
+    -fx-text-fill: -settings-text;
+    -fx-border-color: -settings-border;
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-cursor: hand;
+}
+
+#python-server-apply:hover, #python-server-apply:focused {
+    -fx-border-color: -settings-accent;
 }

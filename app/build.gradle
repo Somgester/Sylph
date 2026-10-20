@@ -68,7 +68,7 @@ application {
     mainClass = 'dev.somgester.sylph.App'
 }
 
-tasks.named('test') {
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
 
     // Keep real JavaFX scene/dialog checks off the desktop unless explicitly requested.
@@ -78,4 +78,23 @@ tasks.named('test') {
         systemProperty 'prism.order', 'sw'
         systemProperty 'java.awt.headless', 'true'
     }
+}
+
+
+tasks.named('test') {
+    useJUnitPlatform {
+        excludeTags 'pythonServer'
+    }
+}
+
+tasks.register('pythonServerIntegrationTest', Test) {
+    description = 'Verifies Python support against an explicitly supplied Pyright executable.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'pythonServer'
+    }
+    systemProperty 'sylph.pythonServerExecutable', providers.gradleProperty('pythonServerExecutable').getOrElse('')
+    shouldRunAfter tasks.named('test')
 }

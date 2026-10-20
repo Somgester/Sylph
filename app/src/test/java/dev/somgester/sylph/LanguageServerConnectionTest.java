@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.Gson;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.HoverParams;
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent;
@@ -163,6 +166,43 @@ class LanguageServerConnectionTest {
             assertTrue(System.nanoTime() - before < TimeUnit.SECONDS.toNanos(1));
             fixture.connection.stopped().get(5, TimeUnit.SECONDS);
             LanguageServerTestSupport.waitUntil(() -> ProcessHandle.of(pid).isEmpty());
+        }
+    }
+
+    @Test
+    void closingTheOwnerJvmStillTerminatesItsUnresponsiveServer() throws Exception {
+        String classpath = List.of(LanguageServerExitFixture.class, LanguageServerConnection.class,
+                org.eclipse.lsp4j.services.LanguageServer.class, org.eclipse.lsp4j.jsonrpc.Launcher.class, Gson.class)
+                .stream().map(type -> {
+                    try {
+                        return Path.of(type.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
+                    } catch (java.net.URISyntaxException error) {
+                        throw new AssertionError(error);
+                    }
+                }).collect(Collectors.joining(File.pathSeparator));
+        Path output = directory.resolve("owner.log");
+        Process owner = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp", classpath, LanguageServerExitFixture.class.getName(), directory.toString())
+                .redirectErrorStream(true).redirectOutput(output.toFile()).start();
+        Path pidFile = directory.resolve("server.pid");
+        try {
+            assertTrue(owner.waitFor(10, TimeUnit.SECONDS), "Owner JVM did not exit after bounded cleanup");
+            assertEquals(0, owner.exitValue(), () -> {
+                try {
+                    return Files.readString(output);
+                } catch (java.io.IOException error) {
+                    return error.toString();
+                }
+            });
+            long pid = Long.parseLong(Files.readString(pidFile));
+            LanguageServerTestSupport.waitUntil(() -> ProcessHandle.of(pid).map(handle -> !handle.isAlive())
+                    .orElse(true));
+        } finally {
+            owner.descendants().forEach(ProcessHandle::destroyForcibly);
+            owner.destroyForcibly();
+            if (Files.exists(pidFile)) {
+                ProcessHandle.of(Long.parseLong(Files.readString(pidFile))).ifPresent(ProcessHandle::destroyForcibly);
+            }
         }
     }
 

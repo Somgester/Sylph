@@ -1,6 +1,8 @@
 package dev.somgester.sylph;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import javafx.beans.binding.Bindings;
 import javafx.scene.control.SplitPane;
@@ -32,6 +34,8 @@ final class EditorDocument implements AutoCloseable {
 
     private boolean closed;
 
+    private final List<Runnable> closeHandlers = new ArrayList<>();
+
     @SuppressWarnings("this-escape")
     EditorDocument(AppSettings settings) {
         this.settings = settings;
@@ -62,6 +66,22 @@ final class EditorDocument implements AutoCloseable {
         }
         languageServer = new LanguageServerDocument(session, connection, onError);
         view.attachLanguageServer(connection, languageServer);
+    }
+
+    Runnable onClose(Runnable handler) {
+        if (closed) {
+            throw new IllegalStateException("Document is closed");
+        }
+        closeHandlers.add(handler);
+        return () -> closeHandlers.remove(handler);
+    }
+
+    void detachLanguageServer() {
+        if (languageServer != null) {
+            languageServer.close();
+            languageServer = null;
+            view.detachLanguageServer();
+        }
     }
 
     void setActive(boolean value) {
@@ -108,9 +128,9 @@ final class EditorDocument implements AutoCloseable {
             return;
         }
         closed = true;
-        if (languageServer != null) {
-            languageServer.close();
-        }
+        List.copyOf(closeHandlers).forEach(Runnable::run);
+        closeHandlers.clear();
+        detachLanguageServer();
         autoSave.close();
         session.close();
         view.close();

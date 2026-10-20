@@ -33,10 +33,15 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
     private final Label autoSaveStatus = label("", "settings-description");
 
     SettingsPage(AppSettings settings, AutoSaveController autoSave, Runnable onBack) {
+        this(settings, autoSave, onBack, null, null);
+    }
+
+    SettingsPage(AppSettings settings, AutoSaveController autoSave, Runnable onBack,
+            LanguageServerSettings servers, LanguageServerManager manager) {
         setId("settings-page");
         setFitToWidth(true);
         setFitToHeight(true);
-        VBox content = new VBox(12);
+        VBox content = new VBox(8);
         content.setMaxWidth(760);
         content.setMinHeight(Region.USE_PREF_SIZE);
 
@@ -110,7 +115,7 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
         setAutoSave(autoSave);
         cleanup.add(() -> autoSaveStatus.textProperty().unbind());
         VBox saving = section("Autosave", "Save every change immediately, or wait until you pause typing.",
-                new VBox(14, enabled, delayRow, autoSaveStatus));
+                new VBox(10, enabled, delayRow, autoSaveStatus));
         Label persistence = label("", "settings-description");
         persistence.setId("settings-persistence");
         persistence.textProperty().bind(settings.persistenceStatusProperty());
@@ -129,7 +134,13 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
         keybindings.setId("settings-keybindings");
         keybindings.setExpanded(false);
         keybindings.setAnimated(false);
-        content.getChildren().addAll(header, appearance, saving, keybindings, persistence);
+        content.getChildren().addAll(header, appearance, saving);
+        if (servers != null && manager != null) {
+            var serverPane = new LanguageServerSettingsPane(servers, manager);
+            content.getChildren().add(serverPane);
+            cleanup.add(serverPane::close);
+        }
+        content.getChildren().addAll(keybindings, persistence);
         StackPane canvas = new StackPane(content);
         canvas.setAlignment(Pos.TOP_CENTER);
         canvas.setPadding(new Insets(8, 28, 8, 28));
@@ -199,12 +210,12 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
         line.setMinHeight(5);
         line.setMaxWidth(78);
         VBox code = new VBox(8, sample, line);
-        code.setPadding(new Insets(12));
+        code.setPadding(new Insets(8));
         HBox.setHgrow(code, Priority.ALWAYS);
         HBox preview = new HBox(sidebar, code);
         preview.getStyleClass().add(dark ? "theme-preview-dark" : "theme-preview-light");
-        preview.setPrefHeight(70);
-        VBox card = new VBox(10, preview, option);
+        preview.setPrefHeight(60);
+        VBox card = new VBox(8, preview, option);
         card.getStyleClass().add("theme-card");
         card.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(card, Priority.ALWAYS);

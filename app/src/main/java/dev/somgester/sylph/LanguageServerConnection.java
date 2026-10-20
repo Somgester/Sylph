@@ -409,6 +409,17 @@ final class LanguageServerConnection implements AutoCloseable {
                 }
             });
             worker.shutdown();
+            // Keep bounded cleanup alive after the final window closes, without blocking JavaFX.
+            Thread.ofPlatform().daemon(false).name("sylph-lsp-shutdown").start(() -> {
+                try {
+                    stopped.get(3, TimeUnit.SECONDS);
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    terminateProcess();
+                } catch (Exception error) {
+                    terminateProcess();
+                }
+            });
         }
     }
 

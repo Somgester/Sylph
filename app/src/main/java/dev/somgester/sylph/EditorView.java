@@ -109,6 +109,15 @@ final class EditorView extends StackPane implements AutoCloseable {
         languageFeaturesAvailable.set(true);
     }
 
+    void detachLanguageServer() {
+        completion.setLanguageFeatures(null);
+        if (languageFeatures != null) {
+            languageFeatures.close();
+            languageFeatures = null;
+        }
+        languageFeaturesAvailable.set(false);
+    }
+
     void installContextMenu(Runnable onPreview) {
         MenuItem undo = contextItem("Undo", area::undo);
         undo.disableProperty().bind(undoAvailable.not().or(session.editingBlockedProperty()));

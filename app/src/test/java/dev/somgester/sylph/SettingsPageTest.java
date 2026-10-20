@@ -247,7 +247,9 @@ class SettingsPageTest {
                 SettingsPage page = (SettingsPage) preview.root().getCenter();
                 assertTrue(page.lookup("#autosave-delay").localToScene(
                         page.lookup("#autosave-delay").getBoundsInLocal()).getMaxY() < 665);
-                assertTrue(page.getContent().getLayoutBounds().getHeight() <= page.getViewportBounds().getHeight() + 1);
+                assertTrue(page.getContent().getLayoutBounds().getHeight() <= page.getViewportBounds().getHeight() + 1,
+                        () -> "Content height " + page.getContent().getLayoutBounds().getHeight()
+                                + " exceeds viewport " + page.getViewportBounds().getHeight());
                 return null;
             });
             FxTestSupport.onFxThread(() -> {

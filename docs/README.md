@@ -3,6 +3,7 @@
 - [Getting started and scripts](getting-started.md)
 - [Editor features and shortcuts](editor-guide.md)
 - [Architecture and data flow](architecture.md)
+- [Language server setup and verification](language-servers.md)
 - [Syntax highlighting and grammar maintenance](syntax-highlighting.md)
 - [Integrated terminal](terminal.md)
 - [Testing and troubleshooting](testing.md)
