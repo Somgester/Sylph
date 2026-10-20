@@ -1,0 +1,7 @@
+node_modules/
+src-gen/
+lib/
+generated/
+__pycache__/
+esbuild.mjs
+gen-esbuild.*.mjs

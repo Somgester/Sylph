@@ -1,0 +1,9 @@
+{
+  "name": "host-probe",
+  "publisher": "sylph",
+  "version": "0.0.1",
+  "private": true,
+  "engines": { "vscode": "^1.99.0" },
+  "main": "./extension.cjs",
+  "activationEvents": ["*"]
+}

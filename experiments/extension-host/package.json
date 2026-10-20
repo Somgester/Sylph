@@ -1,0 +1,37 @@
+{
+  "name": "sylph-extension-host-spike",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "setup": "node setup.mjs",
+    "build": "theia build --mode development",
+    "test": "python3 test-unpack.py && node run-probe.mjs"
+  },
+  "dependencies": {
+    "@theia/core": "1.76.0",
+    "@theia/editor": "1.76.0",
+    "@theia/filesystem": "1.76.0",
+    "@theia/markers": "1.76.0",
+    "@theia/messages": "1.76.0",
+    "@theia/monaco": "1.76.0",
+    "@theia/navigator": "1.76.0",
+    "@theia/plugin-ext-vscode": "1.76.0",
+    "@theia/preferences": "1.76.0",
+    "@theia/workspace": "1.76.0"
+  },
+  "devDependencies": {
+    "@theia/cli": "1.76.0",
+    "playwright-core": "1.64.1"
+  },
+  "theia": {
+    "target": "browser",
+    "frontend": {
+      "config": {
+        "applicationName": "Sylph extension host spike",
+        "preferences": {
+          "files.enableTrash": false
+        }
+      }
+    }
+  }
+}
