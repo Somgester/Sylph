@@ -20,6 +20,7 @@ final class EditorShortcuts {
         SAVE_AS("Save As", KeyCode.S, KeyCombination.SHIFT_DOWN),
         SIDEBAR("Toggle Sidebar", KeyCode.B),
         SETTINGS("Settings", KeyCode.COMMA),
+        ACCOUNT("Account", KeyCode.A, KeyCombination.ALT_DOWN),
         PREVIEW("Preview", KeyCode.V, KeyCombination.SHIFT_DOWN),
         TERMINAL_PANEL("Toggle Terminal Panel", KeyCode.BACK_QUOTE, KeyCombination.SHIFT_DOWN),
         TERMINAL_EDITOR("New Terminal in Editor", KeyCode.BACK_QUOTE),

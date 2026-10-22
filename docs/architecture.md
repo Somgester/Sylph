@@ -19,6 +19,7 @@ flowchart TB
         view["EditorView / CodeArea"]
         settings["AppSettings"]
         page["SettingsPage"]
+        account["AccountPage / AccountController: optional identity"]
         autosave["AutoSaveController"]
         preview["MarkdownPreview / WebView"]
     end
@@ -40,6 +41,11 @@ flowchart TB
     app -->|suspend during file actions| autosave
     session <-->|document text| view
     page <-->|preferences| settings
+    app -->|Account command| account
+    account -->|background authorization code + PKCE| oidc["OidcClient: verified ID token"]
+    oidc -->|sign-in / sign-out| browser["System browser + self-hosted Keycloak"]
+    browser -->|loopback callback + state| callback["OAuthCallback: 127.0.0.1 listener"]
+    callback -->|one authorization code| oidc
     settings -->|mode and delay| autosave
     session -->|dirty and busy state| autosave
     autosave -->|background save| session

@@ -20,6 +20,8 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.text.Text;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EditorChromeTest {
 
@@ -28,8 +30,9 @@ class EditorChromeTest {
         FxTestSupport.initialize();
     }
 
-    @Test
-    void kiroButtonsAreReadableAndUnclippedInBothThemesAtMinimumWindowWidth() throws Exception {
+    @ParameterizedTest
+    @ValueSource(ints = {640, 1100})
+    void toolbarTextButtonsAreReadableAndUnclippedInBothThemes(int width) throws Exception {
         FxTestSupport.onFxThread(() -> {
             EditorSession session = new EditorSession(new EditorFileService());
             EditorView editor = new EditorView(session);
@@ -38,7 +41,7 @@ class EditorChromeTest {
                 BorderPane root = new BorderPane();
                 root.setId("root");
                 root.setTop(chrome);
-                Scene scene = new Scene(root, 640, 70);
+                Scene scene = new Scene(root, width, 70);
                 javafx.scene.paint.Paint previous = null;
                 for (String theme : List.of("dark", "light")) {
                     scene.getStylesheets().setAll(getClass().getResource("/styles/" + theme + ".css")
@@ -56,6 +59,14 @@ class EditorChromeTest {
                     assertTrue(sessions.getWidth() >= 76);
                     assertEquals(kiro.getTextFill(), sessions.getTextFill());
                     assertTrue(sessions.localToScene(sessions.getBoundsInLocal()).getMaxX() <= scene.getWidth());
+                    Button account = (Button) chrome.lookup("#open-account");
+                    assertTrue(account.isVisible());
+                    assertEquals("", account.getText());
+                    assertEquals("Account: guest", account.getAccessibleText());
+                    assertTrue(account.getGraphic() != null);
+                    assertEquals(28, account.getWidth());
+                    var bounds = account.localToScene(account.getBoundsInLocal());
+                    assertTrue(bounds.getMinX() >= 0 && bounds.getMaxX() <= scene.getWidth());
                     if (previous != null) {
                         assertFalse(previous.equals(kiro.getTextFill()));
                     }

@@ -31,6 +31,9 @@ dependencies {
     implementation libs.jsoup
     implementation libs.gson
     implementation libs.lsp4j
+    implementation libs.nimbus.jose.jwt
+    // Nimbus Ed25519 verification uses its optional Tink dependency.
+    runtimeOnly libs.tink
     implementation libs.commonmark.tables
     implementation libs.commonmark.strikethrough
     runtimeOnly libs.slf4j.jdk14
@@ -83,8 +86,19 @@ tasks.withType(Test).configureEach {
 
 tasks.named('test') {
     useJUnitPlatform {
-        excludeTags 'pythonServer'
+        excludeTags 'pythonServer', 'authServer'
     }
+}
+
+tasks.register('authServerIntegrationTest', Test) {
+    description = 'Verifies browser-style login against an explicitly configured local Keycloak server.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'authServer'
+    }
+    shouldRunAfter tasks.named('test')
 }
 
 tasks.register('pythonServerIntegrationTest', Test) {

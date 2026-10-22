@@ -1,14 +1,14 @@
-#settings-page, #settings-page > .viewport, .settings-canvas {
+#settings-page, #settings-page > .viewport, #account-page, #account-page > .viewport, .settings-canvas {
     -fx-background-color: -settings-background;
     -fx-border-color: transparent;
     -fx-font-family: "System";
 }
 
-#settings-page .label, #settings-page .check-box, #settings-page .radio-button {
+#settings-page .label, #settings-page .check-box, #settings-page .radio-button, #account-page .label {
     -fx-text-fill: -settings-text;
 }
 
-#settings-page .settings-title {
+#settings-page .settings-title, #account-page .settings-title {
     -fx-font-size: 32px;
     -fx-font-weight: bold;
 }
@@ -18,7 +18,7 @@
     -fx-font-weight: bold;
 }
 
-#settings-page .settings-description {
+#settings-page .settings-description, #account-page .settings-description {
     -fx-font-size: 13px;
     -fx-text-fill: -settings-muted;
     -fx-line-spacing: 3px;
@@ -230,4 +230,21 @@
 
 #python-server-apply:hover, #python-server-apply:focused {
     -fx-border-color: -settings-accent;
+}
+
+#account-page .button {
+    -fx-background-color: -settings-background;
+    -fx-text-fill: -settings-text;
+    -fx-border-color: -settings-border;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-cursor: hand;
+}
+
+#account-page .button:hover, #account-page .button:focused {
+    -fx-border-color: -settings-accent;
+}
+
+#account-page .hyperlink {
+    -fx-text-fill: -settings-accent;
 }

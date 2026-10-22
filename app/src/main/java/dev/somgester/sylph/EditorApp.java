@@ -44,6 +44,10 @@ public class EditorApp extends Application {
 
     private SettingsPage settingsPage;
 
+    private AccountPage accountPage;
+
+    private AccountController account;
+
     private LanguageServerManager languageServers;
 
     private LanguageServerSettings serverSettings;
@@ -60,7 +64,7 @@ public class EditorApp extends Application {
 
     private Stage stage;
 
-    private boolean settingsVisible;
+    private boolean toolPageVisible;
 
     private AppSettings settings;
 
@@ -183,6 +187,11 @@ public class EditorApp extends Application {
         statusBar.setRight(language);
         root.setBottom(statusBar);
         settingsPage = new SettingsPage(settings, autoSave, this::showEditor, servers, languageServers);
+        if (account == null) {
+            account = AccountController.environment(uri -> getHostServices().showDocument(uri.toString()));
+        }
+        accountPage = new AccountPage(account, this::showEditor);
+        chrome.accountMenu().connect(account);
         Scene scene = new Scene(root, 1100, 700);
         stage.setScene(scene);
         stage.getIcons().setAll(AppIcon.windowIcon());
@@ -200,7 +209,7 @@ public class EditorApp extends Application {
         EditorShortcuts.install(scene, this::executeCommand,
                 command -> command != EditorShortcuts.Command.PREVIEW || !TerminalView.ownsFocus(scene));
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (!palette.isVisible() && settingsVisible && event.getCode() == KeyCode.ESCAPE) {
+            if (!palette.isVisible() && toolPageVisible && event.getCode() == KeyCode.ESCAPE) {
                 showEditor();
                 event.consume();
             }
@@ -222,10 +231,10 @@ public class EditorApp extends Application {
     }
 
     private void toggleSettings() {
-        if (settingsVisible) {
+        if (toolPageVisible && root.getCenter() == settingsPage) {
             showEditor();
         } else {
-            settingsVisible = true;
+            toolPageVisible = true;
             document.setActive(false);
             root.setLeft(null);
             root.setCenter(settingsPage);
@@ -234,8 +243,17 @@ public class EditorApp extends Application {
         }
     }
 
+    private void showAccount() {
+        toolPageVisible = true;
+        document.setActive(false);
+        root.setLeft(null);
+        root.setCenter(accountPage);
+        sidebarButton.setDisable(true);
+        accountPage.requestFocus();
+    }
+
     private void showEditor() {
-        settingsVisible = false;
+        toolPageVisible = false;
         root.setLeft(sidebar);
         showDocument();
         if (terminals != null) {
@@ -252,7 +270,7 @@ public class EditorApp extends Application {
 
     private void showDocument() {
         root.setCenter(terminals);
-        document.setActive(!settingsVisible);
+        document.setActive(!toolPageVisible);
     }
 
     private EditorDocument createDocument() {
@@ -293,7 +311,7 @@ public class EditorApp extends Application {
             return (selected.dirtyProperty().get() ? "* " : "")
                     + (path == null ? "Untitled" : path.getFileName().toString()) + " — Sylph";
         }, selected.pathProperty(), selected.dirtyProperty()));
-        next.setActive(!settingsVisible);
+        next.setActive(!toolPageVisible);
     }
 
     private void closeDocument(EditorDocument item) {
@@ -355,13 +373,14 @@ public class EditorApp extends Application {
             case SAVE -> saveDocument(false, () -> { });
             case SAVE_AS -> saveDocument(true, () -> { });
             case SIDEBAR -> {
-                if (!settingsVisible) {
+                if (!toolPageVisible) {
                     sidebar.toggleCollapsed();
                 }
             }
             case TERMINAL_PANEL -> openTerminal(false);
             case TERMINAL_EDITOR -> openTerminal(true);
             case SETTINGS -> toggleSettings();
+            case ACCOUNT -> showAccount();
             case PREVIEW -> toggleMarkdownPreview();
             case AUTOSAVE -> settings.autoSaveProperty().set(!settings.autoSaveProperty().get());
             default -> throw new IllegalArgumentException("Unknown command: " + command);
@@ -369,7 +388,7 @@ public class EditorApp extends Application {
     }
 
     private void openTerminal(boolean inEditor) {
-        if (settingsVisible) {
+        if (toolPageVisible) {
             showEditor();
         }
         Path directory = terminalDirectory();
@@ -381,7 +400,7 @@ public class EditorApp extends Application {
     }
 
     private void openKiroTerminal() {
-        if (settingsVisible) {
+        if (toolPageVisible) {
             showEditor();
         }
         TerminalView terminal = terminals.open(terminalDirectory(), true);
@@ -395,7 +414,7 @@ public class EditorApp extends Application {
     }
 
     private void resumeKiroSession(KiroSessions.Session saved) {
-        if (settingsVisible) {
+        if (toolPageVisible) {
             showEditor();
         }
         TerminalView terminal = terminals.open(saved.directory(), true);
@@ -427,7 +446,7 @@ public class EditorApp extends Application {
                     !foregroundAction.get() && documents.stream().noneMatch(item -> item.session.busyProperty().get());
             case PREVIEW -> session.languageProperty().get() == EditorLanguage.MARKDOWN
                     && !session.busyProperty().get();
-            case SIDEBAR -> !settingsVisible;
+            case SIDEBAR -> !toolPageVisible;
             default -> true;
         };
     }
@@ -571,9 +590,9 @@ public class EditorApp extends Application {
             double width = stage.getWidth();
             double height = stage.getHeight();
             action.close();
-            closeResources();
+            closeResources(false);
             stage.titleProperty().unbind();
-            settingsVisible = false;
+            toolPageVisible = false;
             terminals = null;
             createScene(stage, settings, serverSettings);
             stage.setWidth(width);
@@ -817,6 +836,10 @@ public class EditorApp extends Application {
     }
 
     void closeResources() {
+        closeResources(true);
+    }
+
+    private void closeResources(boolean closeAccount) {
         if (languageServers != null) {
             languageServers.close();
         }
@@ -831,6 +854,16 @@ public class EditorApp extends Application {
         }
         if (settingsPage != null) {
             settingsPage.close();
+        }
+        if (accountPage != null) {
+            accountPage.close();
+        }
+        if (chrome != null) {
+            chrome.accountMenu().close();
+        }
+        if (closeAccount && account != null) {
+            account.close();
+            account = null;
         }
         if (settings != null && themeListener != null) {
             settings.darkThemeProperty().removeListener(themeListener);

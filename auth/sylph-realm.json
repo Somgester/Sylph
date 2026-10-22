@@ -1,0 +1,35 @@
+{
+  "realm": "sylph",
+  "enabled": true,
+  "displayName": "Sylph",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "bruteForceProtected": true,
+  "defaultSignatureAlgorithm": "EdDSA",
+  "passwordPolicy": "length(8) and digits(1) and upperCase(1) and specialChars(1)",
+  "clients": [
+    {
+      "clientId": "sylph-desktop",
+      "name": "Sylph desktop",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["http://127.0.0.1:43117/oauth/callback"],
+      "webOrigins": [],
+      "attributes": {
+        "id.token.signed.response.alg": "EdDSA",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1:43117/oauth/logout"
+      },
+      "defaultClientScopes": ["profile", "email"]
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import javafx.scene.transform.Scale;
 final class AppIcon {
 
     enum Symbol {
+        ACCOUNT("M11 5 A3 3 0 1 1 5 5 A3 3 0 1 1 11 5 M2 14 V12 C2 8 14 8 14 12 V14"),
         FILE("M4 2 H10 L14 6 V14 H4 Z M10 2 V6 H14"),
         FOLDER("M2 4 V13 H14 V5 H8 L6 3 H2 Z"),
         SAVE("M3 2 H12 L14 4 V14 H2 V2 Z M5 2 V6 H11 V2 M5 14 V9 H11 V14"),

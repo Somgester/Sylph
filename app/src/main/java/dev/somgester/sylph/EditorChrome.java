@@ -37,6 +37,8 @@ final class EditorChrome extends VBox {
 
     private final EditorEditMenu edit;
 
+    private final AccountMenu accountMenu;
+
     EditorChrome(EditorSession session, AppSettings settings, EditorView editorView,
             Consumer<EditorShortcuts.Command> execute) {
         active.set(session);
@@ -71,6 +73,7 @@ final class EditorChrome extends VBox {
         preview.disableProperty().bind(Bindings.createBooleanBinding(
                 () -> language.getValue() != EditorLanguage.MARKDOWN || busy.get(), language, busy));
         view.getItems().addAll(sidebar, preview, item(EditorShortcuts.Command.SETTINGS, execute, busy),
+                item(EditorShortcuts.Command.ACCOUNT, execute, busy),
                 new SeparatorMenuItem(), item(EditorShortcuts.Command.PALETTE, execute, busy),
                 item(EditorShortcuts.Command.QUICK_OPEN, execute, busy),
                 item(EditorShortcuts.Command.RELOAD, execute, busy), new SeparatorMenuItem(),
@@ -93,7 +96,8 @@ final class EditorChrome extends VBox {
         kiroSessionsButton.setAccessibleText("List Kiro sessions");
         kiroSessionsButton.setTooltip(new Tooltip("Search saved Kiro sessions across all workspaces"));
         kiroSessionsButton.getStyleClass().add("chrome-action");
-        HBox right = new HBox(6, kiroButton, kiroSessionsButton, sidebarButton, preferences);
+        accountMenu = new AccountMenu(() -> execute.accept(EditorShortcuts.Command.ACCOUNT));
+        HBox right = new HBox(6, kiroButton, kiroSessionsButton, accountMenu, sidebarButton, preferences);
         right.setAlignment(Pos.CENTER_RIGHT);
         HBox row = new HBox(left, spacer, right);
         row.setAlignment(Pos.CENTER_LEFT);
@@ -150,6 +154,10 @@ final class EditorChrome extends VBox {
 
     Button kiroButton() {
         return kiroButton;
+    }
+
+    AccountMenu accountMenu() {
+        return accountMenu;
     }
 
     private static Button action(EditorShortcuts.Command command, AppIcon.Symbol symbol, String id,

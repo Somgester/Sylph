@@ -6,3 +6,9 @@ build
 
 # Ignore application start scripts and compiled distribution output
 app/bin
+
+# Local authentication-server credentials
+auth/.env
+
+# Downloaded Google OAuth client credentials
+/client_secret_*.json

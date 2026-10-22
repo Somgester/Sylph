@@ -41,6 +41,24 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/main/java/dev/somgester/sylph/TerminalBridge.java](../app/src/main/java/dev/somgester/sylph/TerminalBridge.java) | Public WebKit bridge for terminal input, binary input, resize, and output acknowledgement. |
 | [app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java](../app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java) | Editor/file tabs, resizable terminal panel, duplication, and tab disposal. |
 
+## Authentication files
+
+| File | Responsibility |
+| --- | --- |
+| [AccountController.java](../app/src/main/java/dev/somgester/sylph/AccountController.java) | Optional in-memory account lifecycle, browser dispatch, cancellation, expiry, and logout. |
+| [AccountMenu.java](../app/src/main/java/dev/somgester/sylph/AccountMenu.java) | Native initials avatar, verified identity summary, and sign-in/sign-out menu. |
+| [AccountPage.java](../app/src/main/java/dev/somgester/sylph/AccountPage.java) | Native sign-in/account page with guest editing preserved. |
+| [AuthConfiguration.java](../app/src/main/java/dev/somgester/sylph/AuthConfiguration.java) | Non-secret issuer/client/loopback-port configuration. |
+| [AuthHttp.java](../app/src/main/java/dev/somgester/sylph/AuthHttp.java) | Bounded, timed OIDC requests without redirects or sensitive response logging. |
+| [AuthFailure.java](../app/src/main/java/dev/somgester/sylph/AuthFailure.java) | Fixed, safe diagnostics for code-exchange and token-verification failures. |
+| [OAuthCallback.java](../app/src/main/java/dev/somgester/sylph/OAuthCallback.java) | Short-lived loopback listener with exact paths and state/issuer validation. |
+| [OidcClient.java](../app/src/main/java/dev/somgester/sylph/OidcClient.java) | Browser authorization code + PKCE, Nimbus token validation, and RP-initiated logout. |
+| [auth/compose.yaml](../auth/compose.yaml) | Opt-in loopback-only local Keycloak development server. |
+| [auth/sylph-realm.json](../auth/sylph-realm.json) | Public desktop client, exact redirect URIs, and local registration policy. |
+| [auth/.env.example](../auth/.env.example) | Bootstrap admin settings template; actual credentials are ignored by Git. |
+| [scripts/test-auth.py](../scripts/test-auth.py) | Disposable-user provisioning and real Keycloak integration runner. |
+| [Authentication tests](../app/src/test/java/dev/somgester/sylph/) | Account UI/controller, callback, token-security fixture, and opt-in `KeycloakIntegrationTest` checks. |
+
 ## Stylesheets
 
 | File | Responsibility |

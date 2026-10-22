@@ -151,7 +151,7 @@
     -fx-background-color: rgba(204, 120, 92, 0.35);
 }
 
-#settings-page, .combo-box-popup > .list-view {
+#settings-page, #account-page, .combo-box-popup > .list-view {
     -settings-background: #faf9f5;
     -settings-surface: #ffffff;
     -settings-border: #d4cbc1;

@@ -12,10 +12,12 @@ jsoup = "1.23.2"
 junit-jupiter = "5.12.1"
 lsp4j = "0.24.0"
 monocle = "21.0.2"
+nimbus-jose-jwt = "10.10"
 richtextfx = "0.11.7"
 pty4j = "0.14.0"
 slf4j = "2.0.19"
 snakeyaml-engine = "2.10"
+tink = "1.23.0"
 tm4e = "0.18.0.202608200919"
 
 [libraries]
@@ -32,10 +34,12 @@ jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 lsp4j = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j", version.ref = "lsp4j" }
 monocle = { module = "org.testfx:openjfx-monocle", version.ref = "monocle" }
+nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
 slf4j-jdk14 = { module = "org.slf4j:slf4j-jdk14", version.ref = "slf4j" }
 pty4j = { module = "org.jetbrains.pty4j:pty4j", version.ref = "pty4j" }
 richtextfx = { module = "org.fxmisc.richtext:richtextfx", version.ref = "richtextfx" }
 snakeyaml-engine = { module = "org.snakeyaml:snakeyaml-engine", version.ref = "snakeyaml-engine" }
+tink = { module = "com.google.crypto.tink:tink", version.ref = "tink" }
 tm4e-core = { module = "org.eclipse:org.eclipse.tm4e.core", version.ref = "tm4e" }
 
 [bundles]

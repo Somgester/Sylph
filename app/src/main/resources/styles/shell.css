@@ -59,6 +59,40 @@
     -fx-pref-width: 76px;
 }
 
+#open-account {
+    -fx-min-width: 28px;
+    -fx-pref-width: 28px;
+    -fx-min-height: 28px;
+    -fx-pref-height: 28px;
+    -fx-padding: 0;
+    -fx-background-radius: 100px;
+    -fx-border-radius: 100px;
+    -fx-border-color: -shell-border;
+    -fx-text-fill: -shell-accent;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+#open-account .action-icon {
+    -fx-stroke: -shell-accent;
+}
+
+.account-summary {
+    -fx-padding: 8px 10px;
+    -fx-min-width: 220px;
+    -fx-max-width: 320px;
+}
+
+.account-menu-name {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.account-menu-email {
+    -fx-font-size: 11px;
+    -fx-opacity: 0.7;
+}
+
 .chrome-action .action-icon {
     -fx-stroke: -shell-text;
 }
