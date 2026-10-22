@@ -53,9 +53,12 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [AuthFailure.java](../app/src/main/java/dev/somgester/sylph/AuthFailure.java) | Fixed, safe diagnostics for code-exchange and token-verification failures. |
 | [OAuthCallback.java](../app/src/main/java/dev/somgester/sylph/OAuthCallback.java) | Short-lived loopback listener with exact paths and state/issuer validation. |
 | [OidcClient.java](../app/src/main/java/dev/somgester/sylph/OidcClient.java) | Browser authorization code + PKCE, Nimbus token validation, and RP-initiated logout. |
-| [auth/compose.yaml](../auth/compose.yaml) | Opt-in loopback-only local Keycloak development server. |
+| [auth/compose.yaml](../auth/compose.yaml) | Loopback-only local Keycloak server with realm readiness check, started by direct `init.sh`. |
 | [auth/sylph-realm.json](../auth/sylph-realm.json) | Public desktop client, exact redirect URIs, and local registration policy. |
-| [auth/.env.example](../auth/.env.example) | Bootstrap admin settings template; actual credentials are ignored by Git. |
+| [auth/start-keycloak.sh](../auth/start-keycloak.sh) | Enables complete Google/GitHub credential pairs before first realm import. |
+| `auth/.env` (generated, ignored) | Private admin and optional OAuth credentials; created once by setup. |
+| [scripts/setup-auth.sh](../scripts/setup-auth.sh) | Private credential generation, Docker startup, and realm readiness wait. |
+| [scripts/test-setup.py](../scripts/test-setup.py) | Isolated setup regression checks with fake tools and temporary credentials. |
 | [scripts/test-auth.py](../scripts/test-auth.py) | Disposable-user provisioning and real Keycloak integration runner. |
 | [Authentication tests](../app/src/test/java/dev/somgester/sylph/) | Account UI/controller, callback, token-security fixture, and opt-in `KeycloakIntegrationTest` checks. |
 
@@ -155,7 +158,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [gradle/wrapper/gradle-wrapper.properties](../gradle/wrapper/gradle-wrapper.properties) | Gradle distribution URL/version, wrapper download paths, and timeout settings. |
 | [gradlew](../gradlew) | Unix Gradle wrapper launcher. |
 | [gradlew.bat](../gradlew.bat) | Windows Gradle wrapper launcher. |
-| [init.sh](../init.sh) | Complete JDK 21 detection, optional proto provisioning, and direct-run setup messages. |
+| [init.sh](../init.sh) | JDK 21 detection/provisioning plus direct-run Keycloak setup; sourced usage and `--java-only` keep guest workflows independent. |
 | [lint.sh](../lint.sh) | Runs Checkstyle for main and test sources. |
 | [run.sh](../run.sh) | Launches JavaFX with configuration caching disabled for the run task. |
 | [settings.gradle](../settings.gradle) | Names the root project, includes app, and configures the Foojay toolchain resolver. |

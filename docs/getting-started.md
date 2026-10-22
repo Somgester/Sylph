@@ -25,14 +25,16 @@ A desktop display is needed to run the application. Tests use headless JavaFX by
 
 | Script | Work performed | Example |
 | --- | --- | --- |
-| [init.sh](../init.sh) | Finds a complete JDK 21, or provisions it with an existing proto installation | `./init.sh` |
+| [init.sh](../init.sh) | Sets up JDK 21 and local Keycloak; use `--java-only` for guest-only setup | `./init.sh` |
 | [lint.sh](../lint.sh) | Runs `:app:checkstyleMain` and `:app:checkstyleTest` | `./lint.sh` |
 | [test.sh](../test.sh) | Runs `:app:test` | `./test.sh --tests '*ShellSyntaxTest'` |
 | [build.sh](../build.sh) | Runs `:app:assemble`; does not run tests or lint | `./build.sh` |
 | [run.sh](../run.sh) | Runs `:app:run --no-configuration-cache` | `./run.sh --console=plain` |
 | [dev.sh](../dev.sh) | Runs lint → tests → build → app | `./dev.sh --console=plain` |
 
-Each workflow script resolves its own directory and sources `init.sh`, so invoking it from another working directory works. Arguments are forwarded as separate quoted arguments. `dev.sh` forwards its arguments only to `run.sh`, not to its check/build steps. Arguments reach Gradle, not directly the Java main method.
+Direct `./init.sh` also requires a running Docker installation with Docker Compose v2; it starts Keycloak and imports the Sylph realm/client automatically. For automatic Google/GitHub configuration on a fresh machine, fill their client IDs/secrets in `auth/.env` before setup; see [authentication setup](authentication.md).
+
+Each workflow script resolves its own directory and sources only the Java setup from `init.sh`, so invoking it from another working directory works. Arguments are forwarded as separate quoted arguments. `dev.sh` forwards its arguments only to `run.sh`, not to its check/build steps. Arguments reach Gradle, not directly the Java main method.
 
 ## Java detection
 

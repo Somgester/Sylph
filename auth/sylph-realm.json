@@ -10,6 +10,38 @@
   "bruteForceProtected": true,
   "defaultSignatureAlgorithm": "EdDSA",
   "passwordPolicy": "length(8) and digits(1) and upperCase(1) and specialChars(1)",
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "Google",
+      "providerId": "google",
+      "enabled": "${SYLPH_GOOGLE_ENABLED:false}",
+      "trustEmail": false,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${SYLPH_GOOGLE_CLIENT_ID_JSON}",
+        "clientSecret": "${SYLPH_GOOGLE_CLIENT_SECRET_JSON}",
+        "defaultScope": "openid profile email",
+        "syncMode": "IMPORT"
+      }
+    },
+    {
+      "alias": "github",
+      "displayName": "GitHub",
+      "providerId": "github",
+      "enabled": "${SYLPH_GITHUB_ENABLED:false}",
+      "trustEmail": false,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "${SYLPH_GITHUB_CLIENT_ID_JSON}",
+        "clientSecret": "${SYLPH_GITHUB_CLIENT_SECRET_JSON}",
+        "defaultScope": "user:email",
+        "syncMode": "IMPORT"
+      }
+    }
+  ],
   "clients": [
     {
       "clientId": "sylph-desktop",

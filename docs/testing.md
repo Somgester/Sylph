@@ -74,3 +74,7 @@ Test totals are intentionally not frozen in these docs. An `UP-TO-DATE` task reu
 | `bwrap: loopback: Failed RTM_NEWADDR` | The external sandbox failed before project inspection or checks ran. Restore sandbox access; this output is not a Sylph build/test verdict. |
 
 When reporting an issue, include the command, current revision, file extension, autosave mode, theme, reproduction steps, and whether the problem occurs in the editor, sidebar, or preview. Avoid including private document contents when a small synthetic example reproduces it.
+
+## Setup script checks
+
+Run `python3 scripts/test-setup.py -v` for isolated setup regression checks. Fake Docker/JDK tools verify first-run credentials, permissions, repeated setup, readiness/startup failure, Java provisioning, Java-only/sourced behavior, and empty/complete/partial OAuth credential pairs without changing real credentials or starting containers.

@@ -28,7 +28,6 @@ sylph_find_path_jdk() {
 sylph_report_setup_success() {
   if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     echo "$1"
-    echo "Next, run ./dev.sh for lint, tests, and the app, or ./run.sh to launch the app only."
   fi
 }
 
@@ -68,4 +67,26 @@ sylph_initialize() {
   sylph_report_setup_success "JDK 21 setup completed successfully."
 }
 
-sylph_initialize
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--java-only" ) ]]; then
+    echo "Usage: ./init.sh [--java-only]" >&2
+    exit 2
+  fi
+fi
+
+if ! sylph_initialize; then
+  if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    exit 1
+  fi
+  return 1
+fi
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  if [[ "${1:-}" == "--java-only" ]]; then
+    echo "Keycloak setup skipped (--java-only). Guest editing remains available."
+  else
+    ./scripts/setup-auth.sh
+  fi
+  echo "Setup completed successfully."
+  echo "Next, run ./dev.sh for lint, tests, and the app, or ./run.sh to launch the app only."
+fi

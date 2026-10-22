@@ -12,3 +12,6 @@ auth/.env
 
 # Downloaded Google OAuth client credentials
 /client_secret_*.json
+
+# Ignore PRD
+/Product-Requirements-Document.docx

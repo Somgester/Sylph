@@ -6,29 +6,45 @@ This implements account identity only. It does not upload local files, synchroni
 
 ## Start the local server
 
-Requirements: Docker with Docker Compose. This is an opt-in development server; `run.sh`, `dev.sh`, and `init.sh` do not install or start Docker.
+Requirements: a working Docker installation with Docker Compose v2. Start Docker, then run:
 
 ```bash
-cp auth/.env.example auth/.env
-```
-
-Set a strong `KC_BOOTSTRAP_ADMIN_PASSWORD` in `auth/.env`, and keep that file private. It is ignored by Git. A local file has already been generated on the development machine used for implementation; do not overwrite an existing file when following this setup.
-
-```bash
-chmod 600 auth/.env
-docker compose --env-file auth/.env -f auth/compose.yaml up -d
+./init.sh
 ./run.sh
 ```
 
+When executed directly, `init.sh` detects/provisions JDK 21, creates private admin credentials in `auth/.env` if missing, and starts the pinned Keycloak container. Docker downloads the image on the first run. Setup waits up to 180 seconds for the imported `sylph` realm's discovery endpoint to respond successfully, then prints the next commands. The realm, public desktop client, EdDSA signing, PKCE, and localhost callbacks are already supplied; no admin-console realm setup is needed for username/password login.
+
+Repeated setup preserves existing credentials, accounts, and realm/provider settings. A missing Docker installation, unavailable daemon, download failure, occupied port, or readiness failure exits with an error. Setup never installs Docker, invokes sudo, or overwrites an existing realm. Only use a non-symlink regular file for `auth/.env`; setup restricts it to the current user (mode 600). Read the generated credentials from that private file when you need the admin console; setup does not print the password.
+
+For Java setup and guest editing without Docker, use `./init.sh --java-only`. When another workflow script sources `init.sh`, only Java setup runs; lint, tests, build, and launch do not provision or start Keycloak. Run `./init.sh` again to restart a stopped local authentication server.
+
 Keycloak 26.8.1 starts at `http://localhost:8080`, published only on the host's loopback interface. Persistent local account data lives in Docker's `sylph-auth_keycloak-data` volume. It imports the `sylph` realm and public `sylph-desktop` client on the first start. Realm edits in the import JSON are not automatically applied to an existing realm.
 
-Open `http://localhost:8080/admin/` and use the bootstrap username/password from `auth/.env`. The default username is `sylph-admin`. Switch from the **master** realm to **sylph** when configuring application users or identity providers. Follow Keycloak's bootstrap-admin guidance to create a permanent administrator for a long-lived installation.
+Open `http://localhost:8080/admin/` and use the bootstrap username/password from `auth/.env`. The generated username is `sylph-admin`. Switch from the **master** realm to **sylph** when configuring application users or identity providers. Follow Keycloak's bootstrap-admin guidance to create a permanent administrator for a long-lived installation.
 
 Changing `auth/.env` does not reset an existing administrator's password. If you change the password in the console, update the file with the current credentials before using the integration runner.
 
 In Sylph, click the round account avatar at the top right for sign-in/sign-out actions. After sign-in it shows initials; the menu shows the verified first/last name and a smaller email line. Providers without name claims fall back to the username or subject. Choose **Account settings…**, **View → Account**, or **Ctrl/Cmd+Alt+A** for the full account page. **Sign in / create account** opens Keycloak's browser page. Username/password login and registration work immediately; Google/GitHub appear after their identity providers are configured below. This is a browser password flow, not HTTP Basic authentication or a desktop password-grant flow.
 
-The imported realm enables a 12-character password policy and brute-force protection. Email-based password recovery is disabled until an administrator configures mail delivery and enables it. No SMTP service or paid API is required for the initial local setup.
+The imported realm requires at least eight password characters, a digit, an uppercase letter, and a special character, and enables brute-force protection. Email-based password recovery is disabled until an administrator configures mail delivery and enables it. No SMTP service or paid API is required for the initial local setup.
+
+## OAuth credentials from environment
+
+Before the **first** setup on a new machine, create private `auth/.env` with the optional provider values below, then run `./init.sh`. If the file already exists, edit it and preserve its admin credentials:
+
+```dotenv
+GOOGLE_CLIENT_ID='your-google-web-client-id'
+GOOGLE_CLIENT_SECRET='your-google-client-secret'
+GITHUB_CLIENT_ID='your-github-oauth-client-id'
+GITHUB_CLIENT_SECRET='your-github-client-secret'
+```
+
+Leave both values empty to disable a provider. Set both to enable it automatically in the new realm; a partial pair fails startup with an error naming the missing settings. Credential values must be single-line and contain no control characters. Exported environment variables override `auth/.env`, following Docker Compose precedence. Single-quote literal secrets in the file so dollar signs are not interpolated. Setup appends a private generated admin password when that setting is absent. An explicitly configured admin password is preserved.
+
+Credentials go to Keycloak, not the desktop app. The checked-in realm contains only environment placeholders; keep actual secrets in the ignored private file or your local environment. No downloaded provider credentials are read automatically.
+
+Keycloak imports the realm only when it does not already exist. Changing these variables later does **not** update existing provider settings. Existing users, credentials, and manual settings are preserved; manage existing providers in the Keycloak console. Do not delete account data just to apply OAuth settings.
 
 ## Google setup
 
@@ -40,12 +56,7 @@ For this local setup, authorize this exact redirect URI:
 http://localhost:8080/realms/sylph/broker/google/endpoint
 ```
 
-In Keycloak's `sylph` realm:
-
-1. Open **Identity providers → Add provider → Google**.
-2. Keep the alias `google`.
-3. Enter Google's client ID and client secret in Keycloak, then save and enable the provider.
-4. Confirm that the Redirect URI displayed by Keycloak exactly matches Google's configured URI.
+Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `auth/.env` before fresh setup. The imported provider uses alias `google`. For an existing realm, use **Identity providers → Google** in Keycloak to configure/update credentials instead. Confirm that the Redirect URI displayed there exactly matches Google's configured URI.
 
 If Google's consent screen is in testing mode, add your test Google account there. Provider secrets belong in Keycloak, never in application source, Gradle properties, or desktop configuration.
 
@@ -57,7 +68,7 @@ Create a GitHub OAuth App with this authorization callback URL:
 http://localhost:8080/realms/sylph/broker/github/endpoint
 ```
 
-In Keycloak's `sylph` realm, add the **GitHub** identity provider with alias `github`, enter the GitHub client ID and secret, save, and enable it. Use the Redirect URI displayed by Keycloak as the source of truth. Keep the default account-linking protections; matching an email address alone must not silently merge accounts.
+Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` in `auth/.env` before fresh setup. The imported provider uses alias `github`. For an existing realm, use **Identity providers → GitHub** in Keycloak to configure/update credentials instead. Use the Redirect URI displayed there as the source of truth. Keep the default account-linking protections; matching an email address alone must not silently merge accounts.
 
 After configuring either provider, use **Sign in / create account** in Sylph and choose that provider on the browser page. Installing or configuring an OAuth client does not itself verify a live sign-in; test with an actual provider account. Implementation verification covers real Keycloak password login/logout, not live Google/GitHub consent with owner credentials.
 
