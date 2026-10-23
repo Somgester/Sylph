@@ -19,6 +19,8 @@ final class PieceTable implements CharSequence {
 
     private final StringBuilder additions = new StringBuilder();
 
+    private final LineIndex lines;
+
     private List<Piece> pieces;
 
     private int length;
@@ -29,6 +31,7 @@ final class PieceTable implements CharSequence {
 
     PieceTable(String text) {
         original = Objects.requireNonNull(text, "text");
+        lines = new LineIndex(text);
         length = text.length();
         pieces = length == 0 ? List.of() : List.of(new Piece(Source.ORIGINAL, 0, length));
     }
@@ -36,6 +39,26 @@ final class PieceTable implements CharSequence {
     @Override
     public int length() {
         return length;
+    }
+
+    int lineCount() {
+        return lines.lineCount();
+    }
+
+    int lineStart(int line) {
+        return lines.lineStart(line);
+    }
+
+    int lineEnd(int line) {
+        return lines.lineEnd(line);
+    }
+
+    int lineAt(int offset) {
+        return lines.lineAt(offset);
+    }
+
+    String lineText(int line) {
+        return subSequence(lineStart(line), lineEnd(line));
     }
 
     @Override
@@ -112,6 +135,7 @@ final class PieceTable implements CharSequence {
         if (!inserted) {
             append(updated, insertion);
         }
+        lines.replace(start, end, text);
         additions.append(text);
         pieces = updated;
         length = updatedLength;

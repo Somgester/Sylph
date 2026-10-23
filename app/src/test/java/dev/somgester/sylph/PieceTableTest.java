@@ -13,6 +13,19 @@ import org.junit.jupiter.params.provider.ValueSource;
 class PieceTableTest {
 
     @Test
+    void lineReadsFollowOriginalAndAddedPiecesWithoutFlatteningTheBuffer() {
+        PieceTable buffer = new PieceTable("first\nlast\n");
+        buffer.replace(6, 6, "🐍\n");
+        assertLines(buffer, "first\n🐍\nlast\n");
+        buffer.replace(5, 9, "!");
+        assertLines(buffer, "first!last\n");
+        assertThrows(IndexOutOfBoundsException.class, () -> buffer.lineText(2));
+        assertThrows(IndexOutOfBoundsException.class, () -> buffer.lineAt(buffer.length() + 1));
+        buffer.replace(0, buffer.length(), "");
+        assertLines(buffer, "");
+    }
+
+    @Test
     void emptyBufferCanBeEditedAndClearedRepeatedly() {
         PieceTable buffer = new PieceTable();
         assertTrue(buffer.isEmpty());
@@ -118,6 +131,7 @@ class PieceTableTest {
             expected.replace(start, end, replacement.toString());
             assertEquals(expected.length(), buffer.length(), "seed=" + seed + ", edit=" + edit);
             assertEquals(expected.toString(), buffer.toString(), "seed=" + seed + ", edit=" + edit);
+            assertLines(buffer, expected.toString());
             for (int index = 0; index < expected.length(); index++) {
                 assertEquals(expected.charAt(index), buffer.charAt(index));
             }
@@ -139,5 +153,24 @@ class PieceTableTest {
         assertEquals("x".repeat(10000), buffer.subSequence(original.length(), buffer.length()));
         buffer.replace(original.length(), buffer.length(), "");
         assertEquals(original, buffer.toString());
+    }
+
+    private static void assertLines(PieceTable buffer, String text) {
+        String[] expected = text.split("\n", -1);
+        assertEquals(expected.length, buffer.lineCount());
+        int start = 0;
+        for (int line = 0; line < expected.length; line++) {
+            assertEquals(start, buffer.lineStart(line));
+            assertEquals(start + expected[line].length(), buffer.lineEnd(line));
+            assertEquals(expected[line], buffer.lineText(line));
+            start += expected[line].length() + 1;
+        }
+        int line = 0;
+        for (int offset = 0; offset <= text.length(); offset++) {
+            assertEquals(line, buffer.lineAt(offset));
+            if (offset < text.length() && text.charAt(offset) == '\n') {
+                line++;
+            }
+        }
     }
 }

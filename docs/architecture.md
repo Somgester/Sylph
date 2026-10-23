@@ -101,6 +101,8 @@ Arrows show commands and data flow, not every constructor dependency. Worker res
 ## Document lifecycle and disk work
 
 The [custom editor core](editor-core.md) uses `PieceTable` as the session's text buffer. Session
+buffers also maintain `LineIndex` for logical line boundaries and offset lookup without flattening
+the document for line reads. Session
 edits use UTF-16 ranges, normalize inserted line endings to LF, and publish immutable read-only
 text snapshots. RichTextFX still renders the view; `EditorUndoManager` connects its commands to
 Sylph's bounded `EditHistory`, preserving compound replay and grouping adjacent typing/deletions.

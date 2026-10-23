@@ -48,10 +48,37 @@ Adjacent pieces that reference contiguous ranges in the same source are merged. 
 at the end of an inserted range therefore does not create one permanent piece per keystroke.
 
 This initial implementation scans a list: edits visit O(p) pieces and append the inserted text;
-character lookup takes O(p), and range reads take O(p + k) for k returned code units.
+maintaining the line index described below can additionally shift O(L) line starts.
+Character lookup takes O(p), and range reads take O(p + k) for k returned code units.
 It does not claim tree-based indexing or
 constant-time editing. Deleted inserted text remains in the append-only store. Bounded history
 does not reclaim that store; buffer compaction remains a separate follow-up.
+
+## Line lookup for rendering
+
+The sixth review chunk adds `LineIndex` to `PieceTable`. The index updates with each range edit;
+opening or clearing a session creates a fresh buffer/index. It stores line starts in a primitive
+integer array, without keeping another copy of the document text.
+
+- Line numbers and offsets are zero-based; offsets count UTF-16 code units.
+- `lineCount()` includes the trailing empty line after LF. An empty document has one empty line.
+- `lineStart(line)` is inclusive; `lineEnd(line)` excludes LF or equals document length on the last line.
+- `lineText(line)` reads just that immutable slice from the pieces, without materializing the whole document.
+- `lineAt(offset)` accepts caret offsets through document length. An offset on LF belongs to its
+  preceding line; the offset immediately after LF belongs to the next line. Columns can be obtained
+  by subtracting that line's start offset.
+- Only LF creates a line boundary. Session text already normalizes newlines; standalone buffers
+  preserve CR and other characters as ordinary line content, including CR in a literal CRLF pair.
+- Invalid lines, offsets, ranges, and null replacements are rejected without changing the index.
+
+Line count/start/end take O(1); offset-to-line lookup uses O(log L) binary search for L lines.
+Index updates scan inserted text and may copy/shift O(L) line starts. Equal-length edits without
+changed line breaks and edits confined to the final line without changed breaks avoid that copy.
+Line reads still have the buffer's O(p + k) cost. This does not introduce a tree index or eliminate
+the existing session snapshot bridge.
+
+The index is connected to live buffer edits, but the displayed editor still uses RichTextFX.
+Canvas drawing and viewport layout remain separate review chunks.
 
 ## History contract
 
@@ -101,8 +128,9 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Introduce custom virtualized rendering separately, preserving selection, keyboard/IME input,
-   clipboard, accessibility, highlighting, and language-server offsets before replacing RichTextFX.
+1. Define viewport/visible-line layout, then draw a read-only Canvas surface using buffer line reads.
+2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
+   accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
 These remain follow-up changes.
 
@@ -110,6 +138,7 @@ These remain follow-up changes.
 
 ```bash
 ./test.sh --tests '*PieceTableTest'
+./test.sh --tests '*LineIndexTest'
 ./test.sh --tests '*EditHistoryTest'
 ./test.sh --tests '*EditorUndoManagerTest'
 ./test.sh --tests '*EditorSessionTest' --tests '*EditorViewTest'
@@ -126,3 +155,6 @@ Adapter tests use an injected clock for typing boundaries and cover native short
 compound replay, caret updates, style-only edits, edit locks, disposal, and history marks.
 Selection tests cover both directions, grouped typing and deletion, emoji offsets, distinct
 Delete/Backspace carets, native single-change builders, no-op completions, and compound placeholders.
+Line tests compare every caret offset against independent string scans, cover LF-boundary insertions,
+deletions, CRLF/Unicode, empty/trailing lines, invalid edits, and typing on a large document's final line.
+Existing seeded piece-table edits now verify line slices and offsets after every edit as well.
