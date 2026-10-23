@@ -18,6 +18,14 @@ record CompletionEdit(String label, List<Replacement> replacements, int selectio
     }
 
     void apply(CodeArea area) {
+        if (area.getUndoManager() instanceof EditorUndoManager history) {
+            history.performEdit(() -> applyChanges(area));
+        } else {
+            applyChanges(area);
+        }
+    }
+
+    private void applyChanges(CodeArea area) {
         var change = area.createMultiChange(replacements.size());
         for (var replacement : replacements) {
             change.replaceText(replacement.start(), replacement.end(), replacement.text());

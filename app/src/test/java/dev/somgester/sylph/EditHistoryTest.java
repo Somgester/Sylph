@@ -15,6 +15,50 @@ class EditHistoryTest {
     private final EditHistory history = new EditHistory(100, 100_000);
 
     @Test
+    void mergedBatchesKeepFirstSelectionAndLatestSelectionAcrossUndoRedo() {
+        var first = new EditHistory.Selection(2, 2);
+        var middle = new EditHistory.Selection(3, 3);
+        var last = new EditHistory.Selection(4, 4);
+        history.record(List.of(new EditHistory.Change(2, "", "a")), true, first, middle);
+        history.record(List.of(new EditHistory.Change(3, "", "b")), true, middle, last);
+        assertEquals(first, history.undoSelection());
+        history.undo(changes -> { });
+        assertEquals(last, history.redoSelection());
+        history.redo(changes -> { });
+        assertEquals(first, history.undoSelection());
+        assertEquals(List.of(new EditHistory.Change(2, "", "ab")), history.nextUndo());
+    }
+
+    @Test
+    void selectionChangesBetweenEditsPreventMergingEvenAtAdjacentOffsets() {
+        history.record(List.of(new EditHistory.Change(2, "", "a")), true,
+                new EditHistory.Selection(2, 2), new EditHistory.Selection(3, 3));
+        history.record(List.of(new EditHistory.Change(3, "", "b")), true,
+                new EditHistory.Selection(1, 1), new EditHistory.Selection(4, 4));
+        history.undo(changes -> assertEquals("b", changes.getFirst().removed()));
+        assertTrue(history.canUndo());
+        assertEquals(new EditHistory.Selection(4, 4), history.redoSelection());
+    }
+
+    @Test
+    void finalSelectionUpdatesOnlyTheMatchingCommittedBatch() {
+        history.record(List.of(new EditHistory.Change(0, "", "abc")), false,
+                new EditHistory.Selection(0, 0), new EditHistory.Selection(3, 3));
+        var firstPosition = history.position();
+        var placeholder = new EditHistory.Selection(3, 1);
+        history.updateSelectionAfter(firstPosition, placeholder);
+        history.record(List.of(new EditHistory.Change(3, "", "!")), false,
+                new EditHistory.Selection(3, 1), new EditHistory.Selection(4, 4));
+        history.updateSelectionAfter(firstPosition, new EditHistory.Selection(0, 0));
+        history.undo(changes -> { });
+        assertEquals(new EditHistory.Selection(4, 4), history.redoSelection());
+        history.undo(changes -> { });
+        assertEquals(placeholder, history.redoSelection());
+        assertThrows(IllegalArgumentException.class, () -> new EditHistory.Selection(-1, 0));
+        assertThrows(IllegalArgumentException.class, () -> new EditHistory.Selection(0, -1));
+    }
+
+    @Test
     void mergesAdjacentTypingAndBothDeletionDirections() {
         history.record(List.of(new EditHistory.Change(0, "", "a")), true);
         history.record(List.of(new EditHistory.Change(1, "", "🐍")), true);

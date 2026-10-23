@@ -57,6 +57,7 @@ does not reclaim that store; buffer compaction remains a separate follow-up.
 
 The third review chunk added the standalone `EditHistory` core. The fourth connects it through
 `EditorUndoManager` to existing keyboard shortcuts, Edit/context menus, and completion boundaries.
+The fifth adds original/final caret and selection snapshots to those history batches.
 The view owns one history for its document; replay uses the same batched view-to-session edits as
 normal input, keeping the piece table, dirty state, autosave, preview, and language features in sync.
 
@@ -77,10 +78,21 @@ that actually committed. These limits do not compact the piece table's append-on
 The editor retains at most 1,000 batches and 4,194,304 UTF-16 content units across both stacks.
 Adjacent single-code-point insertions or deletions group while gaps stay at most 500 ms. Newlines,
 multi-character inserts, replacements, compound edits, navigation keys, mouse presses, focus changes,
-and explicit completion/mark boundaries prevent merging. Undo/redo also starts a new typing group.
+and explicit completion/mark boundaries prevent merging. Selected-text deletion starts a separate
+step. Merging also requires the preceding final selection to match the next edit's initial selection.
+Undo/redo starts a new typing group.
 Replay validates every expected removal against a scratch snapshot before committing one batch.
-It restores the caret to the final replayed insertion end, matching the previous editor behavior;
-it does not yet restore the original selection or distinguish Delete from Backspace caret placement.
+Each batch now keeps its original and final selection as UTF-16 anchor/caret pairs, preserving
+selection direction. Undo restores the original pair; redo restores the final pair, independently
+of subsequent navigation. Merged typing/deletions keep the first initial pair and latest final pair.
+This distinguishes Delete from Backspace and preserves reversed selections and completion placeholders.
+
+`EditorUndoManager` captures selection before document updates. Native multi-change operations keep
+their resulting selection when the update finishes. `EditorCodeArea` wraps normal styled/plain-text
+replacements so their final caret is captured after RichTextFX returns from updating it.
+`CompletionEdit` similarly wraps its text batch and explicit final selection. No deferred callback
+can accidentally capture later navigation, and a no-op completion cannot rewrite an older edit's
+selection. Snapshot metadata stays in the same bounded batch as its text and follows its lifecycle.
 
 A successful open replaces the manager, dropping both stacks even for identical document text.
 Save As leaves history intact. Closing the view detaches listeners and releases history. Native
@@ -89,8 +101,7 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Preserve original caret and selection snapshots for undo/redo, including compound completion edits.
-2. Introduce custom virtualized rendering separately, preserving selection, keyboard/IME input,
+1. Introduce custom virtualized rendering separately, preserving selection, keyboard/IME input,
    clipboard, accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
 These remain follow-up changes.
@@ -113,3 +124,5 @@ History tests cover compound replay order, immutable batches, Unicode, failed re
 retention limits, reset behavior, and 500 seeded batches replayed against independent snapshots.
 Adapter tests use an injected clock for typing boundaries and cover native shortcuts/context menus,
 compound replay, caret updates, style-only edits, edit locks, disposal, and history marks.
+Selection tests cover both directions, grouped typing and deletion, emoji offsets, distinct
+Delete/Backspace carets, native single-change builders, no-op completions, and compound placeholders.

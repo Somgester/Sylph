@@ -35,7 +35,17 @@ final class EditHistory {
         }
     }
 
-    private record Batch(List<Change> changes, long units, Position before, Position after) { }
+    record Selection(int anchor, int caret) {
+
+        Selection {
+            if (anchor < 0 || caret < 0) {
+                throw new IllegalArgumentException("Negative selection offset");
+            }
+        }
+    }
+
+    private record Batch(List<Change> changes, long units, Position before, Position after,
+            Selection selectionBefore, Selection selectionAfter) { }
 
     private final int maxBatches;
 
@@ -74,6 +84,10 @@ final class EditHistory {
     }
 
     void record(List<Change> changes, boolean merge) {
+        record(changes, merge, null, null);
+    }
+
+    void record(List<Change> changes, boolean merge, Selection selectionBefore, Selection selectionAfter) {
         requireIdle();
         List<Change> captured = List.copyOf(changes).stream()
                 .filter(change -> !change.removed().equals(change.inserted())).toList();
@@ -97,6 +111,7 @@ final class EditHistory {
         Position before = position;
         Batch previous = undo.peekLast();
         Change combined = merge && previous != null && captured.size() == 1 && previous.changes().size() == 1
+                && Objects.equals(previous.selectionAfter(), selectionBefore)
                 ? merge(previous.changes().getFirst(), captured.getFirst()) : null;
         if (combined != null && previous.units() <= maxUnits - units) {
             undo.removeLast();
@@ -105,6 +120,7 @@ final class EditHistory {
             previous.after().valid = false;
             units += previous.units();
             captured = List.of(combined);
+            selectionBefore = previous.selectionBefore();
         }
         while (!undo.isEmpty()
                 && (undo.size() >= maxBatches || retainedUnits > maxUnits - units)) {
@@ -113,7 +129,7 @@ final class EditHistory {
             forgotten.before().valid = false;
         }
         position = new Position();
-        undo.addLast(new Batch(captured, units, before, position));
+        undo.addLast(new Batch(captured, units, before, position, selectionBefore, selectionAfter));
         retainedUnits += units;
     }
 
@@ -143,6 +159,25 @@ final class EditHistory {
 
     List<Change> nextRedo() {
         return redo.isEmpty() ? null : redo.getLast().changes();
+    }
+
+    Selection undoSelection() {
+        return undo.isEmpty() ? null : undo.getLast().selectionBefore();
+    }
+
+    Selection redoSelection() {
+        return redo.isEmpty() ? null : redo.getLast().selectionAfter();
+    }
+
+    // A compound edit may choose its final selection after publishing its text changes.
+    void updateSelectionAfter(Position expected, Selection selection) {
+        requireIdle();
+        Objects.requireNonNull(selection, "selection");
+        if (position == expected && !undo.isEmpty()) {
+            Batch batch = undo.removeLast();
+            undo.addLast(new Batch(batch.changes(), batch.units(), batch.before(), batch.after(),
+                    batch.selectionBefore(), selection));
+        }
     }
 
     boolean undo(Consumer<List<Change>> applyAtomically) {

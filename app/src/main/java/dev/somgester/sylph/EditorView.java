@@ -22,7 +22,7 @@ final class EditorView extends StackPane implements AutoCloseable {
 
     private final EditorSession session;
 
-    private final CodeArea area = new CodeArea();
+    private final CodeArea area = new EditorCodeArea();
 
     private final Subscription editorTextChanges;
 

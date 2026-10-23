@@ -13,6 +13,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EditorUndoManagerTest {
 
@@ -25,6 +27,191 @@ class EditorUndoManagerTest {
     private final AtomicLong time = new AtomicLong();
 
     private boolean editable = true;
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void replacementUndoRestoresSelectionDirectionAndRedoRestoresFinalCaret(boolean backwards) throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("hello 🐍 world");
+            manager.forgetHistory();
+            int anchor = backwards ? 8 : 6;
+            int caret = backwards ? 6 : 8;
+            view.area().selectRange(anchor, caret);
+            view.area().replaceSelection("fox");
+            assertEquals("hello fox world", session.textProperty().get());
+            view.area().moveTo(0);
+            assertTrue(manager.undo());
+            assertEquals("hello 🐍 world", session.textProperty().get());
+            assertSelection(anchor, caret);
+            view.area().moveTo(view.area().getLength());
+            assertTrue(manager.redo());
+            assertEquals("hello fox world", session.textProperty().get());
+            assertSelection(9, 9);
+            return null;
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void backspaceAndDeleteRestoreTheirDistinctOriginalCarets(boolean backspace) throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("a🐍b");
+            manager.forgetHistory();
+            int start = backspace ? 3 : 1;
+            view.area().moveTo(start);
+            if (backspace) {
+                view.area().deletePreviousChar();
+            } else {
+                view.area().deleteNextChar();
+            }
+            assertEquals("ab", session.textProperty().get());
+            assertSelection(1, 1);
+            manager.undo();
+            assertEquals("a🐍b", session.textProperty().get());
+            assertSelection(start, start);
+            manager.redo();
+            assertEquals("ab", session.textProperty().get());
+            assertSelection(1, 1);
+            return null;
+        });
+    }
+
+    @Test
+    void mergedTypingRestoresFirstCaretAndLatestCaretDespiteSubsequentNavigation() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("left right");
+            manager.forgetHistory();
+            view.area().moveTo(5);
+            view.area().replaceSelection("🐍");
+            view.area().replaceSelection("!");
+            view.area().moveTo(0);
+            manager.undo();
+            assertEquals("left right", session.textProperty().get());
+            assertSelection(5, 5);
+            assertFalse(manager.isUndoAvailable());
+            manager.redo();
+            assertEquals("left 🐍!right", session.textProperty().get());
+            assertSelection(8, 8);
+            return null;
+        });
+    }
+
+    @Test
+    void completionRestoresOriginalSelectionAndFinalPlaceholderSelection() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("alpha\nal");
+            manager.forgetHistory();
+            view.area().selectRange(8, 6);
+            String completed = "import beta;\nalpha\nalphaBeta";
+            CompletionEdit edit = new CompletionEdit("alphaBeta", List.of(
+                    new CompletionEdit.Replacement(0, 0, "import beta;\n"),
+                    new CompletionEdit.Replacement(6, 8, "alphaBeta")),
+                    completed.length(), completed.length() - 4);
+            edit.apply(view.area());
+            assertEquals(completed, session.textProperty().get());
+            assertSelection(completed.length(), completed.length() - 4);
+            view.area().moveTo(0);
+            view.area().setStyle(0, 6, List.of("keyword"));
+            manager.undo();
+            assertEquals("alpha\nal", session.textProperty().get());
+            assertSelection(8, 6);
+            assertFalse(manager.isUndoAvailable());
+            manager.redo();
+            assertEquals(completed, session.textProperty().get());
+            assertSelection(completed.length(), completed.length() - 4);
+            assertEquals("Beta", view.area().getSelectedText());
+            return null;
+        });
+    }
+
+    @Test
+    void noOpCompletionCannotOverwriteSelectionOfPreviousEdit() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceSelection("x");
+            new CompletionEdit("same", List.of(new CompletionEdit.Replacement(0, 1, "x")), 0, 0)
+                    .apply(view.area());
+            manager.undo();
+            assertSelection(0, 0);
+            assertEquals("", session.textProperty().get());
+            manager.redo();
+            assertEquals("x", session.textProperty().get());
+            assertSelection(1, 1);
+            return null;
+        });
+    }
+
+    private void assertSelection(int anchor, int caret) {
+        assertEquals(anchor, view.area().getAnchor(), "Selection anchor");
+        assertEquals(caret, view.area().getCaretPosition(), "Selection caret");
+    }
+
+    @Test
+    void selectedCharacterDeletionDoesNotMergeWithFollowingBackspace() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("abc");
+            manager.forgetHistory();
+            view.area().selectRange(3, 2);
+            view.area().replaceSelection("");
+            view.area().deletePreviousChar();
+            assertEquals("a", session.textProperty().get());
+            manager.undo();
+            assertEquals("ab", session.textProperty().get());
+            assertSelection(2, 2);
+            manager.undo();
+            assertEquals("abc", session.textProperty().get());
+            assertSelection(3, 2);
+            return null;
+        });
+    }
+
+    @Test
+    void singleChangeBuilderRestoresItsActualSelectionInsteadOfAssumingInsertionEnd() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("abcd");
+            manager.forgetHistory();
+            view.area().selectRange(1, 3);
+            view.area().createMultiChange(1).replaceTextAbsolutely(0, 1, "XYZ").commit();
+            int afterAnchor = view.area().getAnchor();
+            int afterCaret = view.area().getCaretPosition();
+            assertTrue(afterAnchor != afterCaret);
+            view.area().moveTo(0);
+            manager.undo();
+            assertEquals("abcd", session.textProperty().get());
+            assertSelection(1, 3);
+            manager.redo();
+            assertEquals("XYZbcd", session.textProperty().get());
+            assertSelection(afterAnchor, afterCaret);
+            return null;
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void groupedDeletesKeepFirstAndLastCaretSnapshots(boolean backspace) throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("ab🐍c");
+            manager.forgetHistory();
+            int originalCaret = backspace ? 4 : 0;
+            view.area().moveTo(originalCaret);
+            for (int index = 0; index < 2; index++) {
+                if (backspace) {
+                    view.area().deletePreviousChar();
+                } else {
+                    view.area().deleteNextChar();
+                }
+            }
+            String edited = view.area().getText();
+            int finalCaret = view.area().getCaretPosition();
+            manager.undo();
+            assertFalse(manager.isUndoAvailable());
+            assertEquals("ab🐍c", session.textProperty().get());
+            assertSelection(originalCaret, originalCaret);
+            manager.redo();
+            assertEquals(edited, session.textProperty().get());
+            assertSelection(finalCaret, finalCaret);
+            return null;
+        });
+    }
 
     @BeforeAll
     static void initialize() throws InterruptedException {
