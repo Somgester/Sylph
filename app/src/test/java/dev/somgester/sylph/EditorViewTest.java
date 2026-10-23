@@ -177,4 +177,66 @@ class EditorViewTest {
             return null;
         });
     }
+
+    @Test
+    void saveAsKeepsHistoryAndUndoRedoTrackSavedTextWithoutRewritingDisk() throws Exception {
+        Path original = Files.writeString(directory.resolve("before.txt"), "before");
+        Path destination = directory.resolve("after.txt");
+        FxTestSupport.onFxThread(() -> {
+            session.open(original, view::documentOpened, error -> { throw new AssertionError(error); });
+            return null;
+        });
+        FxTestSupport.await(() -> !session.busyProperty().get());
+        FxTestSupport.onFxThread(() -> {
+            view.area().appendText(" edited");
+            session.save(destination, false, false, () -> { }, error -> { throw new AssertionError(error); });
+            view.area().undo(); // Foreground saving blocks history replay as well as typing.
+            assertEquals("before edited", session.textProperty().get());
+            return null;
+        });
+        FxTestSupport.await(() -> !session.busyProperty().get());
+        FxTestSupport.onFxThread(() -> {
+            assertFalse(session.dirtyProperty().get());
+            view.area().undo();
+            assertEquals("before", session.textProperty().get());
+            assertTrue(session.dirtyProperty().get());
+            assertEquals(destination.toAbsolutePath(), session.pathProperty().get());
+            view.area().redo();
+            assertEquals("before edited", session.textProperty().get());
+            assertFalse(session.dirtyProperty().get());
+            return null;
+        });
+        assertEquals("before", Files.readString(original));
+        assertEquals("before edited", Files.readString(destination));
+    }
+
+    @Test
+    void failedOpenKeepsHistoryAndSuccessfulSameTextOpenDropsUndoAndRedo() throws Exception {
+        Path file = Files.writeString(directory.resolve("same.txt"), "same");
+        List<Throwable> errors = new ArrayList<>();
+        FxTestSupport.onFxThread(() -> {
+            view.area().replaceText("same");
+            session.open(directory.resolve("missing.txt"), view::documentOpened, errors::add);
+            return null;
+        });
+        FxTestSupport.await(() -> !session.busyProperty().get());
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(1, errors.size());
+            assertTrue(view.undoAvailableProperty().get());
+            view.area().appendText("x");
+            view.area().undo();
+            assertTrue(view.undoAvailableProperty().get());
+            assertTrue(view.redoAvailableProperty().get());
+            session.open(file, view::documentOpened, error -> { throw new AssertionError(error); });
+            return null;
+        });
+        FxTestSupport.await(() -> !session.busyProperty().get());
+        FxTestSupport.onFxThread(() -> {
+            assertEquals("same", session.textProperty().get());
+            assertFalse(view.undoAvailableProperty().get());
+            assertFalse(view.redoAvailableProperty().get());
+            assertFalse(session.dirtyProperty().get());
+            return null;
+        });
+    }
 }

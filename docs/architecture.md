@@ -102,8 +102,10 @@ Arrows show commands and data flow, not every constructor dependency. Worker res
 
 The [custom editor core](editor-core.md) uses `PieceTable` as the session's text buffer. Session
 edits use UTF-16 ranges, normalize inserted line endings to LF, and publish immutable read-only
-text snapshots. RichTextFX still renders the view and supplies history; custom undo and rendering
-remain separate review stages. Existing save workers receive captured strings, not the mutable buffer.
+text snapshots. RichTextFX still renders the view; `EditorUndoManager` connects its commands to
+Sylph's bounded `EditHistory`, preserving compound replay and grouping adjacent typing/deletions.
+Custom rendering remains a separate review stage. Existing save workers receive captured strings,
+not the mutable buffer.
 
 `EditorDocument` owns one tab, session, editor view, autosave controller, and optional preview. There is no document on startup or after closing the last document. Chrome, Edit actions, settings status, and title support that empty state. A separate session supplies a file worker for workspace actions when no document is open; it has no editor tab or autosave controller. Switching tabs retargets the existing controls without losing undo/cursor state. Existing paths (including filesystem aliases) select their existing tab. An explicitly created clean Untitled document can be reused; failed opens dispose provisional documents. File close events and tab context-menu actions wait for Save/Discard/Cancel. Close All checks every dirty document before removing tabs or disposing terminals.
 

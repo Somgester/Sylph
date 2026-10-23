@@ -16,7 +16,6 @@ import org.eclipse.lsp4j.Location;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
-import org.fxmisc.richtext.util.UndoUtils;
 import org.reactfx.Subscription;
 
 final class EditorView extends StackPane implements AutoCloseable {
@@ -92,6 +91,8 @@ final class EditorView extends StackPane implements AutoCloseable {
             }
         };
         session.textProperty().addListener(sessionTextListener);
+        area.setUndoManager(new EditorUndoManager(area,
+                () -> !closed && !session.editingBlockedProperty().get()));
         historyListener = (observable, previous, available) -> updateHistoryAvailability();
         observeHistory();
         highlighter = new SyntaxHighlighter(area, session.languageProperty());
@@ -187,7 +188,8 @@ final class EditorView extends StackPane implements AutoCloseable {
     void documentOpened() {
         // forgetHistory() clears only undo; a new manager also drops the previous document's redo.
         stopObservingHistory();
-        area.setUndoManager(UndoUtils.plainTextUndoManager(area));
+        area.setUndoManager(new EditorUndoManager(area,
+                () -> !closed && !session.editingBlockedProperty().get()));
         observeHistory();
         area.moveTo(0);
         area.requestFollowCaret();

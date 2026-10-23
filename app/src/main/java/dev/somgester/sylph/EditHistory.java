@@ -26,7 +26,16 @@ final class EditHistory {
         }
     }
 
-    private record Batch(List<Change> changes, long units) { }
+    static final class Position {
+
+        private boolean valid = true;
+
+        boolean isValid() {
+            return valid;
+        }
+    }
+
+    private record Batch(List<Change> changes, long units, Position before, Position after) { }
 
     private final int maxBatches;
 
@@ -39,6 +48,8 @@ final class EditHistory {
     private long retainedUnits;
 
     private boolean replaying;
+
+    private Position position = new Position();
 
     // Limits cover both stacks; units count removed + inserted UTF-16 content, not heap bytes.
     EditHistory(int maxBatches, long maxUnits) {
@@ -59,6 +70,10 @@ final class EditHistory {
 
     // Call only after the entire batch has been successfully applied to the document.
     void record(List<Change> changes) {
+        record(changes, false);
+    }
+
+    void record(List<Change> changes, boolean merge) {
         requireIdle();
         List<Change> captured = List.copyOf(changes).stream()
                 .filter(change -> !change.removed().equals(change.inserted())).toList();
@@ -71,6 +86,7 @@ final class EditHistory {
         }
         for (Batch batch : redo) {
             retainedUnits -= batch.units();
+            batch.after().valid = false;
         }
         redo.clear();
         if (units > maxUnits) {
@@ -78,12 +94,55 @@ final class EditHistory {
             clear();
             return;
         }
+        Position before = position;
+        Batch previous = undo.peekLast();
+        Change combined = merge && previous != null && captured.size() == 1 && previous.changes().size() == 1
+                ? merge(previous.changes().getFirst(), captured.getFirst()) : null;
+        if (combined != null && previous.units() <= maxUnits - units) {
+            undo.removeLast();
+            retainedUnits -= previous.units();
+            before = previous.before();
+            previous.after().valid = false;
+            units += previous.units();
+            captured = List.of(combined);
+        }
         while (!undo.isEmpty()
                 && (undo.size() >= maxBatches || retainedUnits > maxUnits - units)) {
-            retainedUnits -= undo.removeFirst().units();
+            Batch forgotten = undo.removeFirst();
+            retainedUnits -= forgotten.units();
+            forgotten.before().valid = false;
         }
-        undo.addLast(new Batch(captured, units));
+        position = new Position();
+        undo.addLast(new Batch(captured, units, before, position));
         retainedUnits += units;
+    }
+
+    private static Change merge(Change previous, Change next) {
+        if (previous.removed().isEmpty() && next.removed().isEmpty()
+                && next.position() == previous.position() + previous.inserted().length()) {
+            return new Change(previous.position(), "", previous.inserted() + next.inserted());
+        }
+        if (previous.inserted().isEmpty() && next.inserted().isEmpty()) {
+            if (next.position() == previous.position()) {
+                return new Change(previous.position(), previous.removed() + next.removed(), "");
+            }
+            if (next.position() + next.removed().length() == previous.position()) {
+                return new Change(next.position(), next.removed() + previous.removed(), "");
+            }
+        }
+        return null;
+    }
+
+    Position position() {
+        return position;
+    }
+
+    List<Change> nextUndo() {
+        return undo.isEmpty() ? null : undo.getLast().changes();
+    }
+
+    List<Change> nextRedo() {
+        return redo.isEmpty() ? null : redo.getLast().changes();
     }
 
     boolean undo(Consumer<List<Change>> applyAtomically) {
@@ -111,6 +170,7 @@ final class EditHistory {
             applyAtomically.accept(changes);
             source.removeLast();
             target.addLast(batch);
+            position = inverse ? batch.before() : batch.after();
         } finally {
             replaying = false;
         }
@@ -119,9 +179,23 @@ final class EditHistory {
 
     void clear() {
         requireIdle();
-        undo.clear();
+        forgetUndo();
+        for (Batch batch : redo) {
+            batch.after().valid = false;
+        }
+        position.valid = false;
+        position = new Position();
         redo.clear();
         retainedUnits = 0;
+    }
+
+    void forgetUndo() {
+        requireIdle();
+        for (Batch batch : undo) {
+            batch.before().valid = false;
+            retainedUnits -= batch.units();
+        }
+        undo.clear();
     }
 
     private void requireIdle() {

@@ -15,6 +15,79 @@ class EditHistoryTest {
     private final EditHistory history = new EditHistory(100, 100_000);
 
     @Test
+    void mergesAdjacentTypingAndBothDeletionDirections() {
+        history.record(List.of(new EditHistory.Change(0, "", "a")), true);
+        history.record(List.of(new EditHistory.Change(1, "", "🐍")), true);
+        assertEquals(List.of(new EditHistory.Change(0, "", "a🐍")), history.nextUndo());
+        history.undo(changes -> assertEquals(List.of(new EditHistory.Change(0, "a🐍", "")), changes));
+        assertFalse(history.canUndo());
+        history.clear();
+        history.record(List.of(new EditHistory.Change(1, "b", "")), true);
+        history.record(List.of(new EditHistory.Change(0, "a", "")), true);
+        assertEquals(List.of(new EditHistory.Change(0, "ab", "")), history.nextUndo());
+        history.clear();
+        history.record(List.of(new EditHistory.Change(0, "a", "")), true);
+        history.record(List.of(new EditHistory.Change(0, "b", "")), true);
+        assertEquals(List.of(new EditHistory.Change(0, "ab", "")), history.nextUndo());
+    }
+
+    @Test
+    void mergingCannotCrossNonAdjacentEditsReplacementsOrRetentionLimit() {
+        EditHistory bounded = new EditHistory(10, 2);
+        bounded.record(List.of(new EditHistory.Change(0, "", "a")), true);
+        bounded.record(List.of(new EditHistory.Change(1, "", "b")), true);
+        bounded.record(List.of(new EditHistory.Change(2, "", "c")), true);
+        bounded.undo(changes -> assertEquals("c", changes.getFirst().removed()));
+        assertFalse(bounded.canUndo());
+        history.record(List.of(new EditHistory.Change(0, "", "a")), true);
+        history.record(List.of(new EditHistory.Change(3, "", "b")), true);
+        history.record(List.of(new EditHistory.Change(0, "a", "x")), true);
+        for (int index = 0; index < 3; index++) {
+            assertTrue(history.undo(changes -> { }));
+        }
+        assertFalse(history.canUndo());
+    }
+
+    @Test
+    void positionsTrackReplayAndInvalidateOnBranchMergeEvictionAndReset() {
+        EditHistory bounded = new EditHistory(1, 10);
+        var initial = bounded.position();
+        bounded.record(List.of(new EditHistory.Change(0, "", "a")));
+        var first = bounded.position();
+        bounded.undo(changes -> { });
+        assertEquals(initial, bounded.position());
+        bounded.redo(changes -> { });
+        assertEquals(first, bounded.position());
+        bounded.record(List.of(new EditHistory.Change(1, "", "b")), true);
+        assertFalse(first.isValid(), "Merging removes the intermediate position");
+        bounded.record(List.of(new EditHistory.Change(2, "", "c")));
+        assertFalse(initial.isValid(), "Eviction invalidates the position before the forgotten batch");
+        var branch = bounded.position();
+        bounded.undo(changes -> { });
+        bounded.record(List.of(new EditHistory.Change(2, "", "d")));
+        assertFalse(branch.isValid());
+        var current = bounded.position();
+        bounded.clear();
+        assertFalse(current.isValid());
+        assertTrue(bounded.position().isValid());
+    }
+
+    @Test
+    void forgettingUndoKeepsRedoAndCurrentPositionValid() {
+        history.record(List.of(new EditHistory.Change(0, "", "a")));
+        history.record(List.of(new EditHistory.Change(1, "", "b")));
+        history.undo(changes -> { });
+        var position = history.position();
+        history.forgetUndo();
+        assertFalse(history.canUndo());
+        assertTrue(history.canRedo());
+        assertTrue(position.isValid());
+        history.redo(changes -> { });
+        history.undo(changes -> { });
+        assertEquals(position, history.position());
+    }
+
+    @Test
     void reversesCompoundEditsInReverseOrderAndRedoesInOriginalOrder() {
         PieceTable text = new PieceTable("class A {}");
         List<EditHistory.Change> batch = List.of(
