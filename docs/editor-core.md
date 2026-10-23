@@ -54,7 +54,24 @@ history retention limits need a separate design when undo/history is connected.
 
 ## Next review chunks
 
-1. Add and connect custom undo/redo with defined edit grouping, retention limits, and document reset behavior.
+The third review chunk adds the standalone `EditHistory` core. It is not connected to the editor yet;
+RichTextFX continues handling existing undo/redo shortcuts and menus.
+
+`EditHistory` stores immutable batches of committed changes, including their removed and inserted text.
+Each explicit batch is one undo step. Undo reverses change order and swaps removed/inserted content;
+redo replays the original order. Callers supply an atomic replay callback, which must either apply
+the whole batch or throw without changing the document. Failed callbacks leave the history unchanged,
+and recording or resetting history during replay is rejected.
+
+Both stacks share caller-configured limits for batch count and retained UTF-16 content units
+(removed plus inserted text, not exact heap bytes). New edits discard redo; no-op changes do not.
+Oldest whole batches are evicted when necessary. An oversized edit clears history entirely to prevent
+undoing older offsets across an unrecorded change. `clear()` drops both stacks for document resets.
+The caller remains responsible for document ranges, thread confinement, and recording only edits
+that actually committed. These limits do not compact the piece table's append-only store.
+
+1. Connect custom undo/redo to sessions and editor actions, including caret/selection restoration,
+   typing grouping, lifecycle resets, and concrete retention defaults.
 2. Introduce custom virtualized rendering separately, preserving selection, keyboard/IME input,
    clipboard, accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
@@ -64,6 +81,7 @@ These remain follow-up changes.
 
 ```bash
 ./test.sh --tests '*PieceTableTest'
+./test.sh --tests '*EditHistoryTest'
 ./test.sh --tests '*EditorSessionTest' --tests '*EditorViewTest'
 ```
 
@@ -72,3 +90,5 @@ verify immutable snapshots and invalid-edit safety, preserve Unicode and line en
 repeated typing on a large original document. They need no UI, model download, or network service.
 Session and headless view tests cover range/batch publication, Unicode/newline synchronization,
 invalid-edit safety, open/reset/Save As, immutable background saves, and completion undo/redo.
+History tests cover compound replay order, immutable batches, Unicode, failed replay, branching,
+retention limits, reset behavior, and 500 seeded batches replayed against independent snapshots.
