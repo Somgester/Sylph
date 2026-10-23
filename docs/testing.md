@@ -46,6 +46,11 @@ Headless testing still needs the platform libraries required by JavaFX and WebVi
 
 ## Reports and useful coverage
 
+On Linux, `python3 scripts/test-desktop.py -v` checks desktop registration in temporary directories.
+It verifies the shared mark and application identity, unchanged-file preservation, invalid paths,
+and exact launcher execution with reserved filename characters when GIO is available. It opens no
+editor windows. `AppIconTest` covers logo scaling and window-icon bounds through headless JavaFX.
+
 Generated HTML results are in `app/build/reports/tests/test/index.html`; XML results are under `app/build/test-results/test/`. Checkstyle reports are under `app/build/reports/checkstyle/`. These are generated output, not files to edit or commit.
 
 Terminal checks exercise real Unix PTY input/output, working directories, Unicode/ANSI output, resizing, Ctrl+C, child cleanup, startup/close races, and headless terminal tabs, duplication, clipboard/menu routing without document edits or autosaves, focus changes during startup, theme changes, sustained output, and reload. Test shells bypass personal shell startup files. Linux evidence does not verify Windows/macOS desktop behavior.

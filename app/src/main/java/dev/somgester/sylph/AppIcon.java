@@ -1,5 +1,7 @@
 package dev.somgester.sylph;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import javafx.scene.Group;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.image.Image;
@@ -28,11 +30,20 @@ final class AppIcon {
         }
     }
 
-    private static final String MARK = "M20 7 C20 3 13 1 7 4 C3 6 4 10 8 11 H15 "
-            + "C19 11 21 14 19 17 C16 22 8 22 4 18 L6 16 C9 19 15 19 17 16 "
-            + "C18 14 16 13 14 13 H8 C1 13 0 6 5 2 C12 -2 22 1 22 7 Z";
+    private static final String MARK = loadMark();
 
     private AppIcon() { }
+
+    private static String loadMark() {
+        try (var stream = AppIcon.class.getResourceAsStream("/icons/sylph.path")) {
+            if (stream == null) {
+                throw new IllegalStateException("Missing Sylph icon resource");
+            }
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8).strip();
+        } catch (IOException error) {
+            throw new IllegalStateException("Unable to read Sylph icon resource", error);
+        }
+    }
 
     static StackPane symbol(Symbol symbol) {
         SVGPath path = new SVGPath();
@@ -50,8 +61,9 @@ final class AppIcon {
         mark.setContent(MARK);
         mark.setFill(Color.web("#06b6d4"));
         mark.getStyleClass().add("sylph-mark");
+        // Group layout bounds must include the scaled mark before StackPane centres it.
+        mark.getTransforms().add(new Scale(size / 24, size / 24));
         Group group = new Group(mark);
-        group.getTransforms().add(new Scale(size / 24, size / 24));
         StackPane icon = container(group, size);
         icon.setAccessibleText("Sylph");
         return icon;

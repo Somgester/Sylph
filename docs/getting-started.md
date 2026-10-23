@@ -36,6 +36,13 @@ Direct `./init.sh` also requires a running Docker installation with Docker Compo
 
 Each workflow script resolves its own directory and sources only the Java setup from `init.sh`, so invoking it from another working directory works. Arguments are forwarded as separate quoted arguments. `dev.sh` forwards its arguments only to `run.sh`, not to its check/build steps. Arguments reach Gradle, not directly the Java main method.
 
+On Linux, `run.sh` also registers a user-local Sylph launcher and scalable `S` icon. The launcher
+matches JavaFX's window class so the desktop can identify Sylph instead of displaying a generic Java
+icon. It shares the same mark as the in-app logo and window icon, respects `XDG_DATA_HOME`, and needs
+no administrator access. An unchanged registration is not rewritten; a registration failure does
+not prevent app launch. Restart an already-running Sylph window to pick up the desktop identity.
+For direct Gradle launches, register it once with `bash scripts/install-desktop.sh`.
+
 ## Java detection
 
 `init.sh` checks these sources in order:

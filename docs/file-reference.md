@@ -10,6 +10,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | --- | --- |
 | [app/src/main/java/dev/somgester/sylph/App.java](../app/src/main/java/dev/somgester/sylph/App.java) | Java entry point; launches the JavaFX application. |
 | [app/src/main/java/dev/somgester/sylph/AppIcon.java](../app/src/main/java/dev/somgester/sylph/AppIcon.java) | Builds the S logo, action symbols, and window icon from JavaFX shapes. |
+| [app/src/main/resources/icons/sylph.path](../app/src/main/resources/icons/sylph.path) | Shared S vector path for the in-app mark, window icon, and Linux desktop icon. |
 | [app/src/main/java/dev/somgester/sylph/FileIcon.java](../app/src/main/java/dev/somgester/sylph/FileIcon.java) | Shared language images and independent icon nodes for explorer rows and file tabs; themed file/folder fallbacks. |
 | [app/src/main/java/dev/somgester/sylph/AppSettings.java](../app/src/main/java/dev/somgester/sylph/AppSettings.java) | Observable theme/autosave settings, defaults, preference storage, and persistence status. |
 | [app/src/main/java/dev/somgester/sylph/AutoSaveController.java](../app/src/main/java/dev/somgester/sylph/AutoSaveController.java) | Schedules immediate/delayed saves, invalidates obsolete callbacks, and owns nestable suspension handles. |
@@ -62,6 +63,8 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [scripts/setup-auth.sh](../scripts/setup-auth.sh) | Private credential generation, Docker startup, and realm readiness wait. |
 | [scripts/test-setup.py](../scripts/test-setup.py) | Isolated setup regression checks with fake tools and temporary credentials. |
 | [scripts/test-auth.py](../scripts/test-auth.py) | Disposable-user provisioning and real Keycloak integration runner. |
+| [scripts/install-desktop.sh](../scripts/install-desktop.sh) | Registers the user-local Linux launcher and shared S icon, matching JavaFX's window class. |
+| [scripts/test-desktop.py](../scripts/test-desktop.py) | Isolated desktop registration, quoting, idempotence, and invalid-path checks; never opens the editor. |
 | [Authentication tests](../app/src/test/java/dev/somgester/sylph/) | Account UI/controller, callback, token-security fixture, and opt-in `KeycloakIntegrationTest` checks. |
 
 ## Stylesheets
@@ -110,6 +113,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/test/java/dev/somgester/sylph/AppTest.java](../app/src/test/java/dev/somgester/sylph/AppTest.java) | Application entry-class structure and constructor. |
 | [app/src/test/java/dev/somgester/sylph/AutoSaveControllerTest.java](../app/src/test/java/dev/somgester/sylph/AutoSaveControllerTest.java) | Delay reset, immediate saves, edits during saves, failure recovery, suspension, and obsolete callbacks. |
 | [app/src/test/java/dev/somgester/sylph/EditorTabsTest.java](../app/src/test/java/dev/somgester/sylph/EditorTabsTest.java) | Independent tabs/history, empty states, double-click creation, close menus, first-save confirmation, autosave, and Save As conflicts. |
+| [app/src/test/java/dev/somgester/sylph/AppIconTest.java](../app/src/test/java/dev/somgester/sylph/AppIconTest.java) | Checks that the shared logo remains centred, visible, and unclipped at window/toolbar icon sizes. |
 | [app/src/test/java/dev/somgester/sylph/PieceTableTest.java](../app/src/test/java/dev/somgester/sylph/PieceTableTest.java) | Buffer edits and reads against a StringBuilder reference, Unicode/line endings, immutable snapshots, invalid edits, and repeated typing. |
 | [app/src/test/java/dev/somgester/sylph/EditorSessionTest.java](../app/src/test/java/dev/somgester/sylph/EditorSessionTest.java) | Buffer-backed range/batch edits, invalid-edit safety, dirty state, open/clear, Save As encoding, immutable save snapshots, and thread/lifecycle guards. |
 | [app/src/test/java/dev/somgester/sylph/FileIconTest.java](../app/src/test/java/dev/somgester/sylph/FileIconTest.java) | Packaged artwork, shared images, themed fallbacks, recycled sidebar cells, and tab icons after Save As. |
@@ -166,7 +170,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [gradlew.bat](../gradlew.bat) | Windows Gradle wrapper launcher. |
 | [init.sh](../init.sh) | JDK 21 detection/provisioning plus direct-run Keycloak setup; sourced usage and `--java-only` keep guest workflows independent. |
 | [lint.sh](../lint.sh) | Runs Checkstyle for main and test sources. |
-| [run.sh](../run.sh) | Launches JavaFX with configuration caching disabled for the run task. |
+| [run.sh](../run.sh) | Registers the Linux desktop icon, then launches JavaFX with configuration caching disabled for the run task. |
 | [settings.gradle](../settings.gradle) | Names the root project, includes app, and configures the Foojay toolchain resolver. |
 | [test.sh](../test.sh) | Runs the Gradle test task and forwards arguments. |
 
