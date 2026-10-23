@@ -1,6 +1,8 @@
 package dev.somgester.sylph;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -24,11 +26,22 @@ final class EditorSession implements AutoCloseable {
 
     record SavedDocument(Path path, String text) { }
 
+    // Each range addresses the document produced by the preceding edit in the batch.
+    record TextEdit(int start, int end, String text) {
+
+        TextEdit {
+            text = Objects.requireNonNull(text, "text").replace("\r\n", "\n").replace('\r', '\n');
+        }
+    }
+
     private final ReadOnlyObjectWrapper<SavedDocument> lastSave = new ReadOnlyObjectWrapper<>();
 
     private final EditorFileService files;
 
-    private final StringProperty text = new SimpleStringProperty("");
+    private PieceTable buffer = new PieceTable();
+
+    // Read-only snapshots keep existing autosave, preview, and LSP observers off the mutable buffer.
+    private final ReadOnlyStringWrapper text = new ReadOnlyStringWrapper("");
 
     private final StringProperty savedText = new SimpleStringProperty("");
 
@@ -66,8 +79,45 @@ final class EditorSession implements AutoCloseable {
                 });
     }
 
-    StringProperty textProperty() {
-        return text;
+    ReadOnlyStringProperty textProperty() {
+        return text.getReadOnlyProperty();
+    }
+
+    void replaceText(String value) {
+        requireEditable();
+        replaceText(0, buffer.length(), value);
+    }
+
+    void replaceText(int start, int end, String value) {
+        applyEdits(List.of(new TextEdit(start, end, value)));
+    }
+
+    void applyEdits(List<TextEdit> changes) {
+        requireEditable();
+        List<TextEdit> edits = List.copyOf(changes);
+        // Reject invalid batches before applying any part of them.
+        int length = buffer.length();
+        for (TextEdit edit : edits) {
+            Objects.checkFromToIndex(edit.start(), edit.end(), length);
+            length = Math.addExact(length - (edit.end() - edit.start()), edit.text().length());
+        }
+        if (!edits.isEmpty()) {
+            for (TextEdit edit : edits) {
+                buffer.replace(edit.start(), edit.end(), edit.text());
+            }
+            text.set(buffer.toString());
+        }
+    }
+
+    private void resetText(String value) {
+        buffer = new PieceTable(value);
+        text.set(value);
+    }
+
+    private void requireEditable() {
+        if (!Platform.isFxApplicationThread() || closed || editingBlocked.get()) {
+            throw new IllegalStateException("Text edits require an editable session on the JavaFX thread");
+        }
     }
 
     ReadOnlyBooleanProperty dirtyProperty() {
@@ -118,7 +168,7 @@ final class EditorSession implements AutoCloseable {
             lastSave.set(null);
             path.set(snapshot.path());
             savedText.set(snapshot.text());
-            text.set(snapshot.text());
+            resetText(snapshot.text());
             completedOperations.set(completedOperations.get() + 1);
             status.set("Opened  |  " + displayName(snapshot.path()));
             finish();
@@ -205,7 +255,7 @@ final class EditorSession implements AutoCloseable {
         lastSave.set(null);
         path.set(null);
         savedText.set("");
-        text.set("");
+        resetText("");
         completedOperations.set(completedOperations.get() + 1);
         status.set("Ready  |  Untitled");
     }

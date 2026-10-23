@@ -52,7 +52,7 @@ class LanguageServerDocumentTest {
         try (var fixture = new LanguageServerTestSupport(directory, LanguageServerTestSupport.FULL, "normal")) {
             create(fixture, new EditorFileService());
             FxTestSupport.onFxThread(() -> {
-                session.textProperty().set("untitled text");
+                session.replaceText("untitled text");
                 binding.flush();
                 return null;
             });
@@ -62,9 +62,9 @@ class LanguageServerDocumentTest {
             assertEquals("loaded text", fixture.await("textDocument/didOpen", 1).getAsJsonObject("params")
                     .getAsJsonObject("textDocument").get("text").getAsString());
             FxTestSupport.onFxThread(() -> {
-                session.textProperty().set("first edit");
-                session.textProperty().set("second edit");
-                session.textProperty().set("latest edit");
+                session.replaceText("first edit");
+                session.replaceText("second edit");
+                session.replaceText("latest edit");
                 return null;
             });
             assertEquals("latest edit", fixture.await("textDocument/didChange", 1).getAsJsonObject("params")
@@ -73,7 +73,7 @@ class LanguageServerDocumentTest {
                 assertTrue(session.dirtyProperty().get());
                 binding.close();
                 binding.close();
-                session.textProperty().set("must not sync");
+                session.replaceText("must not sync");
                 binding.flush();
                 return null;
             });
@@ -113,13 +113,13 @@ class LanguageServerDocumentTest {
             Path original = Files.writeString(directory.resolve("example.java"), "original");
             open(original);
             FxTestSupport.onFxThread(() -> {
-                session.textProperty().set("saved snapshot");
+                session.replaceText("saved snapshot");
                 session.save(original, true, false, () -> { }, errors::add);
                 return null;
             });
             assertTrue(writing.await(5, TimeUnit.SECONDS));
             FxTestSupport.onFxThread(() -> {
-                session.textProperty().set("newer buffer");
+                session.replaceText("newer buffer");
                 binding.flush();
                 return null;
             });
@@ -204,7 +204,7 @@ class LanguageServerDocumentTest {
             ProcessHandle.of(fixture.pid()).orElseThrow().destroyForcibly();
             fixture.connection.stopped().get(5, TimeUnit.SECONDS);
             FxTestSupport.onFxThread(() -> {
-                session.textProperty().set("edits survive server failure");
+                session.replaceText("edits survive server failure");
                 binding.flush();
                 return null;
             });

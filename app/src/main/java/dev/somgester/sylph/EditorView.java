@@ -17,6 +17,7 @@ import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.richtext.util.UndoUtils;
+import org.reactfx.Subscription;
 
 final class EditorView extends StackPane implements AutoCloseable {
 
@@ -24,7 +25,7 @@ final class EditorView extends StackPane implements AutoCloseable {
 
     private final CodeArea area = new CodeArea();
 
-    private final ChangeListener<String> editorTextListener;
+    private final Subscription editorTextChanges;
 
     private final ChangeListener<String> sessionTextListener;
 
@@ -68,13 +69,20 @@ final class EditorView extends StackPane implements AutoCloseable {
         VirtualizedScrollPane<CodeArea> scrolling = new VirtualizedScrollPane<>(area);
         scrolling.setId("editor-scroll");
         getChildren().add(scrolling);
-        editorTextListener = (observable, previous, text) -> {
+        editorTextChanges = area.multiPlainChanges().subscribe(changes -> {
             if (!synchronizing) {
-                session.textProperty().set(text);
+                synchronizing = true;
+                try {
+                    session.applyEdits(changes.stream().map(change -> new EditorSession.TextEdit(
+                            change.getPosition(), change.getPosition() + change.getRemoved().length(),
+                            change.getInserted())).toList());
+                } finally {
+                    synchronizing = false;
+                }
             }
-        };
+        });
         sessionTextListener = (observable, previous, text) -> {
-            if (!area.getText().equals(text)) {
+            if (!synchronizing && !area.getText().equals(text)) {
                 synchronizing = true;
                 try {
                     area.replaceText(text);
@@ -83,7 +91,6 @@ final class EditorView extends StackPane implements AutoCloseable {
                 }
             }
         };
-        area.textProperty().addListener(editorTextListener);
         session.textProperty().addListener(sessionTextListener);
         historyListener = (observable, previous, available) -> updateHistoryAvailability();
         observeHistory();
@@ -214,7 +221,7 @@ final class EditorView extends StackPane implements AutoCloseable {
             if (area.getContextMenu() != null) {
                 area.getContextMenu().hide();
             }
-            area.textProperty().removeListener(editorTextListener);
+            editorTextChanges.unsubscribe();
             session.textProperty().removeListener(sessionTextListener);
             stopObservingHistory();
             area.editableProperty().unbind();

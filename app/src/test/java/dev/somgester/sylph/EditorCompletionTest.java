@@ -183,7 +183,7 @@ class EditorCompletionTest {
         EditorView second = FxTestSupport.onFxThread(() -> new EditorView(other));
         try {
             FxTestSupport.onFxThread(() -> {
-                other.textProperty().set("second file");
+                other.replaceText("second file");
                 tabs.getTabs().add(new Tab("Other", second));
                 tabs.getSelectionModel().selectLast();
                 second.area().requestFocus();

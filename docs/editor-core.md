@@ -5,9 +5,26 @@
 ## Current stage
 
 The PRD calls for a custom piece-table buffer, virtualized rendering, highlighting, and undo/redo.
-The first review chunk adds `PieceTable` and its tests. It does **not** replace the running
-editor's RichTextFX model, change file saving, or add a second synchronized document model.
-Existing editor behavior stays on the current implementation until a separate integration change.
+The first review chunk added `PieceTable` and its tests. The second connects it to `EditorSession`:
+the session owns the buffer, and all text changes use explicit range-edit methods. The observable
+text property is read-only and publishes immutable strings for autosave, preview, and language-server
+observers. RichTextFX still renders the editor and supplies undo/redo during this migration.
+
+`EditorView` forwards native `multiPlainChanges` batches in their sequential coordinate system.
+The session checks every range before changing the buffer and publishes one final snapshot per batch,
+so completion edits and their associated imports do not expose partially applied text. Style-only
+changes do not enter the buffer. Synchronization guards prevent model-driven view updates from
+feeding the same changes back into the session.
+
+Programmatic callers use `replaceText` or `applyEdits`, rather than writing the text property.
+Session edits normalize CRLF/CR to LF to match the current view and file-loading policy; the
+standalone buffer itself still preserves exact text. Edits require the JavaFX thread and an editable
+session. They remain allowed during background autosaves, which use captured immutable snapshots.
+Opening or clearing a document resets its buffer; Save As preserves its current editing state.
+
+This adapter still materializes full string snapshots for existing observers, and programmatic
+session changes still refresh the view through its existing text synchronization. It establishes
+buffer ownership; it does not complete custom rendering or eliminate whole-document copies.
 
 ## Buffer contract
 
@@ -37,20 +54,21 @@ history retention limits need a separate design when undo/history is connected.
 
 ## Next review chunks
 
-1. Connect document editing to the buffer through explicit range changes, keeping open/save,
-   autosave, completion edits, and dirty-state behavior covered by regression tests.
-2. Add and connect custom undo/redo with defined edit grouping and document reset behavior.
-3. Introduce custom virtualized rendering separately, preserving selection, keyboard/IME input,
+1. Add and connect custom undo/redo with defined edit grouping, retention limits, and document reset behavior.
+2. Introduce custom virtualized rendering separately, preserving selection, keyboard/IME input,
    clipboard, accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
-These are follow-up changes, not features already delivered by the buffer foundation.
+These remain follow-up changes.
 
 ## Verification
 
 ```bash
 ./test.sh --tests '*PieceTableTest'
+./test.sh --tests '*EditorSessionTest' --tests '*EditorViewTest'
 ```
 
 Tests compare seeded edits and reads against `StringBuilder`, cover edits across both text stores,
 verify immutable snapshots and invalid-edit safety, preserve Unicode and line endings, and exercise
 repeated typing on a large original document. They need no UI, model download, or network service.
+Session and headless view tests cover range/batch publication, Unicode/newline synchronization,
+invalid-edit safety, open/reset/Save As, immutable background saves, and completion undo/redo.

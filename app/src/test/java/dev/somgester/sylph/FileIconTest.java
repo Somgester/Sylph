@@ -156,7 +156,7 @@ class FileIconTest {
                 assertTrue(errors.isEmpty());
                 Node icon = document.tab.getGraphic();
                 assertEquals("Python file", icon.getAccessibleText());
-                document.session.textProperty().set("changed");
+                document.session.replaceText("changed");
                 assertSame(icon, document.tab.getGraphic());
                 document.session.save(javascript, false, false, () -> { }, errors::add);
                 return null;

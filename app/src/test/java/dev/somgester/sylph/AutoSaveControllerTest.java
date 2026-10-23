@@ -81,7 +81,7 @@ class AutoSaveControllerTest {
     void unnamedFilesWaitForTheirFirstManualSave() throws Exception {
         create(new EditorFileService(), true, false);
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("unsaved");
+            session.replaceText("unsaved");
             assertNull(clock.pending);
             assertTrue(autoSave.statusProperty().get().contains("Save this file once"));
             return null;
@@ -94,9 +94,9 @@ class AutoSaveControllerTest {
         create(new EditorFileService(), true, false);
         open(file);
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("first edit");
+            session.replaceText("first edit");
             clock.advance(0.6);
-            session.textProperty().set("latest edit");
+            session.replaceText("latest edit");
             clock.advance(0.5);
             assertFalse(session.busyProperty().get());
             return null;
@@ -114,7 +114,7 @@ class AutoSaveControllerTest {
         create(new EditorFileService(), true, false);
         open(file);
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("edited");
+            session.replaceText("edited");
             Runnable obsolete = clock.pending;
             settings.autoSaveProperty().set(false);
             assertNull(clock.pending);
@@ -157,14 +157,14 @@ class AutoSaveControllerTest {
         open(file);
         try {
             FxTestSupport.onFxThread(() -> {
-                session.textProperty().set("first edit");
+                session.replaceText("first edit");
                 clock.advance(1);
                 return null;
             });
             assertTrue(started.await(5, TimeUnit.SECONDS));
             FxTestSupport.onFxThread(() -> {
                 assertFalse(session.editingBlockedProperty().get());
-                session.textProperty().set("second edit");
+                session.replaceText("second edit");
                 return null;
             });
         } finally {
@@ -186,7 +186,7 @@ class AutoSaveControllerTest {
         open(file);
         Files.writeString(file, "external edit");
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("my edit");
+            session.replaceText("my edit");
             clock.advance(1);
             return null;
         });
@@ -195,7 +195,7 @@ class AutoSaveControllerTest {
         FxTestSupport.onFxThread(() -> {
             assertTrue(session.dirtyProperty().get());
             assertTrue(autoSave.statusProperty().get().startsWith("Autosave paused"));
-            session.textProperty().set("more edits");
+            session.replaceText("more edits");
             clock.advance(5);
             assertNull(clock.pending);
             assertFalse(session.busyProperty().get());
@@ -216,12 +216,12 @@ class AutoSaveControllerTest {
         create(new EditorFileService(), true, false);
         open(first);
         Runnable obsolete = FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("old pending edit");
+            session.replaceText("old pending edit");
             return clock.pending;
         });
         open(second);
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("new edit");
+            session.replaceText("new edit");
             obsolete.run();
             assertFalse(session.busyProperty().get());
             clock.advance(1);
@@ -247,8 +247,8 @@ class AutoSaveControllerTest {
         open(file);
         FxTestSupport.onFxThread(() -> {
             settings.delaySecondsProperty().set(0);
-            session.textProperty().set("first edit");
-            session.textProperty().set("latest edit");
+            session.replaceText("first edit");
+            session.replaceText("latest edit");
             assertFalse(session.busyProperty().get());
             return null;
         });
@@ -284,14 +284,14 @@ class AutoSaveControllerTest {
         try {
             FxTestSupport.onFxThread(() -> {
                 settings.delaySecondsProperty().set(0);
-                session.textProperty().set("first edit");
+                session.replaceText("first edit");
                 return null;
             });
             assertTrue(started.await(5, TimeUnit.SECONDS));
             FxTestSupport.onFxThread(() -> {
                 assertFalse(session.editingBlockedProperty().get());
-                session.textProperty().set("second edit");
-                session.textProperty().set("newest edit");
+                session.replaceText("second edit");
+                session.replaceText("newest edit");
                 return null;
             });
         } finally {
@@ -309,7 +309,7 @@ class AutoSaveControllerTest {
         open(file);
         FxTestSupport.onFxThread(() -> {
             settings.delaySecondsProperty().set(0);
-            session.textProperty().set("keep unsaved");
+            session.replaceText("keep unsaved");
             settings.autoSaveProperty().set(false);
             return null;
         });
@@ -327,13 +327,13 @@ class AutoSaveControllerTest {
         create(new EditorFileService(), true, false);
         open(file);
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("edited");
+            session.replaceText("edited");
             clock.advance(0.8);
             Runnable stale = clock.pending;
             AutoSaveController.Suspension pause = autoSave.suspend();
             stale.run();
             clock.advance(10);
-            session.textProperty().set("latest edit");
+            session.replaceText("latest edit");
             assertNull(clock.pending);
             assertFalse(session.busyProperty().get());
             assertTrue(settings.autoSaveProperty().get());
@@ -354,7 +354,7 @@ class AutoSaveControllerTest {
         create(new EditorFileService(), true, false);
         open(file);
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("edited");
+            session.replaceText("edited");
             AutoSaveController.Suspension outer = autoSave.suspend();
             AutoSaveController.Suspension inner = autoSave.suspend();
             outer.close();
@@ -382,7 +382,7 @@ class AutoSaveControllerTest {
         open(file);
         AutoSaveController.Suspension pause = FxTestSupport.onFxThread(() -> {
             settings.delaySecondsProperty().set(0);
-            session.textProperty().set("edited");
+            session.replaceText("edited");
             return autoSave.suspend();
         });
         FxTestSupport.onFxThread(() -> {
@@ -401,7 +401,7 @@ class AutoSaveControllerTest {
         create(new EditorFileService(), true, true);
         open(file);
         FxTestSupport.onFxThread(() -> {
-            session.textProperty().set("saved by the timer");
+            session.replaceText("saved by the timer");
             return null;
         });
         FxTestSupport.await(() -> !session.dirtyProperty().get());

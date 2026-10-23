@@ -123,7 +123,7 @@ class LanguageServerManagerTest {
         var document = open(directory.resolve("first.py"));
         FxTestSupport.await(() -> manager.status(LanguageServerSettings.Server.PYTHON).get().startsWith("Failed:"));
         FxTestSupport.onFxThread(() -> {
-            document.session.textProperty().set("unsaved edits survive");
+            document.session.replaceText("unsaved edits survive");
             assertTrue(document.session.dirtyProperty().get());
             assertTrue(document.view.lookup("#language-info") == null);
             assertTrue(manager.status(LanguageServerSettings.Server.PYTHON).get().contains("retry"));
