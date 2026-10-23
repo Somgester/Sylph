@@ -100,6 +100,11 @@ Arrows show commands and data flow, not every constructor dependency. Worker res
 
 ## Document lifecycle and disk work
 
+The [custom editor core](editor-core.md) starts with an isolated `PieceTable` implementation and
+model tests. It is not yet connected to `EditorSession` or `EditorView`; the running editor still
+uses the existing RichTextFX model and history. Buffer integration and custom rendering are separate
+review stages, so this foundation does not change saving or document lifecycle behavior.
+
 `EditorDocument` owns one tab, session, editor view, autosave controller, and optional preview. There is no document on startup or after closing the last document. Chrome, Edit actions, settings status, and title support that empty state. A separate session supplies a file worker for workspace actions when no document is open; it has no editor tab or autosave controller. Switching tabs retargets the existing controls without losing undo/cursor state. Existing paths (including filesystem aliases) select their existing tab. An explicitly created clean Untitled document can be reused; failed opens dispose provisional documents. File close events and tab context-menu actions wait for Save/Discard/Cancel. Close All checks every dirty document before removing tabs or disposing terminals.
 
 `EditorSession` exposes observable text, path, language, dirty state, busy state, editing-blocked state, and status. Its executor performs file tasks away from the JavaFX thread. Completion handlers accept the current operation only, so late results cannot replace a newer state or resurrect a closed session.

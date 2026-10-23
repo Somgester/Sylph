@@ -3,6 +3,7 @@
 - [Getting started and scripts](getting-started.md)
 - [Editor features and shortcuts](editor-guide.md)
 - [Architecture and data flow](architecture.md)
+- [Custom editor buffer and integration stages](editor-core.md)
 - [Language server setup and verification](language-servers.md)
 - [Accounts, Keycloak, and OAuth callbacks](authentication.md)
 - [Open source extension host experiment](../experiments/extension-host/README.md)
