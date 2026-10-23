@@ -10,6 +10,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | --- | --- |
 | [app/src/main/java/dev/somgester/sylph/App.java](../app/src/main/java/dev/somgester/sylph/App.java) | Java entry point; launches the JavaFX application. |
 | [app/src/main/java/dev/somgester/sylph/AppIcon.java](../app/src/main/java/dev/somgester/sylph/AppIcon.java) | Builds the S logo, action symbols, and window icon from JavaFX shapes. |
+| [app/src/main/java/dev/somgester/sylph/FileIcon.java](../app/src/main/java/dev/somgester/sylph/FileIcon.java) | Shared language images and independent icon nodes for explorer rows and file tabs; themed file/folder fallbacks. |
 | [app/src/main/java/dev/somgester/sylph/AppSettings.java](../app/src/main/java/dev/somgester/sylph/AppSettings.java) | Observable theme/autosave settings, defaults, preference storage, and persistence status. |
 | [app/src/main/java/dev/somgester/sylph/AutoSaveController.java](../app/src/main/java/dev/somgester/sylph/AutoSaveController.java) | Schedules immediate/delayed saves, invalidates obsolete callbacks, and owns nestable suspension handles. |
 | [app/src/main/java/dev/somgester/sylph/EditorApp.java](../app/src/main/java/dev/somgester/sylph/EditorApp.java) | Composes the scene; coordinates commands, dialogs, file-action guards, themes, preview, and shutdown. |
@@ -72,6 +73,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/main/resources/styles/markdown.css](../app/src/main/resources/styles/markdown.css) | Browser CSS embedded into Markdown preview HTML. |
 | [app/src/main/resources/styles/settings.css](../app/src/main/resources/styles/settings.css) | Settings layout, cards, controls, and popup styling. |
 | [app/src/main/resources/styles/shell.css](../app/src/main/resources/styles/shell.css) | Application menus, compact icon actions, and logo styling; unrelated to shell-language grammar. |
+| [app/src/main/resources/icons/files/](../app/src/main/resources/icons/files/README.md) | Bundled language icons, pinned upstream source, export details, and MIT license. |
 
 ## Grammars and licenses
 
@@ -107,6 +109,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/test/java/dev/somgester/sylph/AppTest.java](../app/src/test/java/dev/somgester/sylph/AppTest.java) | Application entry-class structure and constructor. |
 | [app/src/test/java/dev/somgester/sylph/AutoSaveControllerTest.java](../app/src/test/java/dev/somgester/sylph/AutoSaveControllerTest.java) | Delay reset, immediate saves, edits during saves, failure recovery, suspension, and obsolete callbacks. |
 | [app/src/test/java/dev/somgester/sylph/EditorTabsTest.java](../app/src/test/java/dev/somgester/sylph/EditorTabsTest.java) | Independent file tabs, selection/history, reopening, close choices, inactive autosave, and Save As conflicts. |
+| [app/src/test/java/dev/somgester/sylph/FileIconTest.java](../app/src/test/java/dev/somgester/sylph/FileIconTest.java) | Packaged artwork, shared images, themed fallbacks, recycled sidebar cells, and tab icons after Save As. |
 | [app/src/test/java/dev/somgester/sylph/EditorAppTest.java](../app/src/test/java/dev/somgester/sylph/EditorAppTest.java) | Application theme stylesheet selection. |
 | [app/src/test/java/dev/somgester/sylph/EditorChromeTest.java](../app/src/test/java/dev/somgester/sylph/EditorChromeTest.java) | Compact accessible icon actions, command menus, settings binding, undo-manager rebinding, and focused text-field edits. |
 | [app/src/test/java/dev/somgester/sylph/EditorFileServiceTest.java](../app/src/test/java/dev/somgester/sylph/EditorFileServiceTest.java) | BOM/line-ending preservation, external-change refusal, overwrite rules, invalid UTF-8, and controls including DEL. |

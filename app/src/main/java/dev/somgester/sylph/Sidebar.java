@@ -106,6 +106,7 @@ public class Sidebar extends VBox implements AutoCloseable {
             @Override
             protected void updateItem(Path item, boolean empty) {
                 super.updateItem(item, empty);
+                setGraphic(null);
                 if (empty) {
                     setText(null);
                 } else if (item == null) {
@@ -116,6 +117,8 @@ public class Sidebar extends VBox implements AutoCloseable {
                     }
                 } else {
                     setText(displayName(item));
+                    setGraphic(Files.isDirectory(item, LinkOption.NOFOLLOW_LINKS)
+                            ? FileIcon.folder() : FileIcon.forPath(item));
                 }
             }
         });

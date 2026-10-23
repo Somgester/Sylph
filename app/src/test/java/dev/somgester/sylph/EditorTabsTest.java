@@ -330,8 +330,8 @@ class EditorTabsTest {
     @Test
     void closeButtonsRemainVisibleAndFollowBothThemes() throws Exception {
         create(false);
-        open(Files.writeString(directory.resolve("first.txt"), "first"));
-        open(Files.writeString(directory.resolve("second.txt"), "second"));
+        open(Files.writeString(directory.resolve("first.java"), "class First {}"));
+        open(Files.writeString(directory.resolve("second.py"), "value = 2"));
         // JavaFX hides close controls during the tab-opening animation.
         FxTestSupport.await(() -> {
             scene.getRoot().applyCss();

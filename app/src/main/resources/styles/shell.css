@@ -240,6 +240,14 @@
     -fx-text-fill: -shell-text;
 }
 
+.file-icon .action-icon {
+    -fx-stroke: -shell-text;
+}
+
+#sidebar .tree-cell:filled:selected .file-icon .action-icon {
+    -fx-stroke: -shell-accent;
+}
+
 #sidebar .tree-cell:filled:hover {
     -fx-background-color: -shell-hover;
 }

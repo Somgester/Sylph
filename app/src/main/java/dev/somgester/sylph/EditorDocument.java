@@ -45,6 +45,8 @@ final class EditorDocument implements AutoCloseable {
         Tooltip location = new Tooltip();
         location.textProperty().bind(session.pathProperty().map(Path::toString).orElse("Untitled"));
         tab.setTooltip(location);
+        tab.graphicProperty().bind(Bindings.createObjectBinding(
+                () -> FileIcon.forPath(session.pathProperty().get()), session.pathProperty()));
         tab.textProperty().bind(Bindings.createStringBinding(() -> {
             Path path = session.pathProperty().get();
             return (path == null ? "Untitled" : path.getFileName().toString())
@@ -138,6 +140,8 @@ final class EditorDocument implements AutoCloseable {
             preview.close();
         }
         tab.textProperty().unbind();
+        tab.graphicProperty().unbind();
+        tab.setGraphic(null);
         tab.setContent(null);
     }
 }
