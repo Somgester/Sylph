@@ -109,6 +109,11 @@ Sylph's bounded `EditHistory`, preserving compound replay and grouping adjacent 
 Custom rendering remains a separate review stage. Existing save workers receive captured strings,
 not the mutable buffer.
 
+`EditorCanvas` is a separate read-only rendering prototype, not the active tab editor. It consumes
+`TextLines` implemented by `PieceTable` and uses `LineViewport` to request only visible/overscan
+rows. It supports a gutter, tab stops, and vertical scrolling. Session lifecycle, horizontal
+scrolling, input, syntax, selection, and accessibility integration remain follow-up chunks.
+
 `EditorDocument` owns one tab, session, editor view, autosave controller, and optional preview. There is no document on startup or after closing the last document. Chrome, Edit actions, settings status, and title support that empty state. A separate session supplies a file worker for workspace actions when no document is open; it has no editor tab or autosave controller. Switching tabs retargets the existing controls without losing undo/cursor state. Existing paths (including filesystem aliases) select their existing tab. An explicitly created clean Untitled document can be reused; failed opens dispose provisional documents. File close events and tab context-menu actions wait for Save/Discard/Cancel. Close All checks every dirty document before removing tabs or disposing terminals.
 
 `EditorSession` exposes observable text, path, language, dirty state, busy state, editing-blocked state, and status. Its executor performs file tasks away from the JavaFX thread. Completion handlers accept the current operation only, so late results cannot replace a newer state or resurrect a closed session.

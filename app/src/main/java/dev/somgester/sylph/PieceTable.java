@@ -9,7 +9,7 @@ import java.util.Objects;
  * Original text is immutable and inserted text is append-only; edits rearrange
  * references to those sources. String snapshots can be passed to workers.
  */
-final class PieceTable implements CharSequence {
+final class PieceTable implements CharSequence, TextLines {
 
     private enum Source { ORIGINAL, ADDED }
 
@@ -41,7 +41,8 @@ final class PieceTable implements CharSequence {
         return length;
     }
 
-    int lineCount() {
+    @Override
+    public int lineCount() {
         return lines.lineCount();
     }
 
@@ -57,7 +58,8 @@ final class PieceTable implements CharSequence {
         return lines.lineAt(offset);
     }
 
-    String lineText(int line) {
+    @Override
+    public String lineText(int line) {
         return subSequence(lineStart(line), lineEnd(line));
     }
 

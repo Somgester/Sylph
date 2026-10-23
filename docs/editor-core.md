@@ -78,7 +78,31 @@ Line reads still have the buffer's O(p + k) cost. This does not introduce a tree
 the existing session snapshot bridge.
 
 The index is connected to live buffer edits, but the displayed editor still uses RichTextFX.
-Canvas drawing and viewport layout remain separate review chunks.
+The read-only Canvas prototype below now uses this line-read contract.
+
+## Read-only Canvas prototype
+
+The seventh review chunk adds `LineViewport`, `TextLines`, and `EditorCanvas`. The live editor still
+uses RichTextFX; this surface is not installed into document tabs and does not accept editing input.
+
+`LineViewport` calculates a half-open rendered row range from fixed line height, viewport height,
+scroll offset, and overscan. It includes partially visible rows, clamps scrolling at either end,
+and handles zero-sized/empty views without requesting rows. Geometry must be finite and valid.
+
+`TextLines` exposes only line count and individual immutable line reads. `PieceTable` implements it;
+the Canvas never requests a full document string. Document contents must remain stable during each
+JavaFX-thread render pass. Owners explicitly call `refresh()` after edits or `setDocument()` on
+replacement; the latter resets scroll. Shrinking a document or enlarging the viewport clamps scroll
+on the next layout.
+
+`EditorCanvas` draws line numbers and plain text for visible rows plus one overscan row on either
+side, clipping to the viewport. It supports fractional vertical scroll, wheel input, manually supplied
+palette colors, and four-space tab stops measured with the same font as the text. Tabs remain intact
+in the document. Modified wheel events and events at a scroll boundary can reach parent controls.
+The prototype has a fixed monospaced font/line height, with no wrapping or horizontal scrolling yet.
+It lays out each requested line in full, so a very long visible line still has proportional cost.
+Theme settings, syntax styles, selection/hit testing, keyboard/IME editing, and accessible document
+semantics still need integration before this can replace the current editor.
 
 ## History contract
 
@@ -128,7 +152,7 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Define viewport/visible-line layout, then draw a read-only Canvas surface using buffer line reads.
+1. Connect the read-only surface to session lifecycle and add horizontal scrolling/hit testing.
 2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
    accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
@@ -139,6 +163,7 @@ These remain follow-up changes.
 ```bash
 ./test.sh --tests '*PieceTableTest'
 ./test.sh --tests '*LineIndexTest'
+./test.sh --tests '*LineViewportTest' --tests '*EditorCanvasTest'
 ./test.sh --tests '*EditHistoryTest'
 ./test.sh --tests '*EditorUndoManagerTest'
 ./test.sh --tests '*EditorSessionTest' --tests '*EditorViewTest'
@@ -158,3 +183,8 @@ Delete/Backspace carets, native single-change builders, no-op completions, and c
 Line tests compare every caret offset against independent string scans, cover LF-boundary insertions,
 deletions, CRLF/Unicode, empty/trailing lines, invalid edits, and typing on a large document's final line.
 Existing seeded piece-table edits now verify line slices and offsets after every edit as well.
+Canvas tests use a synthetic million-line source to verify that only viewport rows are requested;
+they also cover refresh/replacement, resize clamping, empty dimensions, wheel propagation, tab spacing,
+and rendered pixels in two palettes. Geometry tests cover fractional/exact boundaries, overscan,
+large counts, and invalid dimensions. Tests stay headless and save preview images under
+`app/build/editor-canvas-preview/` for visual inspection.
