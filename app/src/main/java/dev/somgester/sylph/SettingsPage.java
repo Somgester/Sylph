@@ -158,7 +158,11 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
 
     void setAutoSave(AutoSaveController autoSave) {
         autoSaveStatus.textProperty().unbind();
-        autoSaveStatus.textProperty().bind(autoSave.statusProperty());
+        if (autoSave == null) {
+            autoSaveStatus.setText("Open or create a file to see its autosave status.");
+        } else {
+            autoSaveStatus.textProperty().bind(autoSave.statusProperty());
+        }
     }
 
     private static void followPopupTheme(ComboBox<Integer> combo) {

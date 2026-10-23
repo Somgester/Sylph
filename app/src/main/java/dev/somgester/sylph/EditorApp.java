@@ -38,6 +38,9 @@ public class EditorApp extends Application {
 
     private EditorSession session;
 
+    // Workspace jobs must remain available when no document is open.
+    private EditorSession workspaceSession;
+
     private AutoSaveController autoSave;
 
     private BorderPane root;
@@ -143,10 +146,10 @@ public class EditorApp extends Application {
         serverSettings = servers;
         languageServers = new LanguageServerManager(servers);
         documents = new ArrayList<>();
-        document = createDocument();
-        documents.add(document);
-        session = document.session;
-        autoSave = document.autoSave;
+        document = null;
+        workspaceSession = new EditorSession(new EditorFileService());
+        session = workspaceSession;
+        autoSave = null;
         root = new BorderPane();
         root.setId("root");
         sidebar = new Sidebar();
@@ -154,7 +157,7 @@ public class EditorApp extends Application {
         sidebar.setOnWorkspaceAction(this::workspaceAction);
         // Foreground file operations block navigation; background autosaves must not dim the sidebar.
         sidebar.getTreeView().disableProperty().bind(session.editingBlockedProperty().or(foregroundAction));
-        status = new Label(session.statusProperty().get());
+        status = new Label("Ready");
         status.setId("status");
         status.setPadding(new Insets(8, 14, 8, 14));
         status.setMaxWidth(Double.MAX_VALUE);
@@ -163,23 +166,21 @@ public class EditorApp extends Application {
         status.setTooltip(statusTooltip);
         session.statusProperty().addListener(statusListener);
         root.setLeft(sidebar);
-        editorView = document.view;
-        editor = editorView.area();
-        chrome = new EditorChrome(session, settings, editorView, this::executeCommand);
+        editorView = null;
+        editor = null;
+        chrome = new EditorChrome(null, settings, null, this::executeCommand);
         chrome.kiroButton().setOnAction(event -> openKiroTerminal());
         chrome.kiroSessionsButton().setOnAction(event -> palette.showKiroSessions());
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
-        terminals = new TerminalWorkspace(this::createTerminal, () -> editor.requestFocus(),
+        terminals = new TerminalWorkspace(this::createTerminal, this::focusEditor,
                 tab -> documents.stream().filter(item -> item.tab == tab).findFirst().ifPresent(this::activateDocument),
                 () -> !foregroundAction.get() && documents.stream()
-                        .noneMatch(item -> item.session.editingBlockedProperty().get()));
-        terminals.addDocument(document.tab);
+                        .noneMatch(item -> item.session.editingBlockedProperty().get()),
+                this::closeTabs, this::newFile);
         root.setCenter(terminals);
         language = new Label();
         language.setId("document-language");
-        language.textProperty().bind(Bindings.createStringBinding(
-                () -> session.languageProperty().get().displayName(), session.languageProperty()));
         language.setTooltip(new Tooltip("Language detected from file name"));
         BorderPane statusBar = new BorderPane();
         statusBar.setId("status-bar");
@@ -197,11 +198,7 @@ public class EditorApp extends Application {
         stage.getIcons().setAll(AppIcon.windowIcon());
         stage.setMinWidth(640);
         stage.setMinHeight(420);
-        stage.titleProperty().bind(Bindings.createStringBinding(() -> {
-            Path path = session.pathProperty().get();
-            String name = path == null ? "Untitled" : path.getFileName().toString();
-            return (session.dirtyProperty().get() ? "* " : "") + name + " — Sylph";
-        }, session.pathProperty(), session.dirtyProperty()));
+        stage.setTitle("Sylph");
         themeListener = (observable, oldValue, dark) -> applyTheme(scene, dark);
         settings.darkThemeProperty().addListener(themeListener);
         palette = new CommandPalette(root, sidebar::getRootDirectory, recentFiles::files, this::openFile,
@@ -235,7 +232,9 @@ public class EditorApp extends Application {
             showEditor();
         } else {
             toolPageVisible = true;
-            document.setActive(false);
+            if (document != null) {
+                document.setActive(false);
+            }
             root.setLeft(null);
             root.setCenter(settingsPage);
             sidebarButton.setDisable(true);
@@ -245,7 +244,9 @@ public class EditorApp extends Application {
 
     private void showAccount() {
         toolPageVisible = true;
-        document.setActive(false);
+        if (document != null) {
+            document.setActive(false);
+        }
         root.setLeft(null);
         root.setCenter(accountPage);
         sidebarButton.setDisable(true);
@@ -260,17 +261,40 @@ public class EditorApp extends Application {
             terminals.selectDocument();
         }
         sidebarButton.setDisable(false);
-        editor.requestFocus();
+        focusEditor();
+    }
+
+    private void focusEditor() {
+        if (editor != null) {
+            editor.requestFocus();
+        }
     }
 
     private void toggleMarkdownPreview() {
+        if (document == null) {
+            return;
+        }
         showEditor();
         document.togglePreview();
     }
 
     private void showDocument() {
         root.setCenter(terminals);
-        document.setActive(!toolPageVisible);
+        if (document != null) {
+            document.setActive(!toolPageVisible);
+        }
+    }
+
+    private void newFile() {
+        FileAction action = beginFileAction();
+        if (action != null) {
+            action.run(() -> action.finishWith(() -> {
+                EditorDocument created = createDocument();
+                documents.add(created);
+                terminals.addDocument(created.tab);
+                showEditor();
+            }));
+        }
     }
 
     private EditorDocument createDocument() {
@@ -289,22 +313,29 @@ public class EditorApp extends Application {
         if (next == document) {
             return;
         }
-        document.setActive(false);
+        if (document != null) {
+            document.setActive(false);
+        }
         session.statusProperty().removeListener(statusListener);
         document = next;
-        session = next.session;
-        autoSave = next.autoSave;
-        editorView = next.view;
-        editor = editorView.area();
-        chrome.setDocument(session, editorView);
+        session = next == null ? workspaceSession : next.session;
+        autoSave = next == null ? null : next.autoSave;
+        editorView = next == null ? null : next.view;
+        editor = editorView == null ? null : editorView.area();
+        chrome.setDocument(next == null ? null : session, editorView);
         settingsPage.setAutoSave(autoSave);
         sidebar.getTreeView().disableProperty().unbind();
         sidebar.getTreeView().disableProperty().bind(session.editingBlockedProperty().or(foregroundAction));
-        status.setText(session.statusProperty().get());
+        status.setText(next == null ? "Ready" : session.statusProperty().get());
         session.statusProperty().addListener(statusListener);
         language.textProperty().unbind();
-        language.textProperty().bind(session.languageProperty().map(EditorLanguage::displayName));
         stage.titleProperty().unbind();
+        if (next == null) {
+            language.setText("");
+            stage.setTitle("Sylph");
+            return;
+        }
+        language.textProperty().bind(session.languageProperty().map(EditorLanguage::displayName));
         EditorSession selected = session;
         stage.titleProperty().bind(Bindings.createStringBinding(() -> {
             Path path = selected.pathProperty().get();
@@ -315,15 +346,21 @@ public class EditorApp extends Application {
     }
 
     private void closeDocument(EditorDocument item) {
-        if (!documents.contains(item)) {
+        closeTabs(List.of(item.tab));
+    }
+
+    private void closeTabs(List<Tab> tabs) {
+        List<Tab> closing = tabs.stream().filter(terminals.tabs()::contains).toList();
+        if (closing.isEmpty()) {
             return;
         }
+        List<EditorDocument> affected = documents.stream().filter(item -> closing.contains(item.tab)).toList();
         FileAction action = beginFileAction();
         if (action != null) {
-            action.run(() -> {
-                terminals.selectDocument(item.tab);
-                afterUnsavedCheck(() -> action.finishWith(() -> removeDocuments(List.of(item))), action);
-            });
+            action.run(() -> afterUnsavedChecks(affected, 0, () -> action.finishWith(() -> {
+                removeDocuments(affected);
+                terminals.removeTabs(closing);
+            }), action));
         } else {
             status.setText("Please wait for the file operation to finish.");
         }
@@ -336,9 +373,7 @@ public class EditorApp extends Application {
             item.close();
         }
         if (documents.isEmpty()) {
-            EditorDocument blank = createDocument();
-            documents.add(blank);
-            terminals.addDocument(blank.tab);
+            activateDocument(null);
         } else if (removed.contains(document)) {
             terminals.selectDocument(documents.getLast().tab);
         }
@@ -368,6 +403,7 @@ public class EditorApp extends Application {
             case PALETTE -> palette.show(true);
             case QUICK_OPEN -> palette.show(false);
             case RELOAD -> reloadWindow();
+            case NEW_FILE -> newFile();
             case OPEN_FILE -> openFileDialog();
             case OPEN_FOLDER -> openFolderDialog(stage, sidebar, status);
             case SAVE -> saveDocument(false, () -> { });
@@ -442,9 +478,9 @@ public class EditorApp extends Application {
 
     private boolean commandEnabled(EditorShortcuts.Command command) {
         return switch (command) {
-            case OPEN_FILE, OPEN_FOLDER, SAVE, SAVE_AS, RELOAD ->
-                    !foregroundAction.get() && documents.stream().noneMatch(item -> item.session.busyProperty().get());
-            case PREVIEW -> session.languageProperty().get() == EditorLanguage.MARKDOWN
+            case SAVE, SAVE_AS -> document != null && fileActionsAvailable();
+            case NEW_FILE, OPEN_FILE, OPEN_FOLDER, RELOAD -> fileActionsAvailable();
+            case PREVIEW -> document != null && session.languageProperty().get() == EditorLanguage.MARKDOWN
                     && !session.busyProperty().get();
             case SIDEBAR -> !toolPageVisible;
             default -> true;
@@ -583,7 +619,7 @@ public class EditorApp extends Application {
         }
         EditorDocument selected = document;
         action.run(() -> afterUnsavedChecks(List.copyOf(documents), 0, () -> {
-            Path file = selected.session.pathProperty().get();
+            Path file = selected == null ? null : selected.session.pathProperty().get();
             List<Path> files = documents.stream().map(item -> item.session.pathProperty().get())
                     .filter(Objects::nonNull).toList();
             Path directory = sidebar.getRootDirectory();
@@ -731,13 +767,18 @@ public class EditorApp extends Application {
     }
 
     private FileAction beginFileAction() {
-        if (foregroundAction.get() || documents.stream().anyMatch(item -> item.session.busyProperty().get())) {
+        if (!fileActionsAvailable()) {
             return null;
         }
         FileAction action = new FileAction();
         foregroundAction.set(true);
         chrome.setFileActionInProgress(true);
         return action;
+    }
+
+    private boolean fileActionsAvailable() {
+        return !foregroundAction.get() && !workspaceSession.busyProperty().get()
+                && documents.stream().noneMatch(item -> item.session.busyProperty().get());
     }
 
     private void afterUnsavedCheck(Runnable next, FileAction action) {
@@ -767,6 +808,9 @@ public class EditorApp extends Application {
     }
 
     private void saveDocument(boolean saveAs, Runnable afterSave) {
+        if (document == null) {
+            return;
+        }
         FileAction action = beginFileAction();
         if (action == null) {
             return;
@@ -875,10 +919,13 @@ public class EditorApp extends Application {
         if (documents != null) {
             documents.forEach(EditorDocument::close);
         }
+        if (workspaceSession != null) {
+            workspaceSession.close();
+        }
     }
 
     private void openFolderDialog(Stage stage, Sidebar sidebar, Label status) {
-        if (session.busyProperty().get() || foregroundAction.get()) {
+        if (!fileActionsAvailable()) {
             status.setText("Please wait for the file operation to finish.");
             return;
         }

@@ -3,6 +3,7 @@ package dev.somgester.sylph;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -12,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import javafx.animation.PauseTransition;
 import javafx.event.Event;
 import javafx.scene.Node;
@@ -25,6 +27,9 @@ import javafx.scene.control.MenuBar;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.PickResult;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Paint;
 import javafx.stage.Stage;
@@ -47,6 +52,10 @@ class EditorTabsTest {
 
         private Path saveChoice;
 
+        private int savePrompts;
+
+        private Consumer<Path> onChooseSave = previous -> { };
+
         private final List<Throwable> errors = new ArrayList<>();
 
         @Override
@@ -56,6 +65,8 @@ class EditorTabsTest {
 
         @Override
         File chooseSaveFile(Path previous) {
+            savePrompts++;
+            onChooseSave.accept(previous);
             return saveChoice == null ? null : saveChoice.toFile();
         }
 
@@ -225,7 +236,7 @@ class EditorTabsTest {
     }
 
     @Test
-    void saveAsCannotOverwriteAnotherOpenTabAndLastCloseLeavesCleanEditor() throws Exception {
+    void saveAsCannotOverwriteAnotherOpenTabAndLastCloseLeavesEmptyEditor() throws Exception {
         create(false);
         Path first = Files.writeString(directory.resolve("first.txt"), "first");
         Path second = Files.writeString(directory.resolve("second.txt"), "second");
@@ -239,9 +250,7 @@ class EditorTabsTest {
             for (Tab tab : List.copyOf(tabs().getTabs())) {
                 Event.fireEvent(tab, new Event(Tab.TAB_CLOSE_REQUEST_EVENT));
             }
-            assertEquals("Untitled — Sylph", stage.getTitle());
-            assertEquals("", app.activeEditor().getText());
-            assertFalse(app.activeEditor().isUndoAvailable());
+            assertEmptyEditor();
             return null;
         });
         assertEquals("first", Files.readString(first));
@@ -252,6 +261,7 @@ class EditorTabsTest {
     void modifiedUntitledDocumentAndEditMenuStayWithTheirTabs() throws Exception {
         create(false);
         CodeArea untitled = FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
             app.activeEditor().replaceText("untitled work");
             return app.activeEditor();
         });
@@ -356,20 +366,262 @@ class EditorTabsTest {
                     assertFalse(previous.equals(color));
                 }
                 previous = color;
-                var image = scene.snapshot(null);
-                BufferedImage output = new BufferedImage((int) image.getWidth(), (int) image.getHeight(),
-                        BufferedImage.TYPE_INT_ARGB);
-                for (int y = 0; y < output.getHeight(); y++) {
-                    for (int x = 0; x < output.getWidth(); x++) {
-                        output.setRGB(x, y, image.getPixelReader().getArgb(x, y));
-                    }
-                }
-                Path path = Path.of("build", "reports", "editor-tabs", dark ? "dark.png" : "light.png");
-                Files.createDirectories(path.getParent());
-                ImageIO.write(output, "png", path.toFile());
+                saveScene("editor-tabs", dark);
             }
             return null;
         });
+    }
+
+    @Test
+    void startupAndReloadStayEmptyUntilAnExplicitCreateOrOpen() throws Exception {
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            assertEmptyEditor();
+            assertTrue(scene.lookup("#save-file").isDisabled());
+            for (boolean dark : new boolean[] {true, false}) {
+                settings.darkThemeProperty().set(dark);
+                scene.getRoot().applyCss();
+                scene.getRoot().layout();
+                saveScene("empty-editor", dark);
+            }
+            EditorShortcutsTest.press(scene, KeyCode.S, false, false, true);
+            assertEquals(0, app.savePrompts);
+            EditorShortcutsTest.press(scene, KeyCode.COMMA, false, false, true);
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+            assertTrue(((Label) scene.lookup("#autosave-state")).getText().contains("Open or create"));
+            EditorShortcutsTest.press(scene, KeyCode.ESCAPE, false, false, false);
+            assertEmptyEditor();
+            EditorShortcutsTest.press(scene, KeyCode.R, false, true, true);
+            scene = stage.getScene();
+            assertEmptyEditor();
+            return null;
+        });
+        open(Files.writeString(directory.resolve("opened.txt"), "opened"));
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(1, tabs().getTabs().size());
+            assertEquals("opened", app.activeEditor().getText());
+            return null;
+        });
+    }
+
+    @Test
+    void doubleClickCreatesUnsavedFilesOnlyInEmptySpaceOrBlankTabBar() throws Exception {
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            settings.delaySecondsProperty().set(0);
+            doubleClick(scene.lookup("#empty-editor"));
+            assertEquals(1, tabs().getTabs().size());
+            assertEquals("Untitled — Sylph", stage.getTitle());
+            app.activeEditor().replaceText("first unsaved buffer");
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
+            doubleClick(tabs().lookup(".tab-header-background"));
+            assertEquals(2, tabs().getTabs().size());
+            assertEquals("", app.activeEditor().getText());
+            doubleClick(tabs().lookup(".tab"));
+            assertEquals(2, tabs().getTabs().size());
+            doubleClick(app.activeEditor());
+            assertEquals(2, tabs().getTabs().size());
+            tabs().getSelectionModel().selectFirst();
+            assertEquals("first unsaved buffer", app.activeEditor().getText());
+            assertEquals(0, app.savePrompts);
+            return null;
+        });
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(0, app.savePrompts);
+            assertTrue(stage.getTitle().startsWith("* Untitled"));
+            return null;
+        });
+        try (var files = Files.list(directory)) {
+            assertEquals(0, files.count());
+        }
+    }
+
+    @Test
+    void cancelledFirstSaveKeepsBufferAndAutosaveStartsOnlyAfterConfirmedLocation() throws Exception {
+        create(true);
+        Path destination = directory.resolve("chosen.py");
+        FxTestSupport.onFxThread(() -> {
+            settings.delaySecondsProperty().set(0);
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
+            app.activeEditor().replaceText("unsaved text");
+            app.onChooseSave = previous -> {
+                assertNull(previous);
+                assertFalse(Files.exists(destination));
+                assertTrue(stage.getTitle().startsWith("* Untitled"));
+            };
+            EditorShortcutsTest.press(scene, KeyCode.S, false, false, true);
+            assertEquals(1, app.savePrompts);
+            assertTrue(stage.getTitle().startsWith("* Untitled"));
+            assertEquals("unsaved text", app.activeEditor().getText());
+            return null;
+        });
+        FxTestSupport.onFxThread(() -> {
+            assertFalse(Files.exists(destination));
+            assertEquals(1, app.savePrompts);
+            app.saveChoice = destination;
+            EditorShortcutsTest.press(scene, KeyCode.S, false, false, true);
+            return null;
+        });
+        FxTestSupport.await(() -> ready() && stage.getTitle().equals("chosen.py — Sylph"));
+        assertEquals("unsaved text", Files.readString(destination));
+        FxTestSupport.onFxThread(() -> {
+            assertEquals("Python file", tabs().getSelectionModel().getSelectedItem().getGraphic().getAccessibleText());
+            app.activeEditor().replaceText("autosaved text");
+            return null;
+        });
+        FxTestSupport.await(() -> Files.readString(destination).equals("autosaved text") && ready());
+        assertEquals(2, app.savePrompts);
+        assertTrue(app.errors.isEmpty());
+    }
+
+    @Test
+    void contextMenuClosesTheClickedTabAndCloseAllLeavesNoReplacement() throws Exception {
+        create(false);
+        Path first = Files.writeString(directory.resolve("first.py"), "first");
+        Path second = Files.writeString(directory.resolve("second.py"), "second");
+        open(first);
+        open(second);
+        FxTestSupport.onFxThread(() -> {
+            Tab clicked = tabs().getTabs().getFirst();
+            assertEquals(List.of("Close Tab", "Close All Tabs"), clicked.getContextMenu().getItems().stream()
+                    .map(item -> item.getText()).toList());
+            clicked.getContextMenu().getItems().getFirst().fire();
+            assertEquals(1, tabs().getTabs().size());
+            assertEquals("second", app.activeEditor().getText());
+            tabs().getTabs().getFirst().getContextMenu().getItems().getLast().fire();
+            assertEmptyEditor();
+            return null;
+        });
+        open(first);
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(1, tabs().getTabs().size());
+            return null;
+        });
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ButtonBar.ButtonData.class, names = {"YES", "NO", "CANCEL_CLOSE"})
+    void closeAllChecksEveryDirtyTabBeforeRemovingAny(ButtonBar.ButtonData secondDecision) throws Exception {
+        create(false);
+        Path saved = Files.writeString(directory.resolve("saved.txt"), "original");
+        Path destination = directory.resolve("new.txt");
+        open(saved);
+        FxTestSupport.onFxThread(() -> {
+            app.activeEditor().replaceText("saved tab edit");
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
+            app.activeEditor().replaceText("new tab edit");
+            app.saveChoice = destination;
+            answer(ButtonBar.ButtonData.NO);
+            answer(secondDecision, 160);
+            tabs().getTabs().getFirst().getContextMenu().getItems().getLast().fire();
+            return null;
+        });
+        FxTestSupport.await(this::ready);
+        FxTestSupport.onFxThread(() -> {
+            if (secondDecision == ButtonBar.ButtonData.CANCEL_CLOSE) {
+                assertEquals(2, tabs().getTabs().size());
+                assertEquals("new tab edit", app.activeEditor().getText());
+                tabs().getSelectionModel().selectFirst();
+                assertEquals("saved tab edit", app.activeEditor().getText());
+            } else {
+                assertEmptyEditor();
+            }
+            return null;
+        });
+        assertEquals("original", Files.readString(saved));
+        if (secondDecision == ButtonBar.ButtonData.YES) {
+            assertEquals("new tab edit", Files.readString(destination));
+        } else {
+            assertFalse(Files.exists(destination));
+        }
+    }
+
+    @Test
+    void cancellingSaveAsDuringCloseAllKeepsAllTabsAndUnsavedContent() throws Exception {
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            settings.delaySecondsProperty().set(0);
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
+            app.activeEditor().replaceText("keep me");
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
+            answer(ButtonBar.ButtonData.YES);
+            tabs().getTabs().getLast().getContextMenu().getItems().getLast().fire();
+            assertEquals(2, tabs().getTabs().size());
+            assertEquals("keep me", app.activeEditor().getText());
+            assertTrue(ready());
+            assertEquals(1, app.savePrompts);
+            return null;
+        });
+        try (var files = Files.list(directory)) {
+            assertEquals(0, files.count());
+        }
+    }
+
+    @Test
+    void closeAllSuspendsAutosaveWhileDiscardDecisionIsOpen() throws Exception {
+        create(true);
+        Path file = Files.writeString(directory.resolve("saved.txt"), "original");
+        open(file);
+        FxTestSupport.onFxThread(() -> {
+            app.activeEditor().replaceText("discard this edit");
+            answer(ButtonBar.ButtonData.NO, 1300);
+            tabs().getTabs().getFirst().getContextMenu().getItems().getLast().fire();
+            assertEmptyEditor();
+            return null;
+        });
+        assertEquals("original", Files.readString(file));
+    }
+
+    @Test
+    void failedFirstSaveDuringCloseAllKeepsEveryTabAndReportsError() throws Exception {
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
+            app.activeEditor().replaceText("keep me after error");
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
+            app.saveChoice = directory.resolve("missing/fail.txt");
+            answer(ButtonBar.ButtonData.YES);
+            tabs().getTabs().getLast().getContextMenu().getItems().getLast().fire();
+            return null;
+        });
+        FxTestSupport.await(() -> ready() && !app.errors.isEmpty());
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(2, tabs().getTabs().size());
+            assertEquals("keep me after error", app.activeEditor().getText());
+            assertTrue(stage.getTitle().startsWith("* Untitled"));
+            return null;
+        });
+        assertFalse(Files.exists(directory.resolve("missing/fail.txt")));
+    }
+
+    private void assertEmptyEditor() {
+        assertTrue(tabs().getTabs().isEmpty());
+        assertNull(app.activeEditor());
+        assertEquals("Sylph", stage.getTitle());
+        assertEquals("", ((Label) scene.lookup("#document-title")).getText());
+        assertTrue(scene.lookup("#empty-editor").isVisible());
+    }
+
+    private void saveScene(String report, boolean dark) throws Exception {
+        var image = scene.snapshot(null);
+        BufferedImage output = new BufferedImage((int) image.getWidth(), (int) image.getHeight(),
+                BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < output.getHeight(); y++) {
+            for (int x = 0; x < output.getWidth(); x++) {
+                output.setRGB(x, y, image.getPixelReader().getArgb(x, y));
+            }
+        }
+        Path path = Path.of("build", "reports", report, dark ? "dark.png" : "light.png");
+        Files.createDirectories(path.getParent());
+        ImageIO.write(output, "png", path.toFile());
+    }
+
+    private static void doubleClick(Node target) {
+        Event.fireEvent(target, new MouseEvent(MouseEvent.MOUSE_CLICKED, 0, 0, 0, 0, MouseButton.PRIMARY, 2,
+                false, false, false, false, false, false, false, false, false, true,
+                new PickResult(target, 0, 0)));
     }
 
     private void create(boolean autosave) throws Exception {

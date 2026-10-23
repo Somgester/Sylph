@@ -251,6 +251,7 @@ class UnsavedChangesTest {
             settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, true, delay)));
             scene = app.createScene(stage, settings);
             stage.show();
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
             editor = app.activeEditor();
             app.openChoices.add(file::toFile);
             EditorShortcutsTest.press(scene, KeyCode.O, false, false, true);

@@ -61,6 +61,9 @@ class EditorDefinitionNavigationTest {
             scene = app.createScene(stage, settings);
             stage.setScene(scene);
             stage.show();
+            EditorShortcutsTest.press(scene, javafx.scene.input.KeyCode.N, false, false, true);
+            scene.getRoot().applyCss();
+            scene.getRoot().layout();
             var editor = (CodeArea) scene.lookup("#editor");
             editor.replaceText("unsaved original");
             app.openDefinition(location);

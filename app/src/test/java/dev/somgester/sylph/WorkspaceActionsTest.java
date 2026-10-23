@@ -168,6 +168,7 @@ class WorkspaceActionsTest {
         });
         FxTestSupport.await(() -> original.getChildren().stream().anyMatch(node -> node.getValue() != null));
         FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
             editor().replaceText("untitled edits");
             app.name = "new-folder";
             ((Button) scene.lookup("#new-workspace-folder")).fire();
@@ -236,10 +237,9 @@ class WorkspaceActionsTest {
             assertTrue(Files.exists(file));
             assertEquals("unsaved", FxTestSupport.onFxThread(() -> editor().getText()));
         } else {
-            FxTestSupport.await(() -> !Files.exists(folder) && ready() && stage.getTitle().equals("Untitled — Sylph"));
+            FxTestSupport.await(() -> !Files.exists(folder) && ready() && stage.getTitle().equals("Sylph"));
             FxTestSupport.onFxThread(() -> {
-                assertEquals("", editor().getText());
-                assertFalse(editor().isUndoAvailable());
+                assertEquals(null, editor());
                 return null;
             });
         }
@@ -274,10 +274,9 @@ class WorkspaceActionsTest {
                 return null;
             });
         } else {
-            FxTestSupport.await(() -> !Files.exists(file) && ready() && stage.getTitle().equals("Untitled — Sylph"));
+            FxTestSupport.await(() -> !Files.exists(file) && ready() && stage.getTitle().equals("Sylph"));
             FxTestSupport.onFxThread(() -> {
-                assertEquals("", editor().getText());
-                assertFalse(editor().isUndoAvailable());
+                assertEquals(null, editor());
                 return null;
             });
         }

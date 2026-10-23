@@ -291,7 +291,7 @@ class CommandPaletteTest {
             EditorShortcutsTest.press(stage.getScene(), KeyCode.R, false, true, true);
             return null;
         });
-        FxTestSupport.await(() -> stage.getScene() != before && editor().getText().equals("second")
+        FxTestSupport.await(() -> stage.getScene() != before && editor() != null && editor().getText().equals("second")
                 && !stage.getScene().lookup("#open-file").isDisabled());
         showRecent();
         assertEquals(List.of(second.toString(), first.toString()), labels());
@@ -546,6 +546,7 @@ class CommandPaletteTest {
             settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, false, 2)));
             stage = new Stage();
             app.createScene(stage, settings);
+            EditorShortcutsTest.press(stage.getScene(), KeyCode.N, false, false, true);
             stage.show();
             return null;
         });

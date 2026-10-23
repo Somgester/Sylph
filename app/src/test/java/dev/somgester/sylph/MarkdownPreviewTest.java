@@ -163,6 +163,7 @@ class MarkdownPreviewTest {
     @Test
     void previewIsDisabledForOtherFilesAndClosesWhenOpeningOne() throws Exception {
         FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
             assertTrue(previewItem().isDisable());
             EditorShortcutsTest.press(scene, KeyCode.V, true, false, true);
             assertEquals("editor-view", documentContent().getId());
@@ -337,7 +338,7 @@ class MarkdownPreviewTest {
             ((Button) scene.getRoot().lookup("#open-file")).fire();
             return null;
         });
-        FxTestSupport.await(() -> text.equals(editor().getText())
+        FxTestSupport.await(() -> editor() != null && text.equals(editor().getText())
                 && !((Button) scene.getRoot().lookup("#open-file")).isDisabled());
         return file;
     }

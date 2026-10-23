@@ -134,12 +134,13 @@ class EditorChromeTest {
                 MenuBar menus = (MenuBar) chrome.lookup("#main-menu");
                 var items = menus.getMenus().getFirst().getItems();
                 items.get(0).fire();
-                items.get(3).fire();
+                items.get(1).fire();
                 items.get(4).fire();
-                assertEquals(List.of(EditorShortcuts.Command.OPEN_FILE, EditorShortcuts.Command.SAVE,
-                        EditorShortcuts.Command.SAVE_AS), calls);
-                assertEquals(EditorShortcuts.Command.SAVE_AS.shortcut(), items.get(4).getAccelerator());
-                assertEquals(EditorShortcuts.Command.OPEN_FILE.shortcut(), items.get(0).getAccelerator());
+                items.get(5).fire();
+                assertEquals(List.of(EditorShortcuts.Command.NEW_FILE, EditorShortcuts.Command.OPEN_FILE,
+                        EditorShortcuts.Command.SAVE, EditorShortcuts.Command.SAVE_AS), calls);
+                assertEquals(EditorShortcuts.Command.SAVE_AS.shortcut(), items.get(5).getAccelerator());
+                assertEquals(EditorShortcuts.Command.OPEN_FILE.shortcut(), items.get(1).getAccelerator());
                 CheckMenuItem autosave = (CheckMenuItem) items.getLast();
                 settings.autoSaveProperty().set(true);
                 assertTrue(autosave.isSelected());

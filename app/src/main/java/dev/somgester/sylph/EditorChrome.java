@@ -42,9 +42,10 @@ final class EditorChrome extends VBox {
     EditorChrome(EditorSession session, AppSettings settings, EditorView editorView,
             Consumer<EditorShortcuts.Command> execute) {
         active.set(session);
-        var sessionBusy = active.flatMap(EditorSession::busyProperty);
+        var sessionBusy = active.flatMap(EditorSession::busyProperty).orElse(false);
         var busy = Bindings.createBooleanBinding(() -> fileAction.get() || sessionBusy.getValue(),
                 fileAction, sessionBusy);
+        var cannotSave = busy.or(active.isNull());
         var language = active.flatMap(EditorSession::languageProperty);
         Button openFile = action(EditorShortcuts.Command.OPEN_FILE, AppIcon.Symbol.FILE, "open-file", execute);
         Button openFolder = action(EditorShortcuts.Command.OPEN_FOLDER, AppIcon.Symbol.FOLDER, "open-folder", execute);
@@ -53,13 +54,14 @@ final class EditorChrome extends VBox {
         Button preferences = action(EditorShortcuts.Command.SETTINGS, AppIcon.Symbol.SETTINGS,
                 "open-settings", execute);
         openFile.disableProperty().bind(busy);
-        save.disableProperty().bind(busy);
+        save.disableProperty().bind(cannotSave);
 
         Menu file = new Menu("File");
-        file.getItems().addAll(item(EditorShortcuts.Command.OPEN_FILE, execute, busy),
+        file.getItems().addAll(item(EditorShortcuts.Command.NEW_FILE, execute, busy),
+                item(EditorShortcuts.Command.OPEN_FILE, execute, busy),
                 item(EditorShortcuts.Command.OPEN_FOLDER, execute, busy), new SeparatorMenuItem(),
-                item(EditorShortcuts.Command.SAVE, execute, busy),
-                item(EditorShortcuts.Command.SAVE_AS, execute, busy), new SeparatorMenuItem());
+                item(EditorShortcuts.Command.SAVE, execute, cannotSave),
+                item(EditorShortcuts.Command.SAVE_AS, execute, cannotSave), new SeparatorMenuItem());
         CheckMenuItem autoSave = new CheckMenuItem("Autosave");
         autoSave.setAccelerator(EditorShortcuts.Command.AUTOSAVE.shortcut());
         autoSave.selectedProperty().bindBidirectional(settings.autoSaveProperty());
@@ -123,12 +125,15 @@ final class EditorChrome extends VBox {
         Label document = new Label();
         document.setId("document-title");
         var path = active.flatMap(EditorSession::pathProperty);
-        var dirty = active.flatMap(EditorSession::dirtyProperty);
+        var dirty = active.flatMap(EditorSession::dirtyProperty).orElse(false);
         document.textProperty().bind(Bindings.createStringBinding(() -> {
+            if (active.get() == null) {
+                return "";
+            }
             Path currentPath = path.getValue();
             return (currentPath == null ? "Untitled" : currentPath.getFileName().toString())
                     + (dirty.getValue() ? " •" : "");
-        }, path, dirty));
+        }, active, path, dirty));
         HBox header = new HBox(12, brand, document);
         header.setId("workspace-header");
         header.setAlignment(Pos.CENTER_LEFT);
@@ -177,7 +182,8 @@ final class EditorChrome extends VBox {
         MenuItem item = new MenuItem(command.label());
         item.setAccelerator(command.shortcut());
         item.setOnAction(event -> execute.accept(command));
-        if (command == EditorShortcuts.Command.OPEN_FILE || command == EditorShortcuts.Command.SAVE
+        if (command == EditorShortcuts.Command.NEW_FILE || command == EditorShortcuts.Command.OPEN_FILE
+                || command == EditorShortcuts.Command.SAVE
                 || command == EditorShortcuts.Command.SAVE_AS || command == EditorShortcuts.Command.RELOAD) {
             item.disableProperty().bind(busy);
         }

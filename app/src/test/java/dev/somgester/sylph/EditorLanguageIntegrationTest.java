@@ -74,6 +74,7 @@ class EditorLanguageIntegrationTest {
             stage = new Stage();
             scene = app.createScene(stage, settings);
             stage.show();
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
             language = (Label) scene.getRoot().lookup("#document-language");
             return null;
         });

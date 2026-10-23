@@ -55,11 +55,16 @@ final class EditorEditMenu extends Menu {
         }
         editor = current;
         session = currentSession;
-        target = editor.area();
-        editor.undoAvailableProperty().addListener(stateListener);
-        editor.redoAvailableProperty().addListener(stateListener);
-        editor.area().selectedTextProperty().addListener(stateListener);
-        session.editingBlockedProperty().addListener(stateListener);
+        target = editor == null ? null : editor.area();
+        if (editor != null) {
+            editor.undoAvailableProperty().addListener(stateListener);
+            editor.redoAvailableProperty().addListener(stateListener);
+            editor.area().selectedTextProperty().addListener(stateListener);
+            session.editingBlockedProperty().addListener(stateListener);
+        }
+        if (editor == null && scene != null) {
+            focusChanged(scene.getFocusOwner());
+        }
         refresh();
     }
 
@@ -83,7 +88,8 @@ final class EditorEditMenu extends Menu {
             if (node instanceof MenuBar || node instanceof EditorChrome) {
                 return;
             }
-            if (node instanceof TerminalView || node instanceof TextInputControl || node == editor.area()) {
+            if (node instanceof TerminalView || node instanceof TextInputControl
+                    || editor != null && node == editor.area()) {
                 target = node;
                 refresh();
                 return;
@@ -102,7 +108,7 @@ final class EditorEditMenu extends Menu {
                 default -> false;
             };
         }
-        if (target == editor.area()) {
+        if (editor != null && target == editor.area()) {
             boolean editable = !session.editingBlockedProperty().get();
             boolean selected = !editor.area().getSelectedText().isEmpty();
             return switch (action) {
@@ -141,7 +147,7 @@ final class EditorEditMenu extends Menu {
                 case SELECT_ALL -> terminal.selectAll();
                 default -> { }
             }
-        } else if (target == editor.area()) {
+        } else if (editor != null && target == editor.area()) {
             switch (action) {
                 case UNDO -> editor.area().undo();
                 case REDO -> editor.area().redo();

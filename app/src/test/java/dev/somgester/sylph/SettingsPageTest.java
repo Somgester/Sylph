@@ -92,6 +92,7 @@ class SettingsPageTest {
                 root.applyCss();
                 root.layout();
                 javafx.scene.Node workspace = root.getCenter();
+                EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
                 CodeArea editor = app.activeEditor();
                 editor.replaceText("Keep my unsaved work\nwhile changing settings.");
                 boolean mac = System.getProperty("os.name").startsWith("Mac");

@@ -40,7 +40,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/main/java/dev/somgester/sylph/TerminalView.java](../app/src/main/java/dev/somgester/sylph/TerminalView.java) | Local terminal WebView, theme and clipboard routing, and renderer backpressure. |
 | [app/src/main/java/dev/somgester/sylph/TerminalPage.java](../app/src/main/java/dev/somgester/sylph/TerminalPage.java) | Self-contained renderer page with embedded resources and per-page CSP nonce. |
 | [app/src/main/java/dev/somgester/sylph/TerminalBridge.java](../app/src/main/java/dev/somgester/sylph/TerminalBridge.java) | Public WebKit bridge for terminal input, binary input, resize, and output acknowledgement. |
-| [app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java](../app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java) | Editor/file tabs, resizable terminal panel, duplication, and tab disposal. |
+| [app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java](../app/src/main/java/dev/somgester/sylph/TerminalWorkspace.java) | Editor/file tabs, empty view, double-click creation, tab close menus, resizable terminal panel, duplication, and disposal. |
 
 ## Authentication files
 
@@ -108,7 +108,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [app/src/test/java/dev/somgester/sylph/AppSettingsTest.java](../app/src/test/java/dev/somgester/sylph/AppSettingsTest.java) | Setting defaults, persistence, delay validation, and persistence failures. |
 | [app/src/test/java/dev/somgester/sylph/AppTest.java](../app/src/test/java/dev/somgester/sylph/AppTest.java) | Application entry-class structure and constructor. |
 | [app/src/test/java/dev/somgester/sylph/AutoSaveControllerTest.java](../app/src/test/java/dev/somgester/sylph/AutoSaveControllerTest.java) | Delay reset, immediate saves, edits during saves, failure recovery, suspension, and obsolete callbacks. |
-| [app/src/test/java/dev/somgester/sylph/EditorTabsTest.java](../app/src/test/java/dev/somgester/sylph/EditorTabsTest.java) | Independent file tabs, selection/history, reopening, close choices, inactive autosave, and Save As conflicts. |
+| [app/src/test/java/dev/somgester/sylph/EditorTabsTest.java](../app/src/test/java/dev/somgester/sylph/EditorTabsTest.java) | Independent tabs/history, empty states, double-click creation, close menus, first-save confirmation, autosave, and Save As conflicts. |
 | [app/src/test/java/dev/somgester/sylph/FileIconTest.java](../app/src/test/java/dev/somgester/sylph/FileIconTest.java) | Packaged artwork, shared images, themed fallbacks, recycled sidebar cells, and tab icons after Save As. |
 | [app/src/test/java/dev/somgester/sylph/EditorAppTest.java](../app/src/test/java/dev/somgester/sylph/EditorAppTest.java) | Application theme stylesheet selection. |
 | [app/src/test/java/dev/somgester/sylph/EditorChromeTest.java](../app/src/test/java/dev/somgester/sylph/EditorChromeTest.java) | Compact accessible icon actions, command menus, settings binding, undo-manager rebinding, and focused text-field edits. |

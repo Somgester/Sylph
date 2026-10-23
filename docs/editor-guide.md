@@ -6,9 +6,11 @@
 
 Open a file through the File menu, toolbar, or shortcut. Open a folder to populate the sidebar, then single-click a file or press Enter on its selected row to load it. Directories are listed before files, with names sorted without case sensitivity. The sidebar can be resized or collapsed. Selected entries use the active theme’s accent text and selection surface, including when focus returns to the editor.
 
-Each different file opens in its own tab beside editor terminal tabs. Reopening a file selects its existing tab, preserving unsaved edits. Each tab keeps its text, selection, caret, undo/redo history, syntax state, and optional Markdown preview. The initial empty Untitled tab is reused for the first file; a modified Untitled tab is retained. Failed or cancelled opens leave existing tabs intact.
+Sylph starts with an empty editor and no document tabs. Double-click the empty editor or blank tab-bar space, choose File → New File, or press Mod+N to create an unsaved Untitled file. Double-clicking document text or an existing tab does not create a file. New files have no disk location until you confirm Save As.
 
-Use a file tab's close button to close it. Dirty tabs offer Save, Discard, or Cancel; closing the last document leaves a clean Untitled editor. Save and Edit actions follow the selected file. Save As retains history and updates the tab name and language; overwriting a file already open in another tab is refused.
+Each different file opens in its own tab beside editor terminal tabs. Reopening a file selects its existing tab, preserving unsaved edits. Each tab keeps its text, selection, caret, undo/redo history, syntax state, and optional Markdown preview. A sole clean Untitled tab can be reused for the first file; a modified Untitled tab is retained. Failed or cancelled opens leave existing tabs intact.
+
+Use a file tab's close button or right-click any tab for Close Tab and Close All Tabs. Close Tab targets the clicked tab, including inactive tabs. Close All Tabs checks every dirty document before removing any tabs, and also closes terminal tabs in both layouts. Dirty tabs offer Save, Discard, or Cancel. Cancelling a decision or save dialog, or a failed save, retains the tabs and unsaved content. Closing the last tab leaves the empty editor; no replacement Untitled tab is created. Save and Edit actions follow the selected file. Save As retains history and updates the tab name and language; overwriting a file already open in another tab is refused.
 
 Files must be regular UTF-8 text files. Symbolic links, special files, invalid UTF-8, and unsupported control characters (including DEL) are rejected. Tabs and line breaks are accepted. There is currently no explicit 5 MiB limit: the complete file is read into memory, so large files still consume memory and processing time.
 
@@ -22,11 +24,11 @@ New files are created empty and opened with the appropriate language and fresh u
 
 Right-click an entry and choose Delete, or press Delete with a non-root sidebar entry selected. Deletion always asks for confirmation and permanently removes the selected entry; folders include their contents. The opened workspace root is protected. Symbolic links are unlinked rather than followed, and actions through symbolic-link parent directories are refused. Deletion uses secure directory handles to prevent concurrent folder swaps from redirecting it outside the workspace. It is refused on filesystems without that support, or when any ancestor of the workspace path is a symbolic link.
 
-Deleting files or folders checks every affected open tab, including inactive tabs and files opened through symbolic-link folder aliases, and offers Save/Discard/Cancel for unsaved edits. Autosave pauses through the decisions and operation. After successful deletion, affected tabs close and deleted paths leave recent-file history. Other tabs remain open; if no documents remain, a clean Untitled editor is created. Cancelling or a failed operation retains editor text. Recursive deletion is not transactional: a filesystem failure can leave a partially deleted folder, and the refreshed sidebar shows the remaining entries.
+Deleting files or folders checks every affected open tab, including inactive tabs and files opened through symbolic-link folder aliases, and offers Save/Discard/Cancel for unsaved edits. Autosave pauses through the decisions and operation. After successful deletion, affected tabs close and deleted paths leave recent-file history. Other tabs remain open; no replacement document is created. Cancelling or a failed operation retains editor text. Recursive deletion is not transactional: a filesystem failure can leave a partially deleted folder, and the refreshed sidebar shows the remaining entries.
 
 ## Save and autosave
 
-Save writes to the current location; Save As chooses another location. Files changed externally are refused instead of silently overwritten: close and reopen its tab, or use Save As to retain your edits in another file. Existing-file saves require atomic replacement support from the filesystem. Errors leave the document available in the editor.
+Save writes to the current location; an unsaved file always opens Save As so you can choose its folder and name. Cancelling writes nothing and leaves the file without a location. Save As chooses another location for an existing file. Save is disabled when no document is open. Files changed externally are refused instead of silently overwritten: close and reopen its tab, or use Save As to retain your edits in another file. Existing-file saves require atomic replacement support from the filesystem. Errors leave the document available in the editor.
 
 Settings provides dark/light themes, autosave on/off, and delays of **Immediately, 1, 2, 5, or 10 seconds**. Defaults are dark theme, autosave off, and a 2-second delay. Preferences persist through Java's user preferences store. If persistence fails, settings still apply to the current session and a status message explains the failure.
 
@@ -61,6 +63,7 @@ Use Ctrl on Linux/Windows and Cmd on macOS wherever `Mod` appears.
 | Search files | Mod+P |
 | Command palette | Mod+Shift+P |
 | Reload window | Mod+Alt+R |
+| New unsaved file | Mod+N |
 | Open file | Mod+O |
 | Open folder | Mod+Shift+O |
 | Open folder, alternate chord | Mod+K, then Mod+O within 1.5 seconds |

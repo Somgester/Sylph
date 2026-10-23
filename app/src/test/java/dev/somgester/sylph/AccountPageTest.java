@@ -29,6 +29,7 @@ class AccountPageTest {
             Scene scene = app.createScene(stage, settings);
             stage.show();
             try {
+                EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
                 var editor = app.activeEditor();
                 editor.replaceText("unsaved guest content");
                 for (boolean dark : new boolean[] {true, false}) {

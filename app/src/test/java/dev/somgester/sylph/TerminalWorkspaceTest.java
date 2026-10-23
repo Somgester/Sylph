@@ -270,6 +270,60 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    void tabMenusCloseOnlyClickedTerminalThenAllTabsAndDisposeBothShells() throws Exception {
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            return null;
+        });
+        TerminalView top = selected("#editor-tabs");
+        awaitShell(top);
+        FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            return null;
+        });
+        TerminalView bottom = selected("#terminal-panel");
+        awaitShell(bottom);
+        FxTestSupport.onFxThread(() -> {
+            TabPane editors = (TabPane) scene.lookup("#editor-tabs");
+            Tab terminal = editors.getTabs().stream().filter(tab -> tab.getContent() == top).findFirst().orElseThrow();
+            terminal.getContextMenu().getItems().getFirst().fire();
+            assertEquals(1, editors.getTabs().size());
+            assertFalse(bottom.session().completion().isDone());
+            TabPane panel = (TabPane) scene.lookup("#terminal-panel");
+            panel.getTabs().getFirst().getContextMenu().getItems().getLast().fire();
+            assertTrue(editors.getTabs().isEmpty());
+            assertTrue(panel.getTabs().isEmpty());
+            assertEquals(null, app.activeEditor());
+            assertTrue(scene.lookup("#empty-editor").isVisible());
+            return null;
+        });
+        top.session().completion().get(5, TimeUnit.SECONDS);
+        bottom.session().completion().get(5, TimeUnit.SECONDS);
+        FxTestSupport.onFxThread(() -> {
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            return null;
+        });
+        TerminalView reopened = selected("#editor-tabs");
+        awaitShell(reopened);
+        assertEquals(directory, reopened.session().directory());
+        FxTestSupport.await(() -> TerminalView.ownsFocus(scene));
+        FxTestSupport.onFxThread(() -> {
+            assertEquals(null, app.activeEditor());
+            assertEquals(1, ((TabPane) scene.lookup("#editor-tabs")).getTabs().size());
+            ClipboardContent clipboard = new ClipboardContent();
+            clipboard.putString("printf 'empty workspace terminal' > empty-terminal-result\n");
+            Clipboard.getSystemClipboard().setContent(clipboard);
+            Menu edit = ((MenuBar) scene.lookup("#main-menu")).getMenus().get(1);
+            assertFalse(editItem(edit, "Paste").isDisable());
+            editItem(edit, "Paste").fire();
+            return null;
+        });
+        FxTestSupport.await(() -> Files.exists(directory.resolve("empty-terminal-result"))
+                && Files.readString(directory.resolve("empty-terminal-result")).equals("empty workspace terminal"));
+    }
+
+    @Test
     void terminalClipboardShortcutDoesNotOpenMarkdownPreviewOrModifyTheDocument() throws Exception {
         Path file = Files.writeString(directory.resolve("readme.md"), "# Keep document");
         create(false);
@@ -484,7 +538,8 @@ class TerminalWorkspaceTest {
             EditorShortcutsTest.press(scene, KeyCode.R, false, true, true);
             scene = stage.getScene();
             assertTrue(scene.lookup("#terminal-workspace") instanceof TerminalWorkspace);
-            assertTrue(app.activeEditor() instanceof CodeArea);
+            assertEquals(null, app.activeEditor());
+            assertTrue(((TabPane) scene.lookup("#editor-tabs")).getTabs().isEmpty());
             return null;
         });
         terminal.session().completion().get(5, TimeUnit.SECONDS);
@@ -497,6 +552,7 @@ class TerminalWorkspaceTest {
             settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, false, 2)));
             app.settings = settings;
             scene = app.createScene(stage, settings);
+            EditorShortcutsTest.press(scene, KeyCode.N, false, false, true);
             editor = app.activeEditor();
             stage.show();
             if (workspace) {

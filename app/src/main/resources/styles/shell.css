@@ -266,9 +266,16 @@
 }
 
 /* Editor and terminal tabs share the application theme. */
-#terminal-workspace, #editor-tabs, #terminal-panel, .terminal-view {
+#terminal-workspace, #editor-area, #editor-tabs, #terminal-panel, .terminal-view {
     -fx-background-color: -shell-surface;
     -fx-padding: 0;
+}
+
+#empty-editor {
+    -fx-text-fill: -shell-text;
+    -fx-font-size: 14px;
+    -fx-line-spacing: 10px;
+    -fx-opacity: 0.7;
 }
 
 #editor-tabs > .tab-header-area > .tab-header-background,
