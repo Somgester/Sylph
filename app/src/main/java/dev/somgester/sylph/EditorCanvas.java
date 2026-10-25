@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import javafx.geometry.VPos;
 import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
@@ -21,6 +22,25 @@ import javafx.scene.text.TextAlignment;
 final class EditorCanvas extends Region {
 
     record Position(int line, int column) { }
+
+    record Selection(Position anchor, Position caret) {
+        Position start() {
+            return compare(anchor, caret) <= 0 ? anchor : caret;
+        }
+
+        Position end() {
+            return compare(anchor, caret) <= 0 ? caret : anchor;
+        }
+
+        private static int compare(Position first, Position second) {
+            int lines = Integer.compare(first.line(), second.line());
+            return lines == 0 ? Integer.compare(first.column(), second.column()) : lines;
+        }
+    }
+
+    private Supplier<Selection> selection = () -> null;
+
+    private Color selectionColor = Color.web("#164e63");
 
     private record RenderedLine(int number, String text) { }
 
@@ -105,6 +125,16 @@ final class EditorCanvas extends Region {
 
     void setOnNavigate(BiConsumer<Position, Boolean> action) {
         onNavigate = Objects.requireNonNull(action, "action");
+    }
+
+    void setSelectionSource(Supplier<Selection> source) {
+        selection = Objects.requireNonNull(source, "source");
+        requestLayout();
+    }
+
+    void setSelectionColor(Color color) {
+        selectionColor = Objects.requireNonNull(color, "color");
+        requestLayout();
     }
 
     Optional<Position> hitTest(double x, double y) {
@@ -202,14 +232,45 @@ final class EditorCanvas extends Region {
             graphics.beginPath();
             graphics.rect(gutterWidth, 0, Math.max(0, getWidth() - gutterWidth), getHeight());
             graphics.clip();
-            graphics.setFill(foreground);
+            Selection current = selection.get();
             graphics.setTextAlign(TextAlignment.LEFT);
             for (RenderedLine row : rows) {
-                double y = viewport.lineY(row.number()) + baseline;
-                drawLine(graphics, row.text(), gutterWidth + 8 - scrollX, y);
+                double top = viewport.lineY(row.number());
+                double origin = gutterWidth + 8 - scrollX;
+                drawSelection(graphics, row, current, origin, top);
+                graphics.setFill(foreground);
+                drawLine(graphics, row.text(), origin, top + baseline);
+                if (current != null && current.caret().line() == row.number()) {
+                    int column = Math.clamp(current.caret().column(), 0, row.text().length());
+                    double x = origin + metrics.caretX(row.text(), column);
+                    graphics.fillRect(Math.floor(x), top + 2, 1, lineHeight - 4);
+                }
             }
         } finally {
             graphics.restore();
+        }
+    }
+
+    private void drawSelection(GraphicsContext graphics, RenderedLine row, Selection current,
+            double origin, double top) {
+        if (current == null || current.anchor().equals(current.caret())) {
+            return;
+        }
+        Position start = current.start();
+        Position end = current.end();
+        if (row.number() < start.line() || row.number() > end.line()) {
+            return;
+        }
+        int from = row.number() == start.line() ? Math.clamp(start.column(), 0, row.text().length()) : 0;
+        int to = row.number() == end.line() ? Math.clamp(end.column(), from, row.text().length())
+                : row.text().length();
+        graphics.setFill(selectionColor);
+        for (CanvasTextMetrics.Span span : metrics.selectionSpans(row.text(), from, to)) {
+            graphics.fillRect(origin + span.start(), top, span.end() - span.start(), lineHeight);
+        }
+        // A small end marker makes selected newlines and empty lines visible.
+        if (row.number() < end.line()) {
+            graphics.fillRect(origin + metrics.width(row.text()), top, metrics.measure(" "), lineHeight);
         }
     }
 

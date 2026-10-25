@@ -345,6 +345,81 @@ class EditorCanvasPreviewTest {
         });
     }
 
+    @Test
+    void previewPaintsSourceSelectionCaretTabsAndNewlinesInBothThemes() throws Exception {
+        String text = "a\tb\n\nlast";
+        open(Files.writeString(directory.resolve("selection.txt"), text));
+        FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            render();
+            var area = document.view.area();
+            area.selectRange(7, 1);
+            render();
+            EditorCanvas canvas = canvas();
+            double x = origin();
+            double h = canvas.lineHeight();
+            assertPixel(canvas, x + cell() * 2, 1, "#164e63");
+            assertPixel(canvas, x + cell() * 5.5, 1, "#164e63");
+            assertPixel(canvas, x + cell() * 0.5, h + 1, "#164e63");
+            assertPixel(canvas, x + cell() * 0.5, h * 2 + 1, "#164e63");
+            assertPixel(canvas, x + cell(), 4, "#e5e7eb");
+            assertPixel(canvas, 0, h + 1, "#0d0f12");
+            settings.darkThemeProperty().set(false);
+            render();
+            assertPixel(canvas, x + cell() * 2, 1, "#d9d2c5");
+            area.selectRange(1, 7);
+            render();
+            assertPixel(canvas, x + cell() * 2, 1, "#d9d2c5");
+            area.moveTo(text.length());
+            render();
+            assertPixel(canvas, x + cell() * 2, 1, "#faf9f5");
+            assertPixel(canvas, x + cell() * 4, h * 2 + 4, "#141413");
+            assertFalse(document.session.dirtyProperty().get());
+            assertFalse(document.view.undoAvailableProperty().get());
+            assertEquals(text, document.session.textProperty().get());
+            savePreview("selection");
+            return null;
+        });
+    }
+
+    @Test
+    void selectionRepaintsAfterEditsUndoAndScrollWithoutLosingHorizontalExtent() throws Exception {
+        open(Files.writeString(directory.resolve("selection-scroll.txt"),
+                ("x".repeat(100) + "\n").repeat(40)));
+        FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            render();
+            EditorCanvas canvas = canvas();
+            canvas.scrollTo(10 * canvas.lineHeight());
+            canvas.scrollToX(100);
+            render();
+            double max = canvas.maxScrollX();
+            document.view.area().selectRange(1010, 1110);
+            render();
+            assertEquals(100, canvas.scrollX());
+            assertEquals(max, canvas.maxScrollX());
+            assertPixel(canvas, origin() + 20, 1, "#164e63");
+            assertPixel(canvas, 0, 1, "#0d0f12");
+            document.view.area().replaceSelection("short");
+            render();
+            document.view.area().undo();
+            render();
+            assertPixel(canvas, origin() + 20, 1, "#164e63");
+            assertEquals(1010, document.view.area().getAnchor());
+            assertEquals(1110, document.view.area().getCaretPosition());
+            menu().fire();
+            document.view.area().moveTo(0);
+            canvas.layout();
+            assertPixel(canvas, origin() + 20, 1, "#0d0f12");
+            return null;
+        });
+    }
+
+    private static void assertPixel(EditorCanvas canvas, double x, double y, String color) {
+        WritableImage image = canvas.snapshot(null, null);
+        assertEquals(Color.web(color), image.getPixelReader().getColor((int) x, (int) y));
+    }
+
     private void open(Path file) throws Exception {
         FxTestSupport.onFxThread(() -> {
             document.session.open(file, document.view::documentOpened,

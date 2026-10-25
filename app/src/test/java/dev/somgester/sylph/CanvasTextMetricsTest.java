@@ -82,6 +82,52 @@ class CanvasTextMetricsTest {
     }
 
     @Test
+    void caretAndSelectionRespectTabsAndEmptySegments() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            CanvasTextMetrics metrics = new CanvasTextMetrics(Font.font("Monospaced", 14));
+            double cell = metrics.measure(" ");
+            assertEquals(0, metrics.caretX("", 0));
+            assertEquals(cell, metrics.caretX("a\tb", 1), 0.001);
+            assertEquals(cell * 4, metrics.caretX("a\tb", 2), 0.001);
+            assertEquals(cell * 8, metrics.caretX("\t\t", 2), 0.001);
+            assertEquals(java.util.List.of(new CanvasTextMetrics.Span(cell, cell * 4)),
+                    metrics.selectionSpans("a\tb", 1, 2));
+            assertEquals(cell * 5, metrics.selectionSpans("a\tb", 0, 3).stream()
+                    .mapToDouble(span -> span.end() - span.start()).sum(), 0.001);
+            assertTrue(metrics.selectionSpans("", 0, 0).isEmpty());
+            assertThrows(IndexOutOfBoundsException.class, () -> metrics.caretX("a", 2));
+            assertThrows(IndexOutOfBoundsException.class, () -> metrics.selectionSpans("a", 1, 0));
+            return null;
+        });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"left אבג right", "e\u0301🐍किरण"})
+    void selectionGeometryMatchesNativeGlyphLayout(String text) throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            Font font = Font.font("Monospaced", 14);
+            Text nativeText = new Text(text);
+            nativeText.setFont(font);
+            CanvasTextMetrics metrics = new CanvasTextMetrics(font);
+            for (int end = 1; end <= text.length(); end++) {
+                var shape = new javafx.scene.shape.Path(nativeText.rangeShape(0, end));
+                shape.setStroke(null);
+                shape.setFill(javafx.scene.paint.Color.BLACK);
+                var spans = metrics.selectionSpans(text, 0, end);
+                double y = nativeText.getLayoutBounds().getMinY() / 2;
+                for (double x = 0.25; x < metrics.width(text); x += 0.5) {
+                    final double point = x;
+                    assertEquals(shape.contains(x, y), spans.stream()
+                            .anyMatch(span -> point > span.start() && point < span.end()));
+                }
+                var move = (javafx.scene.shape.MoveTo) nativeText.caretShape(end, true)[0];
+                assertEquals(move.getX(), metrics.caretX(text, end), 0.001);
+            }
+            return null;
+        });
+    }
+
+    @Test
     void emptyTextAndInvalidCoordinatesAreHandledWithoutChangingMetrics() throws Exception {
         FxTestSupport.onFxThread(() -> {
             CanvasTextMetrics metrics = new CanvasTextMetrics(Font.font("Monospaced", 14));

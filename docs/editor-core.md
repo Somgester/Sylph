@@ -120,8 +120,7 @@ reuse that immutable line slice.
 
 The prototype has a fixed monospaced font/line height, with no wrapping or horizontal scrollbar yet.
 It lays out each requested line in full, so a very long visible line still has proportional cost.
-The live preview follows the document's light/dark theme setting. Syntax styles, Canvas caret/selection
-painting, keyboard/IME editing, and accessible document semantics still need integration before this
+The live preview follows the document's light/dark theme setting. Syntax styles, keyboard/IME editing, and accessible document semantics still need integration before this
 can replace the current editor. Opening/closing the pane does not edit text, save files, or reset
 undo/selection. The click-to-source bridge below deliberately moves source selection without editing.
 
@@ -146,8 +145,21 @@ file operations block navigation; background autosaves do not. Modified Ctrl/Cmd
 clicks, drags, and multi-click gestures are not handled by this bridge. Closing the pane removes the
 navigation callback along with its document subscriptions.
 
-The Canvas still has no editing input engine or painted selection: typing after a preview click goes
-to the focused source editor. Drag selection and direct Canvas keyboard/IME handling remain follow-ups.
+## Mirrored caret and selection
+
+The eleventh review chunk paints the source caret and selection in Canvas Preview. Source anchor and
+caret changes request a repaint; positions are resolved during layout after text updates settle.
+Edits, undo/redo, clicks, and keyboard selection therefore use the same source state without adding
+history entries or changing dirty/autosave state. Selection-only changes preserve learned widths and scroll.
+
+JavaFX caret/range geometry supplies glyph positions, including mixed-direction runs. Selected tabs
+cover their visual gaps; selected newlines, including empty lines, get a one-space end marker.
+Selection backgrounds follow the theme, and a steady caret marks the active endpoint even for a
+reversed selection. Painting stays inside the text clip and leaves the gutter unchanged. Closing the
+preview removes source selection listeners and clears the selection provider before disposing its source.
+
+The Canvas still has no editing input engine: typing after a preview click goes to the focused source
+editor. Drag selection and direct Canvas keyboard/IME handling remain follow-ups.
 
 ## History contract
 
@@ -197,7 +209,7 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Add Canvas caret/selection painting and drag-selection interaction.
+1. Add drag-selection interaction to Canvas.
 2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
    accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 

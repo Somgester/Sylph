@@ -118,7 +118,10 @@ uses Shift-wheel/trackpad gestures, keeps the gutter fixed, and learns width fro
 scanning the whole document. `CanvasTextMetrics` shares glyph/tab metrics for rendering and hit testing,
 snapping clicks to grapheme boundaries. Preview clicks navigate through validated session line/column
 offsets to the source caret, with Shift-click selection extension and a typing-history boundary.
-Canvas input, syntax, selection painting, and accessibility integration remain follow-up chunks.
+Source anchor/caret listeners repaint the mirrored selection and steady caret without resetting scroll
+or changing history. Glyph range geometry handles tabs and mixed-direction runs; the text clip protects
+the gutter. Positions are read during layout, and closing the pane releases these listeners/providers.
+Canvas input, syntax, drag selection, and accessibility integration remain follow-up chunks.
 
 `EditorDocument` owns one tab, session, editor view, autosave controller, and optional preview. There is no document on startup or after closing the last document. Chrome, Edit actions, settings status, and title support that empty state. A separate session supplies a file worker for workspace actions when no document is open; it has no editor tab or autosave controller. Switching tabs retargets the existing controls without losing undo/cursor state. Existing paths (including filesystem aliases) select their existing tab. An explicitly created clean Untitled document can be reused; failed opens dispose provisional documents. File close events and tab context-menu actions wait for Save/Discard/Cancel. Close All checks every dirty document before removing tabs or disposing terminals.
 

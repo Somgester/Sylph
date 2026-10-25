@@ -127,7 +127,7 @@ final class EditorView extends StackPane implements AutoCloseable {
         }
         completion.dismiss();
         if (canvasPreview == null) {
-            canvasPreview = new EditorCanvasPreview(session, darkTheme,
+            canvasPreview = new EditorCanvasPreview(session, darkTheme, area,
                     this::toggleCanvasPreview, this::navigateFromCanvas);
             getChildren().remove(scrolling);
             canvasSplit = new SplitPane(scrolling, canvasPreview);

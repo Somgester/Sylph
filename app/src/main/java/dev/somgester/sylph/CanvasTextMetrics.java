@@ -1,9 +1,13 @@
 package dev.somgester.sylph;
 
 import java.text.BreakIterator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import javafx.geometry.Point2D;
 import javafx.scene.shape.MoveTo;
+import javafx.scene.shape.LineTo;
 import javafx.scene.text.Font;
 import javafx.scene.text.Text;
 
@@ -77,6 +81,68 @@ final class CanvasTextMetrics {
         return start + hitSegment(text.substring(start), x - left);
     }
 
+    record Span(double start, double end) { }
+
+    double caretX(String text, int column) {
+        Objects.checkFromToIndex(column, column, text.length());
+        int start = 0;
+        double x = 0;
+        for (int tab = text.indexOf('\t'); tab >= 0; tab = text.indexOf('\t', start)) {
+            if (column <= tab) {
+                measurement.setText(text.substring(start, tab));
+                return x + caretX(column - start);
+            }
+            x = nextTab(x, text.substring(start, tab));
+            start = tab + 1;
+        }
+        measurement.setText(text.substring(start));
+        return x + caretX(column - start);
+    }
+
+    // JavaFX rangeShape returns one rectangle per visual run, including disjoint bidi runs.
+    List<Span> selectionSpans(String text, int from, int to) {
+        Objects.checkFromToIndex(from, to, text.length());
+        List<Span> spans = new ArrayList<>();
+        int start = 0;
+        double x = 0;
+        while (start <= text.length()) {
+            int tab = text.indexOf('\t', start);
+            int end = tab < 0 ? text.length() : tab;
+            String segment = text.substring(start, end);
+            measurement.setText(segment);
+            if (from < end && to > start) {
+                double left = Double.NaN;
+                double right = Double.NaN;
+                for (var element : measurement.rangeShape(Math.max(from, start) - start,
+                        Math.min(to, end) - start)) {
+                    if (element instanceof MoveTo move) {
+                        if (Double.isFinite(left)) {
+                            spans.add(new Span(x + left, x + right));
+                        }
+                        left = move.getX();
+                        right = left;
+                    } else if (element instanceof LineTo line) {
+                        left = Math.min(left, line.getX());
+                        right = Math.max(right, line.getX());
+                    }
+                }
+                if (Double.isFinite(left)) {
+                    spans.add(new Span(x + left, x + right));
+                }
+            }
+            if (tab < 0) {
+                break;
+            }
+            double next = nextTab(x, segment);
+            if (from <= tab && to > tab) {
+                spans.add(new Span(x + measure(segment), next));
+            }
+            x = next;
+            start = tab + 1;
+        }
+        return List.copyOf(spans);
+    }
+
     private int hitSegment(String text, double x) {
         if (text.isEmpty()) {
             return 0;
@@ -101,6 +167,9 @@ final class CanvasTextMetrics {
     }
 
     private double caretX(int column) {
+        if (measurement.getText().isEmpty()) {
+            return 0;
+        }
         for (var element : measurement.caretShape(column, true)) {
             if (element instanceof MoveTo move) {
                 return move.getX();

@@ -50,7 +50,8 @@ The optional pane renders the live buffer beside the editable source and follows
 It is read-only; edit in the source pane. Scroll long lines with **Shift + mouse wheel** or a horizontal
 trackpad gesture; line numbers stay fixed. Horizontal range grows as wider rows are displayed.
 Click preview text to move the source caret, or **Shift-click** to extend source selection. Clicking
-the gutter moves to the line start. Typing then goes to the focused source editor, not a Canvas input engine.
+the gutter moves to the line start. The preview mirrors source selection and shows a steady caret;
+selected newlines have a small end marker. Typing then goes to the focused source editor, not a Canvas input engine.
 Use **Close** in its header or **Hide Canvas Preview** in
 the context menu to remove it. This is the custom renderer's preview stage; see [editor core](editor-core.md).
 
