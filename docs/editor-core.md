@@ -96,16 +96,29 @@ the Canvas never requests a full document string. Document contents must remain 
 JavaFX-thread render pass. Owners explicitly call `refresh()` after edits or `setDocument()` on
 replacement; the latter resets scroll. `EditorCanvasPreview` handles these calls for a live session:
 text changes refresh rows, while a dedicated document revision resets scroll on successful open/clear,
-including identical text. Edits, failed opens, saves, and Save As preserve scroll, subject to clamping
-when content shrinks. Session line reads require the JavaFX thread and an open session. Closing the
+including identical text. Failed opens, saves, and Save As preserve scroll; edits preserve offsets
+subject to the recalculated content bounds. Session line reads require the JavaFX thread and an open
+session. Closing the
 preview removes text/revision/theme listeners and replaces its line source with an empty buffer so
 pending layouts cannot read a disposed session.
 
 `EditorCanvas` draws line numbers and plain text for visible rows plus one overscan row on either
 side, clipping to the viewport. It supports fractional vertical scroll, wheel input, manually supplied
 palette colors, and four-space tab stops measured with the same font as the text. Tabs remain intact
-in the document. Modified wheel events and events at a scroll boundary can reach parent controls.
-The prototype has a fixed monospaced font/line height, with no wrapping or horizontal scrolling yet.
+in the document. The ninth chunk adds horizontal scrolling: use **Shift + mouse wheel** or a horizontal
+trackpad gesture. Diagonal trackpad gestures can move both axes. Ctrl/Cmd-modified events and events
+that cannot move at a boundary remain available to parent controls. Text is clipped behind the fixed
+line-number gutter; tab stops remain anchored to document columns as the viewport moves.
+
+Horizontal bounds are learned from visible/overscan rows rather than scanning the entire document.
+Visiting a wider line grows the available extent. That extent survives vertical scrolling onto shorter
+rows and theme changes; edits invalidate it, remeasure the current rows, and clamp as needed. Resizing
+clamps offsets against the known width; replacing/opening/clearing a document resets both axes. This
+lazy extent is not a globally precomputed longest-line width and can shrink after an edit until wider
+rows are visited again. Rendering requests each row only once per pass; width measurement and drawing
+reuse that immutable line slice.
+
+The prototype has a fixed monospaced font/line height, with no wrapping or horizontal scrollbar yet.
 It lays out each requested line in full, so a very long visible line still has proportional cost.
 The live preview follows the document's light/dark theme setting. Syntax styles, selection/hit
 testing, keyboard/IME editing, and accessible document semantics still need integration before this
@@ -159,7 +172,7 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Add horizontal scrolling and text hit testing to the read-only surface.
+1. Add text hit testing and caret/selection geometry to the read-only surface.
 2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
    accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
@@ -200,3 +213,7 @@ Live preview tests cover menu/header controls, rendered edits and undo/redo, the
 Save As and failed-open scroll preservation, same-text open/clear resets, disposal, and safe pending
 layouts after document closure. Live split-pane snapshots are saved there as `live-dark.png` and
 `live-light.png` without opening desktop windows.
+Horizontal checks cover Shift-wheel/trackpad input, diagonal movement, event propagation at limits,
+fixed gutter pixels, tab alignment after scrolling, learned width across vertical scrolling/themes,
+resize/shrink/reset clamping, and both axes across Save As/failed/successful opens. The scrolled
+render snapshot is saved as `horizontal.png` beside the other Canvas previews.

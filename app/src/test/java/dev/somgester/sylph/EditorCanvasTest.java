@@ -20,12 +20,125 @@ import javafx.scene.paint.Color;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EditorCanvasTest {
 
     @BeforeAll
     static void initialize() throws InterruptedException {
         FxTestSupport.initialize();
+    }
+
+    @Test
+    void shiftWheelAndTrackpadScrollHorizontallyWhileModifiedAndBoundaryEventsReachParent() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            EditorCanvas surface = new EditorCanvas(new PieceTable("long text ".repeat(100) + "\nshort\n".repeat(30)));
+            Pane parent = new Pane(surface);
+            AtomicInteger passed = new AtomicInteger();
+            parent.addEventHandler(ScrollEvent.SCROLL, event -> passed.incrementAndGet());
+            surface.resize(300, 100);
+            surface.layout();
+            Event.fireEvent(surface, wheel(0, -30, true, false));
+            assertEquals(30, surface.scrollX());
+            assertEquals(0, surface.scrollY());
+            Event.fireEvent(surface, wheel(-25, 0, false, false));
+            assertEquals(55, surface.scrollX());
+            assertEquals(0, passed.get());
+            Event.fireEvent(surface, wheel(-25, 0, false, true));
+            assertEquals(55, surface.scrollX());
+            assertEquals(1, passed.get());
+            surface.scrollToX(Double.MAX_VALUE);
+            assertEquals(surface.maxScrollX(), surface.scrollX());
+            Event.fireEvent(surface, wheel(-25, 0, false, false));
+            assertEquals(2, passed.get());
+            surface.scrollToX(-1);
+            Event.fireEvent(surface, wheel(25, 0, false, false));
+            assertEquals(0, surface.scrollX());
+            assertEquals(3, passed.get());
+            Event.fireEvent(surface, wheel(-20, -15, false, false));
+            assertEquals(20, surface.scrollX());
+            assertEquals(15, surface.scrollY());
+            Event.fireEvent(surface, wheel(-10, 0, true, false));
+            assertEquals(30, surface.scrollX());
+            assertEquals(15, surface.scrollY());
+            assertEquals(3, passed.get());
+            return null;
+        });
+    }
+
+    @Test
+    void horizontalScrollingMovesTextPixelsWithoutMovingGutterOrChangingSource() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            String text = "BEGIN " + "abcdefgh".repeat(30) + " END_MARKER";
+            PieceTable buffer = new PieceTable(text);
+            EditorCanvas surface = new EditorCanvas(buffer);
+            surface.resize(300, 60);
+            surface.layout();
+            WritableImage before = surface.snapshot(null, null);
+            surface.scrollToX(Double.MAX_VALUE);
+            surface.layout();
+            assertTrue(surface.scrollX() > 0);
+            WritableImage after = surface.snapshot(null, null);
+            save(after, "horizontal");
+            int changed = 0;
+            for (int y = 0; y < 60; y++) {
+                for (int x = 0; x < 300; x++) {
+                    int original = before.getPixelReader().getArgb(x, y);
+                    int scrolled = after.getPixelReader().getArgb(x, y);
+                    if (x < 24) {
+                        assertEquals(original, scrolled, "Gutter must stay fixed");
+                    } else if (original != scrolled) {
+                        changed++;
+                    }
+                }
+            }
+            assertTrue(changed > 100);
+            assertEquals(text, buffer.toString());
+            return null;
+        });
+    }
+
+    @Test
+    void horizontalExtentSurvivesVerticalScrollAndThemeButClampsOnResizeEditsAndReplacement() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            PieceTable buffer = new PieceTable("long text ".repeat(100) + "\n" + "short\n".repeat(30));
+            EditorCanvas surface = new EditorCanvas(buffer);
+            surface.resize(300, surface.lineHeight() * 3);
+            surface.layout();
+            surface.scrollToX(100);
+            surface.scrollTo(surface.lineHeight() * 10);
+            surface.layout();
+            assertEquals(100, surface.scrollX(), "Visited long rows keep the horizontal extent available");
+            surface.setColors(Color.WHITE, Color.BLACK, Color.GRAY);
+            surface.layout();
+            assertEquals(100, surface.scrollX());
+            surface.resize(20_000, surface.lineHeight() * 3);
+            surface.layout();
+            assertEquals(0, surface.scrollX());
+            assertEquals(0, surface.maxScrollX());
+            surface.resize(300, surface.lineHeight() * 3);
+            surface.scrollTo(0);
+            surface.layout();
+            surface.scrollToX(100);
+            buffer.replace(0, buffer.length(), "short");
+            surface.refresh();
+            surface.layout();
+            assertEquals(0, surface.scrollX());
+            assertEquals(0, surface.maxScrollX());
+            surface.setDocument(new PieceTable("another long line ".repeat(100)));
+            surface.layout();
+            surface.scrollToX(100);
+            for (double value : new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+                assertThrows(IllegalArgumentException.class, () -> surface.scrollToX(value));
+                assertEquals(100, surface.scrollX());
+            }
+            surface.setDocument(new PieceTable());
+            surface.layout();
+            assertEquals(0, surface.scrollX());
+            assertEquals(0, surface.maxScrollX());
+            return null;
+        });
     }
 
     @Test
@@ -51,19 +164,24 @@ class EditorCanvasTest {
         });
     }
 
-    @Test
-    void tabStopsMatchSpaceAlignedRenderingWithoutChangingDocument() throws Exception {
+    @ParameterizedTest
+    @ValueSource(doubles = {0, 20})
+    void tabStopsMatchSpaceAlignedRenderingWithoutChangingDocument(double scroll) throws Exception {
         FxTestSupport.onFxThread(() -> {
             PieceTable tabbed = new PieceTable("A\tB\tC");
             EditorCanvas surface = new EditorCanvas(tabbed);
-            surface.resize(300, 60);
+            surface.resize(80, 60);
+            surface.layout();
+            surface.scrollToX(scroll);
             surface.layout();
             WritableImage tabs = surface.snapshot(null, null);
             surface.setDocument(new PieceTable("A   B   C"));
             surface.layout();
+            surface.scrollToX(scroll);
+            surface.layout();
             WritableImage spaces = surface.snapshot(null, null);
             for (int y = 0; y < 60; y++) {
-                for (int x = 0; x < 300; x++) {
+                for (int x = 0; x < 80; x++) {
                     assertEquals(spaces.getPixelReader().getArgb(x, y), tabs.getPixelReader().getArgb(x, y),
                             "Tab alignment at " + x + "," + y);
                 }
@@ -74,8 +192,12 @@ class EditorCanvasTest {
     }
 
     private static ScrollEvent wheel(double deltaY, boolean control) {
-        return new ScrollEvent(ScrollEvent.SCROLL, 0, 0, 0, 0, false, control, false, false, false, false,
-                0, deltaY, 0, deltaY, ScrollEvent.HorizontalTextScrollUnits.NONE, 0,
+        return wheel(0, deltaY, false, control);
+    }
+
+    private static ScrollEvent wheel(double deltaX, double deltaY, boolean shift, boolean control) {
+        return new ScrollEvent(ScrollEvent.SCROLL, 0, 0, 0, 0, shift, control, false, false, false, false,
+                deltaX, deltaY, deltaX, deltaY, ScrollEvent.HorizontalTextScrollUnits.NONE, 0,
                 ScrollEvent.VerticalTextScrollUnits.NONE, 0, 0, null);
     }
 

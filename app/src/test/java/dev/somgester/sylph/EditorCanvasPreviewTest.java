@@ -122,7 +122,7 @@ class EditorCanvasPreviewTest {
 
     @Test
     void editsAndSaveAsKeepScrollWhileSuccessfulOpenAndClearResetIt() throws Exception {
-        String text = "line\n".repeat(100);
+        String text = ("line" + " long".repeat(30) + "\n").repeat(100);
         Path first = Files.writeString(directory.resolve("first.txt"), text);
         Path same = Files.writeString(directory.resolve("same.txt"), text);
         Path destination = directory.resolve("saved.txt");
@@ -131,10 +131,12 @@ class EditorCanvasPreviewTest {
             menu().fire();
             render();
             canvas().scrollTo(200);
+            canvas().scrollToX(100);
             render();
             document.session.replaceText(0, 1, "L");
             render();
             assertEquals(200, canvas().scrollY());
+            assertEquals(100, canvas().scrollX());
             document.view.area().undo();
             document.session.save(destination, false, false, () -> { }, error -> { throw new AssertionError(error); });
             return null;
@@ -143,6 +145,7 @@ class EditorCanvasPreviewTest {
         FxTestSupport.onFxThread(() -> {
             render();
             assertEquals(200, canvas().scrollY());
+            assertEquals(100, canvas().scrollX());
             document.session.open(directory.resolve("missing.txt"), () -> { }, error -> { });
             return null;
         });
@@ -150,16 +153,20 @@ class EditorCanvasPreviewTest {
         FxTestSupport.onFxThread(() -> {
             render();
             assertEquals(200, canvas().scrollY());
+            assertEquals(100, canvas().scrollX());
             return null;
         });
         open(same);
         FxTestSupport.onFxThread(() -> {
             render();
             assertEquals(0, canvas().scrollY(), "Identical text in another document must reset the viewport");
+            assertEquals(0, canvas().scrollX());
             canvas().scrollTo(200);
+            canvas().scrollToX(100);
             document.session.clearDocument();
             render();
             assertEquals(0, canvas().scrollY());
+            assertEquals(0, canvas().scrollX());
             assertEquals(1, document.session.lineCount());
             assertEquals("", document.session.lineText(0));
             return null;
