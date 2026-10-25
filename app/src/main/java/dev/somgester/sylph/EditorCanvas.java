@@ -3,18 +3,24 @@ package dev.somgester.sylph;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.BiConsumer;
 import javafx.geometry.VPos;
+import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.Region;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
-import javafx.scene.text.Text;
 import javafx.scene.text.TextAlignment;
 
 /** Read-only rendering prototype; it does not replace the live editor or handle editing input. */
 final class EditorCanvas extends Region {
+
+    record Position(int line, int column) { }
 
     private record RenderedLine(int number, String text) { }
 
@@ -22,13 +28,13 @@ final class EditorCanvas extends Region {
 
     private final Font font = Font.font("Monospaced", 14);
 
-    private final Text measurement = new Text();
+    private final CanvasTextMetrics metrics = new CanvasTextMetrics(font);
 
     private final double lineHeight;
 
     private final double baseline;
 
-    private final double tabWidth;
+    private BiConsumer<Position, Boolean> onNavigate = (position, extend) -> { };
 
     private TextLines document;
 
@@ -50,15 +56,23 @@ final class EditorCanvas extends Region {
     @SuppressWarnings("this-escape")
     EditorCanvas(TextLines document) {
         this.document = Objects.requireNonNull(document, "document");
-        measurement.setFont(font);
-        measurement.setText("Mg");
-        lineHeight = Math.ceil(measurement.getLayoutBounds().getHeight() + 6);
-        baseline = 3 + measurement.getBaselineOffset();
-        tabWidth = measure("    ");
+        lineHeight = metrics.lineHeight();
+        baseline = metrics.baseline();
         getChildren().add(canvas);
         setMinSize(0, 0);
         setPrefSize(640, 400);
         setFocusTraversable(false);
+        setCursor(Cursor.TEXT);
+        addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
+            if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1
+                    && event.isStillSincePress() && !event.isControlDown()
+                    && !event.isMetaDown() && !event.isAltDown()) {
+                hitTest(event.getX(), event.getY()).ifPresent(position -> {
+                    onNavigate.accept(position, event.isShiftDown());
+                    event.consume();
+                });
+            }
+        });
         addEventHandler(ScrollEvent.SCROLL, event -> {
             if (!event.isControlDown() && !event.isMetaDown()) {
                 double previousX = scrollX;
@@ -85,7 +99,28 @@ final class EditorCanvas extends Region {
         scrollY = 0;
         scrollX = 0;
         maxScrollX = 0;
+        metrics.clear();
         refresh();
+    }
+
+    void setOnNavigate(BiConsumer<Position, Boolean> action) {
+        onNavigate = Objects.requireNonNull(action, "action");
+    }
+
+    Optional<Position> hitTest(double x, double y) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            throw new IllegalArgumentException("Hit-test coordinates must be finite");
+        }
+        layout();
+        int count = document.lineCount();
+        if (getWidth() == 0 || getHeight() == 0 || count == 0) {
+            return Optional.empty();
+        }
+        int line = Math.clamp((int) Math.floor((y + scrollY) / lineHeight), 0, count - 1);
+        double gutterWidth = metrics.measure(Integer.toString(count)) + 16;
+        int column = x < gutterWidth ? 0
+                : metrics.columnAt(document.lineText(line), x - gutterWidth - 8 + scrollX);
+        return Optional.of(new Position(line, column));
     }
 
     void setColors(Color background, Color foreground, Color gutter) {
@@ -148,12 +183,12 @@ final class EditorCanvas extends Region {
         }
         graphics.setFont(font);
         graphics.setTextBaseline(VPos.BASELINE);
-        double gutterWidth = measure(Integer.toString(Math.max(1, document.lineCount()))) + 16;
+        double gutterWidth = metrics.measure(Integer.toString(Math.max(1, document.lineCount()))) + 16;
         List<RenderedLine> rows = new ArrayList<>();
         for (int line = viewport.firstLine(); line < viewport.endLine(); line++) {
             RenderedLine row = new RenderedLine(line, document.lineText(line));
             rows.add(row);
-            knownWidth = Math.max(knownWidth, lineWidth(row.text()));
+            knownWidth = Math.max(knownWidth, metrics.width(row.text()));
             double y = viewport.lineY(line) + baseline;
             graphics.setTextAlign(TextAlignment.RIGHT);
             graphics.setFill(gutter);
@@ -178,34 +213,15 @@ final class EditorCanvas extends Region {
         }
     }
 
-    private double lineWidth(String text) {
-        int start = 0;
-        double x = 0;
-        for (int tab = text.indexOf('\t'); tab >= 0; tab = text.indexOf('\t', start)) {
-            x = nextTab(x, text.substring(start, tab));
-            start = tab + 1;
-        }
-        return x + measure(text.substring(start));
-    }
-
     private void drawLine(GraphicsContext graphics, String text, double origin, double y) {
         int start = 0;
         double x = 0;
         for (int tab = text.indexOf('\t'); tab >= 0; tab = text.indexOf('\t', start)) {
             String segment = text.substring(start, tab);
             graphics.fillText(segment, origin + x, y);
-            x = nextTab(x, segment);
+            x = metrics.nextTab(x, segment);
             start = tab + 1;
         }
         graphics.fillText(text.substring(start), origin + x, y);
-    }
-
-    private double nextTab(double x, String segment) {
-        return (Math.floor((x + measure(segment)) / tabWidth) + 1) * tabWidth;
-    }
-
-    private double measure(String text) {
-        measurement.setText(text);
-        return measurement.getLayoutBounds().getWidth();
     }
 }

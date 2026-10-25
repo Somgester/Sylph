@@ -9,12 +9,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import javafx.event.Event;
+import javafx.geometry.Point3D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.MenuItem;
 import javafx.scene.image.WritableImage;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.PickResult;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
+import javafx.stage.Stage;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -59,6 +67,133 @@ class EditorCanvasPreviewTest {
             document.close();
             return null;
         });
+    }
+
+    @Test
+    void clickingPreviewLocatesSourceAndShiftClickExtendsSelectionWithoutEditing() throws Exception {
+        String text = "first\nabcd\nlast";
+        open(Files.writeString(directory.resolve("click.txt"), text));
+        FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            render();
+            EditorCanvas canvas = canvas();
+            click(canvas, origin() + cell() * 2.1, canvas.lineHeight() * 1.5, false);
+            assertEquals(8, document.view.area().getCaretPosition());
+            assertEquals(8, document.view.area().getAnchor());
+            click(canvas, origin() + cell() * 1.1, canvas.lineHeight() * 2.5, true);
+            assertEquals(8, document.view.area().getAnchor());
+            assertEquals(12, document.view.area().getCaretPosition());
+            assertEquals(text.substring(8, 12), document.view.area().getSelectedText());
+            assertEquals(text, document.session.textProperty().get());
+            assertFalse(document.session.dirtyProperty().get());
+            assertFalse(document.view.undoAvailableProperty().get());
+            render();
+            savePreview("navigation");
+            return null;
+        });
+    }
+
+    @Test
+    void clickingPreviewReturnsFocusFromHeaderControlToSource() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            Stage stage = new Stage();
+            stage.setScene(root.getScene());
+            try {
+                stage.show();
+                menu().fire();
+                render();
+                Button close = (Button) root.lookup("#close-canvas-preview");
+                close.requestFocus();
+                assertEquals(close, root.getScene().getFocusOwner());
+                click(canvas(), 1, canvas().lineHeight() * 0.5, false);
+                assertEquals(document.view.area(), root.getScene().getFocusOwner());
+            } finally {
+                stage.hide();
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void scrolledPreviewAndGutterClicksUseTheCorrectDocumentOffsets() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            document.session.replaceText(("a".repeat(100) + "\n").repeat(40));
+            menu().fire();
+            render();
+            EditorCanvas canvas = canvas();
+            canvas.scrollToX(cell() * 10);
+            canvas.scrollTo(canvas.lineHeight() * 10.25);
+            render();
+            click(canvas, origin() + cell() * 2.1, canvas.lineHeight() * 0.5, false);
+            assertEquals(10 * 101 + 12, document.view.area().getCaretPosition());
+            assertEquals(cell() * 10, canvas.scrollX());
+            click(canvas, 1, canvas.lineHeight() * 0.5, false);
+            assertEquals(10 * 101, document.view.area().getCaretPosition());
+            return null;
+        });
+    }
+
+    @Test
+    void previewNavigationSeparatesTypingUndoGroupsEvenWhenCaretDoesNotMove() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            document.view.area().replaceSelection("x");
+            render();
+            click(canvas(), origin() + cell() * 1.1, canvas().lineHeight() * 0.5, false);
+            document.view.area().replaceSelection("y");
+            document.view.area().undo();
+            assertEquals("x", document.session.textProperty().get());
+            document.view.area().undo();
+            assertEquals("", document.session.textProperty().get());
+            assertNull(document.session.pathProperty().get());
+            return null;
+        });
+    }
+
+    @Test
+    void foregroundSaveBlocksNavigationAndClosedPaneCannotMoveSourceCaret() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            document.session.replaceText("abc");
+            menu().fire();
+            render();
+            document.view.area().moveTo(3);
+            document.session.save(directory.resolve("saved.txt"), false, false, () -> { },
+                    error -> { throw new AssertionError(error); });
+            click(canvas(), 1, canvas().lineHeight() * 0.5, false);
+            assertEquals(3, document.view.area().getCaretPosition());
+            return null;
+        });
+        awaitIdle();
+        FxTestSupport.onFxThread(() -> {
+            EditorCanvas retained = canvas();
+            click(retained, 1, retained.lineHeight() * 0.5, false);
+            assertEquals(0, document.view.area().getCaretPosition());
+            menu().fire();
+            document.view.area().moveTo(2);
+            click(retained, 1, retained.lineHeight() * 0.5, false);
+            assertEquals(2, document.view.area().getCaretPosition());
+            document.close();
+            click(retained, 1, retained.lineHeight() * 0.5, false);
+            return null;
+        });
+    }
+
+    private double origin() {
+        Text digits = new Text(Integer.toString(document.session.lineCount()));
+        digits.setFont(Font.font("Monospaced", 14));
+        return digits.getLayoutBounds().getWidth() + 24;
+    }
+
+    private static double cell() {
+        Text glyph = new Text("M");
+        glyph.setFont(Font.font("Monospaced", 14));
+        return glyph.getLayoutBounds().getWidth();
+    }
+
+    private static void click(EditorCanvas canvas, double x, double y, boolean shift) {
+        Event.fireEvent(canvas, new MouseEvent(MouseEvent.MOUSE_CLICKED, x, y, x, y, MouseButton.PRIMARY, 1,
+                shift, false, false, false, false, false, false, false, false, true,
+                new PickResult(canvas, new Point3D(x, y, 0), 0)));
     }
 
     @Test

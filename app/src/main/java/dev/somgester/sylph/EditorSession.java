@@ -99,6 +99,13 @@ final class EditorSession implements AutoCloseable, TextLines {
         return buffer.lineText(line);
     }
 
+    int offsetAt(int line, int column) {
+        requireReadable();
+        int start = buffer.lineStart(line);
+        Objects.checkFromToIndex(column, column, buffer.lineEnd(line) - start);
+        return start + column;
+    }
+
     ReadOnlyLongProperty documentRevisionProperty() {
         return documentRevision.getReadOnlyProperty();
     }

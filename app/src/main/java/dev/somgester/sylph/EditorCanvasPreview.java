@@ -1,9 +1,11 @@
 package dev.somgester.sylph;
 
+import java.util.function.BiConsumer;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableBooleanValue;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.paint.Color;
 
@@ -25,7 +27,8 @@ final class EditorCanvasPreview extends BorderPane implements AutoCloseable {
     private boolean closed;
 
     @SuppressWarnings("this-escape")
-    EditorCanvasPreview(EditorSession session, ObservableBooleanValue darkTheme, Runnable onClose) {
+    EditorCanvasPreview(EditorSession session, ObservableBooleanValue darkTheme, Runnable onClose,
+            BiConsumer<EditorCanvas.Position, Boolean> onNavigate) {
         this.session = session;
         this.darkTheme = darkTheme;
         canvas = new EditorCanvas(session);
@@ -33,6 +36,12 @@ final class EditorCanvasPreview extends BorderPane implements AutoCloseable {
         setId("canvas-preview");
         setMinWidth(180);
         Label title = new Label("Canvas Preview · Read-only");
+        title.setTooltip(new Tooltip("Click preview text to locate source; Shift-click extends source selection."));
+        canvas.setOnNavigate((position, extend) -> {
+            if (!closed) {
+                onNavigate.accept(position, extend);
+            }
+        });
         Button close = new Button("Close");
         close.setId("close-canvas-preview");
         close.setAccessibleText("Close Canvas Preview");
@@ -66,6 +75,7 @@ final class EditorCanvasPreview extends BorderPane implements AutoCloseable {
             session.textProperty().removeListener(textListener);
             session.documentRevisionProperty().removeListener(revisionListener);
             darkTheme.removeListener(themeListener);
+            canvas.setOnNavigate((position, extend) -> { });
             canvas.setDocument(new PieceTable());
         }
     }

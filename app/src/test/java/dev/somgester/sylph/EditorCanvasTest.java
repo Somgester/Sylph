@@ -17,6 +17,8 @@ import javafx.scene.image.WritableImage;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,52 @@ class EditorCanvasTest {
     @BeforeAll
     static void initialize() throws InterruptedException {
         FxTestSupport.initialize();
+    }
+
+    @Test
+    void hitTestAccountsForBothScrollAxesAndKeepsGutterAtLineStart() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            EditorCanvas surface = new EditorCanvas(new PieceTable(("a".repeat(100) + "\n").repeat(30)));
+            surface.resize(300, surface.lineHeight() * 3);
+            surface.layout();
+            Text glyph = new Text("M");
+            glyph.setFont(Font.font("Monospaced", 14));
+            double cell = glyph.getLayoutBounds().getWidth();
+            Text digits = new Text("31");
+            digits.setFont(Font.font("Monospaced", 14));
+            double origin = digits.getLayoutBounds().getWidth() + 24;
+            surface.scrollToX(cell * 10);
+            surface.scrollTo(surface.lineHeight() * 10.25);
+            assertEquals(new EditorCanvas.Position(10, 12),
+                    surface.hitTest(origin + cell * 2.1, surface.lineHeight() * 0.5).orElseThrow());
+            assertEquals(new EditorCanvas.Position(10, 0),
+                    surface.hitTest(1, surface.lineHeight() * 0.5).orElseThrow());
+            return null;
+        });
+    }
+
+    @Test
+    void hitsUseCurrentDocumentAndClampBlankSpaceToLastCaret() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            PieceTable buffer = new PieceTable("old");
+            EditorCanvas surface = new EditorCanvas(buffer);
+            surface.resize(300, 200);
+            surface.layout();
+            buffer.replace(0, buffer.length(), "first\nnew\n");
+            surface.refresh();
+            assertEquals(new EditorCanvas.Position(1, 3),
+                    surface.hitTest(1000, surface.lineHeight() * 1.5).orElseThrow());
+            assertEquals(new EditorCanvas.Position(2, 0), surface.hitTest(1000, 1000).orElseThrow());
+            surface.setDocument(new PieceTable());
+            assertEquals(new EditorCanvas.Position(0, 0), surface.hitTest(1000, 1000).orElseThrow());
+            for (double value : new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+                assertThrows(IllegalArgumentException.class, () -> surface.hitTest(value, 0));
+                assertThrows(IllegalArgumentException.class, () -> surface.hitTest(0, value));
+            }
+            surface.resize(0, 200);
+            assertTrue(surface.hitTest(0, 0).isEmpty());
+            return null;
+        });
     }
 
     @Test

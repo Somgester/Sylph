@@ -120,9 +120,34 @@ reuse that immutable line slice.
 
 The prototype has a fixed monospaced font/line height, with no wrapping or horizontal scrollbar yet.
 It lays out each requested line in full, so a very long visible line still has proportional cost.
-The live preview follows the document's light/dark theme setting. Syntax styles, selection/hit
-testing, keyboard/IME editing, and accessible document semantics still need integration before this
-can replace the current editor. Preview actions do not edit text, save files, or reset undo/selection.
+The live preview follows the document's light/dark theme setting. Syntax styles, Canvas caret/selection
+painting, keyboard/IME editing, and accessible document semantics still need integration before this
+can replace the current editor. Opening/closing the pane does not edit text, save files, or reset
+undo/selection. The click-to-source bridge below deliberately moves source selection without editing.
+
+## Click-to-source navigation
+
+The tenth review chunk adds text hit testing. A primary single click in Canvas Preview focuses the
+source editor and places its caret at the corresponding location; Shift-click extends its selection
+from the existing source anchor. Gutter clicks move to that line's start, independently of horizontal
+scroll. Blank space below the document resolves to the last line; positions beyond a line resolve
+through the font layout to its nearest caret. Scroll offsets and pending layout updates are applied
+before hit testing.
+
+`CanvasTextMetrics` shares font measurement and four-space tab stops between painting and hit testing.
+It uses JavaFX `Text.hitTest` for glyph placement and snaps any interior hit to an extended grapheme
+boundary using the JDK character iterator and caret geometry. UTF-16 offsets therefore never split
+surrogate pairs, combining sequences, or joined emoji. `EditorSession.offsetAt` validates the final
+line/column against the live piece-table index before source navigation.
+
+Navigation does not create an undo entry or change dirty state. It starts a new typing undo group,
+even if the clicked caret equals the current one, and dismisses completion suggestions. Foreground
+file operations block navigation; background autosaves do not. Modified Ctrl/Cmd/Alt clicks, secondary
+clicks, drags, and multi-click gestures are not handled by this bridge. Closing the pane removes the
+navigation callback along with its document subscriptions.
+
+The Canvas still has no editing input engine or painted selection: typing after a preview click goes
+to the focused source editor. Drag selection and direct Canvas keyboard/IME handling remain follow-ups.
 
 ## History contract
 
@@ -172,7 +197,7 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Add text hit testing and caret/selection geometry to the read-only surface.
+1. Add Canvas caret/selection painting and drag-selection interaction.
 2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
    accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
@@ -185,6 +210,7 @@ These remain follow-up changes.
 ./test.sh --tests '*LineIndexTest'
 ./test.sh --tests '*LineViewportTest' --tests '*EditorCanvasTest'
 ./test.sh --tests '*EditorCanvasPreviewTest'
+./test.sh --tests '*CanvasTextMetricsTest'
 ./test.sh --tests '*EditHistoryTest'
 ./test.sh --tests '*EditorUndoManagerTest'
 ./test.sh --tests '*EditorSessionTest' --tests '*EditorViewTest'
@@ -217,3 +243,7 @@ Horizontal checks cover Shift-wheel/trackpad input, diagonal movement, event pro
 fixed gutter pixels, tab alignment after scrolling, learned width across vertical scrolling/themes,
 resize/shrink/reset clamping, and both axes across Save As/failed/successful opens. The scrolled
 render snapshot is saved as `horizontal.png` beside the other Canvas previews.
+Hit-test checks cover glyph midpoint placement, tab edges, both scroll axes, trailing/empty lines,
+Unicode grapheme boundaries, and mixed-direction glyphs. Navigation checks cover source caret/anchor
+mapping, Shift-click, native focus transfer, undo group boundaries, foreground-save blocking, and
+closed-pane callbacks. `live-navigation.png` shows source selection created from preview clicks.

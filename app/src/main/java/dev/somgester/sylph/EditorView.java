@@ -127,7 +127,8 @@ final class EditorView extends StackPane implements AutoCloseable {
         }
         completion.dismiss();
         if (canvasPreview == null) {
-            canvasPreview = new EditorCanvasPreview(session, darkTheme, this::toggleCanvasPreview);
+            canvasPreview = new EditorCanvasPreview(session, darkTheme,
+                    this::toggleCanvasPreview, this::navigateFromCanvas);
             getChildren().remove(scrolling);
             canvasSplit = new SplitPane(scrolling, canvasPreview);
             canvasSplit.setId("canvas-preview-split");
@@ -144,6 +145,17 @@ final class EditorView extends StackPane implements AutoCloseable {
             canvasVisible.set(false);
         }
         area.requestFocus();
+    }
+
+    private void navigateFromCanvas(EditorCanvas.Position position, boolean extend) {
+        if (!closed && !session.editingBlockedProperty().get()) {
+            int offset = session.offsetAt(position.line(), position.column());
+            completion.dismiss();
+            area.getUndoManager().preventMerge();
+            area.selectRange(extend ? area.getAnchor() : offset, offset);
+            area.requestFollowCaret();
+            area.requestFocus();
+        }
     }
 
     void setOnDefinition(Consumer<Location> action) {

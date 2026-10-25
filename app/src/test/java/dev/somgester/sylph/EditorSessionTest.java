@@ -26,12 +26,18 @@ class EditorSessionTest {
         create(new EditorFileService());
         assertThrows(IllegalStateException.class, () -> session.lineCount());
         assertThrows(IllegalStateException.class, () -> session.lineText(0));
+        assertThrows(IllegalStateException.class, () -> session.offsetAt(0, 0));
         FxTestSupport.onFxThread(() -> {
             session.replaceText("first\r\n🐍\n");
             assertEquals(3, session.lineCount());
             assertEquals("first", session.lineText(0));
             assertEquals("🐍", session.lineText(1));
             assertEquals("", session.lineText(2));
+            assertEquals(8, session.offsetAt(1, 2));
+            assertEquals(9, session.offsetAt(2, 0));
+            assertThrows(IndexOutOfBoundsException.class, () -> session.offsetAt(0, 6));
+            assertThrows(IndexOutOfBoundsException.class, () -> session.offsetAt(-1, 0));
+            assertThrows(IndexOutOfBoundsException.class, () -> session.offsetAt(0, -1));
             session.replaceText(6, 8, "other\nline");
             assertEquals(4, session.lineCount());
             assertEquals("other", session.lineText(1));
@@ -39,6 +45,7 @@ class EditorSessionTest {
             session.close();
             assertThrows(IllegalStateException.class, () -> session.lineCount());
             assertThrows(IllegalStateException.class, () -> session.lineText(0));
+            assertThrows(IllegalStateException.class, () -> session.offsetAt(0, 0));
             return null;
         });
     }
