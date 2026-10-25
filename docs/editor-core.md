@@ -82,18 +82,24 @@ The read-only Canvas prototype below now uses this line-read contract.
 
 ## Read-only Canvas prototype
 
-The seventh review chunk adds `LineViewport`, `TextLines`, and `EditorCanvas`. The live editor still
-uses RichTextFX; this surface is not installed into document tabs and does not accept editing input.
+The seventh review chunk added `LineViewport`, `TextLines`, and `EditorCanvas`. The eighth exposes
+an optional live preview: right-click the source editor and choose **Show Canvas Preview**. It appears
+beside the existing editor, labelled read-only; use its **Close** button or **Hide Canvas Preview**
+to remove it. Each document owns its preview. RichTextFX continues handling editing and syntax styles.
 
 `LineViewport` calculates a half-open rendered row range from fixed line height, viewport height,
 scroll offset, and overscan. It includes partially visible rows, clamps scrolling at either end,
 and handles zero-sized/empty views without requesting rows. Geometry must be finite and valid.
 
-`TextLines` exposes only line count and individual immutable line reads. `PieceTable` implements it;
+`TextLines` exposes only line count and individual immutable line reads. `PieceTable` and `EditorSession` implement it;
 the Canvas never requests a full document string. Document contents must remain stable during each
 JavaFX-thread render pass. Owners explicitly call `refresh()` after edits or `setDocument()` on
-replacement; the latter resets scroll. Shrinking a document or enlarging the viewport clamps scroll
-on the next layout.
+replacement; the latter resets scroll. `EditorCanvasPreview` handles these calls for a live session:
+text changes refresh rows, while a dedicated document revision resets scroll on successful open/clear,
+including identical text. Edits, failed opens, saves, and Save As preserve scroll, subject to clamping
+when content shrinks. Session line reads require the JavaFX thread and an open session. Closing the
+preview removes text/revision/theme listeners and replaces its line source with an empty buffer so
+pending layouts cannot read a disposed session.
 
 `EditorCanvas` draws line numbers and plain text for visible rows plus one overscan row on either
 side, clipping to the viewport. It supports fractional vertical scroll, wheel input, manually supplied
@@ -101,8 +107,9 @@ palette colors, and four-space tab stops measured with the same font as the text
 in the document. Modified wheel events and events at a scroll boundary can reach parent controls.
 The prototype has a fixed monospaced font/line height, with no wrapping or horizontal scrolling yet.
 It lays out each requested line in full, so a very long visible line still has proportional cost.
-Theme settings, syntax styles, selection/hit testing, keyboard/IME editing, and accessible document
-semantics still need integration before this can replace the current editor.
+The live preview follows the document's light/dark theme setting. Syntax styles, selection/hit
+testing, keyboard/IME editing, and accessible document semantics still need integration before this
+can replace the current editor. Preview actions do not edit text, save files, or reset undo/selection.
 
 ## History contract
 
@@ -152,7 +159,7 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Connect the read-only surface to session lifecycle and add horizontal scrolling/hit testing.
+1. Add horizontal scrolling and text hit testing to the read-only surface.
 2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
    accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
@@ -164,6 +171,7 @@ These remain follow-up changes.
 ./test.sh --tests '*PieceTableTest'
 ./test.sh --tests '*LineIndexTest'
 ./test.sh --tests '*LineViewportTest' --tests '*EditorCanvasTest'
+./test.sh --tests '*EditorCanvasPreviewTest'
 ./test.sh --tests '*EditHistoryTest'
 ./test.sh --tests '*EditorUndoManagerTest'
 ./test.sh --tests '*EditorSessionTest' --tests '*EditorViewTest'
@@ -188,3 +196,7 @@ they also cover refresh/replacement, resize clamping, empty dimensions, wheel pr
 and rendered pixels in two palettes. Geometry tests cover fractional/exact boundaries, overscan,
 large counts, and invalid dimensions. Tests stay headless and save preview images under
 `app/build/editor-canvas-preview/` for visual inspection.
+Live preview tests cover menu/header controls, rendered edits and undo/redo, theme/header colors,
+Save As and failed-open scroll preservation, same-text open/clear resets, disposal, and safe pending
+layouts after document closure. Live split-pane snapshots are saved there as `live-dark.png` and
+`live-light.png` without opening desktop windows.

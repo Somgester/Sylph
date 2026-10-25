@@ -14,7 +14,7 @@ final class EditorDocument implements AutoCloseable {
 
     final EditorSession session = new EditorSession(new EditorFileService());
 
-    final EditorView view = new EditorView(session);
+    final EditorView view;
 
     final AutoSaveController autoSave;
 
@@ -39,6 +39,7 @@ final class EditorDocument implements AutoCloseable {
     @SuppressWarnings("this-escape")
     EditorDocument(AppSettings settings) {
         this.settings = settings;
+        view = new EditorView(session, settings.darkThemeProperty());
         autoSave = new AutoSaveController(session, settings);
         tab.setId("document-tab");
         tab.setContent(view);

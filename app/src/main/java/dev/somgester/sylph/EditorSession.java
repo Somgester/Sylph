@@ -14,6 +14,8 @@ import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanWrapper;
 import javafx.beans.property.ReadOnlyIntegerProperty;
 import javafx.beans.property.ReadOnlyIntegerWrapper;
+import javafx.beans.property.ReadOnlyLongProperty;
+import javafx.beans.property.ReadOnlyLongWrapper;
 import javafx.beans.property.ReadOnlyObjectProperty;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.beans.property.ReadOnlyStringProperty;
@@ -22,7 +24,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.concurrent.Task;
 
-final class EditorSession implements AutoCloseable {
+final class EditorSession implements AutoCloseable, TextLines {
 
     record SavedDocument(Path path, String text) { }
 
@@ -39,6 +41,8 @@ final class EditorSession implements AutoCloseable {
     private final EditorFileService files;
 
     private PieceTable buffer = new PieceTable();
+
+    private final ReadOnlyLongWrapper documentRevision = new ReadOnlyLongWrapper();
 
     // Read-only snapshots keep existing autosave, preview, and LSP observers off the mutable buffer.
     private final ReadOnlyStringWrapper text = new ReadOnlyStringWrapper("");
@@ -83,6 +87,28 @@ final class EditorSession implements AutoCloseable {
         return text.getReadOnlyProperty();
     }
 
+    @Override
+    public int lineCount() {
+        requireReadable();
+        return buffer.lineCount();
+    }
+
+    @Override
+    public String lineText(int line) {
+        requireReadable();
+        return buffer.lineText(line);
+    }
+
+    ReadOnlyLongProperty documentRevisionProperty() {
+        return documentRevision.getReadOnlyProperty();
+    }
+
+    private void requireReadable() {
+        if (!Platform.isFxApplicationThread() || closed) {
+            throw new IllegalStateException("Line reads require an open session on the JavaFX thread");
+        }
+    }
+
     void replaceText(String value) {
         requireEditable();
         replaceText(0, buffer.length(), value);
@@ -112,6 +138,7 @@ final class EditorSession implements AutoCloseable {
     private void resetText(String value) {
         buffer = new PieceTable(value);
         text.set(value);
+        documentRevision.set(documentRevision.get() + 1);
     }
 
     private void requireEditable() {

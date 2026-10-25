@@ -2,34 +2,34 @@
     -fx-background-color: -editor-background;
 }
 
-#markdown-preview {
+#markdown-preview, #canvas-preview {
     -fx-background-color: -shell-surface;
     -fx-border-color: -shell-border;
     -fx-border-width: 0 0 0 1;
 }
 
-#markdown-preview-header {
+#markdown-preview-header, #canvas-preview-header {
     -fx-padding: 8px 12px;
     -fx-border-color: -shell-border;
     -fx-border-width: 0 0 1 0;
 }
 
-#markdown-preview .label {
+#markdown-preview .label, #canvas-preview .label {
     -fx-text-fill: -shell-text;
 }
 
-#close-markdown-preview {
+#close-markdown-preview, #close-canvas-preview {
     -fx-min-width: 60px;
     -fx-pref-width: 60px;
     -fx-text-fill: -shell-text;
 }
 
-#markdown-workspace {
+#markdown-workspace, #canvas-preview-split {
     -fx-padding: 0;
     -fx-background-color: -shell-border;
 }
 
-#markdown-workspace > .split-pane-divider {
+#markdown-workspace > .split-pane-divider, #canvas-preview-split > .split-pane-divider {
     -fx-padding: 0 2px;
     -fx-background-color: -shell-border;
 }

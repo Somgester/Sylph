@@ -43,6 +43,13 @@ no administrator access. An unchanged registration is not rewritten; a registrat
 not prevent app launch. Restart an already-running Sylph window to pick up the desktop identity.
 For direct Gradle launches, register it once with `bash scripts/install-desktop.sh`.
 
+## Canvas preview
+
+Open or create a document, right-click inside its source editor, and choose **Show Canvas Preview**.
+The optional pane renders the live buffer beside the editable source and follows the theme setting.
+It is read-only; edit in the source pane. Use **Close** in its header or **Hide Canvas Preview** in
+the context menu to remove it. This is the custom renderer's preview stage; see [editor core](editor-core.md).
+
 ## Java detection
 
 `init.sh` checks these sources in order:

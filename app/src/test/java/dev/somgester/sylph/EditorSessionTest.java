@@ -21,6 +21,28 @@ import org.junit.jupiter.api.io.TempDir;
 
 class EditorSessionTest {
 
+    @Test
+    void lineSourceReadsCurrentBufferOnlyOnFxThreadWhileSessionIsOpen() throws Exception {
+        create(new EditorFileService());
+        assertThrows(IllegalStateException.class, () -> session.lineCount());
+        assertThrows(IllegalStateException.class, () -> session.lineText(0));
+        FxTestSupport.onFxThread(() -> {
+            session.replaceText("first\r\n🐍\n");
+            assertEquals(3, session.lineCount());
+            assertEquals("first", session.lineText(0));
+            assertEquals("🐍", session.lineText(1));
+            assertEquals("", session.lineText(2));
+            session.replaceText(6, 8, "other\nline");
+            assertEquals(4, session.lineCount());
+            assertEquals("other", session.lineText(1));
+            assertEquals("line", session.lineText(2));
+            session.close();
+            assertThrows(IllegalStateException.class, () -> session.lineCount());
+            assertThrows(IllegalStateException.class, () -> session.lineText(0));
+            return null;
+        });
+    }
+
     @TempDir
     Path directory;
 

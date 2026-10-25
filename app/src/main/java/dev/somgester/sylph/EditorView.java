@@ -4,10 +4,13 @@ import java.util.function.Consumer;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanWrapper;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableBooleanValue;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.SplitPane;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
@@ -23,6 +26,16 @@ final class EditorView extends StackPane implements AutoCloseable {
     private final EditorSession session;
 
     private final CodeArea area = new EditorCodeArea();
+
+    private final VirtualizedScrollPane<CodeArea> scrolling;
+
+    private final ObservableBooleanValue darkTheme;
+
+    private final ReadOnlyBooleanWrapper canvasVisible = new ReadOnlyBooleanWrapper();
+
+    private EditorCanvasPreview canvasPreview;
+
+    private SplitPane canvasSplit;
 
     private final Subscription editorTextChanges;
 
@@ -48,9 +61,14 @@ final class EditorView extends StackPane implements AutoCloseable {
 
     private boolean closed;
 
-    @SuppressWarnings("this-escape")
     EditorView(EditorSession session) {
+        this(session, new SimpleBooleanProperty(true));
+    }
+
+    @SuppressWarnings("this-escape")
+    EditorView(EditorSession session, ObservableBooleanValue darkTheme) {
         this.session = session;
+        this.darkTheme = darkTheme;
         setId("editor-view");
         area.setId("editor");
         area.setAccessibleText("Document editor");
@@ -65,7 +83,7 @@ final class EditorView extends StackPane implements AutoCloseable {
         area.replaceText(session.textProperty().get());
         area.getUndoManager().forgetHistory();
         area.editableProperty().bind(session.editingBlockedProperty().not());
-        VirtualizedScrollPane<CodeArea> scrolling = new VirtualizedScrollPane<>(area);
+        scrolling = new VirtualizedScrollPane<>(area);
         scrolling.setId("editor-scroll");
         getChildren().add(scrolling);
         editorTextChanges = area.multiPlainChanges().subscribe(changes -> {
@@ -101,6 +119,31 @@ final class EditorView extends StackPane implements AutoCloseable {
 
     CodeArea area() {
         return area;
+    }
+
+    private void toggleCanvasPreview() {
+        if (closed) {
+            return;
+        }
+        completion.dismiss();
+        if (canvasPreview == null) {
+            canvasPreview = new EditorCanvasPreview(session, darkTheme, this::toggleCanvasPreview);
+            getChildren().remove(scrolling);
+            canvasSplit = new SplitPane(scrolling, canvasPreview);
+            canvasSplit.setId("canvas-preview-split");
+            canvasSplit.setDividerPositions(0.5);
+            getChildren().add(0, canvasSplit);
+            canvasVisible.set(true);
+        } else {
+            canvasSplit.getItems().clear();
+            getChildren().remove(canvasSplit);
+            getChildren().add(0, scrolling);
+            canvasPreview.close();
+            canvasPreview = null;
+            canvasSplit = null;
+            canvasVisible.set(false);
+        }
+        area.requestFocus();
     }
 
     void setOnDefinition(Consumer<Location> action) {
@@ -144,6 +187,10 @@ final class EditorView extends StackPane implements AutoCloseable {
         preview.setAccelerator(EditorShortcuts.Command.PREVIEW.shortcut());
         preview.disableProperty().bind(session.languageProperty().isNotEqualTo(EditorLanguage.MARKDOWN)
                 .or(session.busyProperty()));
+        MenuItem canvas = contextItem("Show Canvas Preview", this::toggleCanvasPreview);
+        canvas.setId("toggle-canvas-preview");
+        canvas.textProperty().bind(Bindings.when(canvasVisible)
+                .then("Hide Canvas Preview").otherwise("Show Canvas Preview"));
         MenuItem hover = contextItem("Show Hover", () -> languageAction(
                 features -> features.hover(area.getCaretPosition(), true)));
         hover.setAccelerator(new KeyCodeCombination(KeyCode.SPACE,
@@ -157,7 +204,7 @@ final class EditorView extends StackPane implements AutoCloseable {
             item.disableProperty().bind(languageFeaturesAvailable.not().or(session.editingBlockedProperty()));
         }
         area.setContextMenu(new ContextMenu(undo, redo, new SeparatorMenuItem(), cut, copy, paste,
-                contextItem("Select All", area::selectAll), new SeparatorMenuItem(), preview,
+                contextItem("Select All", area::selectAll), new SeparatorMenuItem(), preview, canvas,
                 new SeparatorMenuItem(), hover, definition, problems));
     }
 
@@ -215,6 +262,10 @@ final class EditorView extends StackPane implements AutoCloseable {
     public void close() {
         if (!closed) {
             closed = true;
+            if (canvasPreview != null) {
+                canvasPreview.close();
+                canvasPreview = null;
+            }
             if (languageFeatures != null) {
                 languageFeatures.close();
             }
