@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.prefs.BackingStoreException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +40,10 @@ final class KiroSessions {
             return (title.isBlank() ? "Untitled session" : title) + " — " + directory + " · " + id;
         }
 
+        Session withTitle(String replacement) {
+            return new Session(id, replacement, directory, updatedAt);
+        }
+
         String resumeCommand() {
             return "kiro-cli chat --resume-id " + id + "\r";
         }
@@ -58,13 +63,20 @@ final class KiroSessions {
 
     private final Duration timeout;
 
+    private final KiroSessionNames names;
+
     KiroSessions() {
-        this("kiro-cli", Duration.ofSeconds(10));
+        this("kiro-cli", Duration.ofSeconds(10), new KiroSessionNames());
     }
 
     KiroSessions(String executable, Duration timeout) {
+        this(executable, timeout, new KiroSessionNames());
+    }
+
+    KiroSessions(String executable, Duration timeout, KiroSessionNames names) {
         this.executable = executable;
         this.timeout = timeout;
+        this.names = names;
     }
 
     Listing list() throws IOException, InterruptedException {
@@ -88,7 +100,7 @@ final class KiroSessions {
             if (process.exitValue() != 0) {
                 throw new IOException("Kiro could not list sessions. Check CLI installation and login.");
             }
-            return parse(new String(bytes, StandardCharsets.UTF_8));
+            return applyNames(parse(new String(bytes, StandardCharsets.UTF_8)));
         } catch (ExecutionException | TimeoutException failure) {
             throw new IOException("Unable to read Kiro session list.", failure);
         } finally {
@@ -96,6 +108,27 @@ final class KiroSessions {
             process.destroyForcibly();
             output.cancel(true);
         }
+    }
+
+    void rename(Session session, String name) throws IOException {
+        String cleaned = name.replaceAll("\\p{Cntrl}", " ").strip();
+        if (cleaned.isBlank() || cleaned.length() > 200) {
+            throw new IOException("Session name must contain 1 to 200 characters.");
+        }
+        try {
+            names.put(session.directory(), session.id(), cleaned);
+        } catch (BackingStoreException | SecurityException failure) {
+            throw new IOException("Unable to save the session name.", failure);
+        }
+    }
+
+    private Listing applyNames(Listing listing) {
+        var sessions = listing.sessions().stream()
+                .map(session -> {
+                    String name = names.get(session.directory(), session.id());
+                    return name.isBlank() ? session : session.withTitle(name);
+                }).toList();
+        return new Listing(sessions, listing.complete());
     }
 
     static Listing parse(String json) throws IOException {

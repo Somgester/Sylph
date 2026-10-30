@@ -202,7 +202,8 @@ public class EditorApp extends Application {
         themeListener = (observable, oldValue, dark) -> applyTheme(scene, dark);
         settings.darkThemeProperty().addListener(themeListener);
         palette = new CommandPalette(root, sidebar::getRootDirectory, recentFiles::files, this::openFile,
-                this::executeCommand, this::commandEnabled, this::loadKiroSessions, this::resumeKiroSession);
+            this::executeCommand, this::commandEnabled, this::loadKiroSessions, this::resumeKiroSession,
+            this::renameKiroSession);
         EditorShortcuts.install(scene, this::executeCommand,
                 command -> command != EditorShortcuts.Command.PREVIEW || !TerminalView.ownsFocus(scene));
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
@@ -457,6 +458,21 @@ public class EditorApp extends Application {
         if (terminal != null) {
             terminal.session().send(saved.resumeCommand());
         }
+    }
+
+    private void renameKiroSession(KiroSessions.Session session) {
+        TextInputDialog prompt = new TextInputDialog(session.title());
+        prompt.setTitle("Rename Kiro Session");
+        prompt.setHeaderText("Choose a name for this session");
+        prompt.setContentText("Name:");
+        prompt.showAndWait().ifPresent(name -> {
+            try {
+                new KiroSessions().rename(session, name);
+                palette.showKiroSessions();
+            } catch (IOException failure) {
+                showFileError(failure);
+            }
+        });
     }
 
     private Path terminalDirectory() {

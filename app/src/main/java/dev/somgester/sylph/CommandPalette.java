@@ -24,6 +24,8 @@ import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -56,6 +58,8 @@ final class CommandPalette extends StackPane implements AutoCloseable {
 
     private final Consumer<KiroSessions.Session> resumeSession;
 
+    private final Consumer<KiroSessions.Session> renameSession;
+
     private boolean sessionsMode;
 
     private KiroSessions.Listing sessionListing;
@@ -87,7 +91,8 @@ final class CommandPalette extends StackPane implements AutoCloseable {
     @SuppressWarnings("this-escape")
     CommandPalette(BorderPane host, Supplier<Path> folder, Supplier<List<Path>> recentFiles, Consumer<Path> openFile,
             Consumer<EditorShortcuts.Command> execute, Predicate<EditorShortcuts.Command> enabled,
-            KiroSessions.Loader loadSessions, Consumer<KiroSessions.Session> resumeSession) {
+            KiroSessions.Loader loadSessions, Consumer<KiroSessions.Session> resumeSession,
+            Consumer<KiroSessions.Session> renameSession) {
         this.host = host;
         this.folder = folder;
         this.recentFiles = recentFiles;
@@ -96,6 +101,7 @@ final class CommandPalette extends StackPane implements AutoCloseable {
         this.enabled = enabled;
         this.loadSessions = loadSessions;
         this.resumeSession = resumeSession;
+        this.renameSession = renameSession;
         setId("command-palette");
         setManaged(false);
         setVisible(false);
@@ -113,11 +119,17 @@ final class CommandPalette extends StackPane implements AutoCloseable {
                 setText(null);
                 setGraphic(null);
                 setAccessibleText(null);
+                setContextMenu(null);
                 if (!empty && entry != null) {
                     TextFlow label = highlightedLabel(entry.label(), entry.query());
                     label.prefWidthProperty().bind(Bindings.max(0, widthProperty().subtract(20)));
                     setGraphic(label);
                     setAccessibleText(entry.label());
+                    if (entry.session() != null) {
+                        MenuItem rename = new MenuItem("Rename session");
+                        rename.setOnAction(event -> renameSession.accept(entry.session()));
+                        setContextMenu(new ContextMenu(rename));
+                    }
                 }
             }
         });
@@ -157,6 +169,11 @@ final class CommandPalette extends StackPane implements AutoCloseable {
                         0, Math.max(0, results.getItems().size() - 1));
                 results.getSelectionModel().select(index);
                 results.scrollTo(index);
+            } else if (event.getCode() == KeyCode.F2 && sessionsMode) {
+                Entry entry = results.getSelectionModel().getSelectedItem();
+                if (entry != null && entry.session() != null) {
+                    renameSession.accept(entry.session());
+                }
             } else {
                 return;
             }
