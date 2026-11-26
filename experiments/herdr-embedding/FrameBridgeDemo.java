@@ -6,6 +6,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +42,12 @@ public final class FrameBridgeDemo extends Application {
     private final StackPane surface = new StackPane();
     private final ImageView view = new ImageView();
     private final Label status = new Label();
+    private final ArrayDeque<String> desktopKeys = new ArrayDeque<>();
+    private String desktopCore;
+    private String desktopTerminal;
+    private boolean desktopFailed;
+    private boolean desktopSmokeStarted;
+    private boolean unsupportedDesktopKey;
     private Process helper;
     private AnimationTimer timer;
     private PauseTransition smokeTimeout;
@@ -105,6 +114,48 @@ public final class FrameBridgeDemo extends Application {
     }
 
     private void startDesktopPreview(Stage stage, String executable) {
+        desktopCore = System.getProperty("sylph.herdr.core");
+        desktopTerminal = System.getProperty("sylph.herdr.terminal");
+        if (desktopCore != null) {
+            if (desktopTerminal == null || !desktopTerminal.matches("t[0-9a-z]+")) {
+                throw new IllegalArgumentException("Use an explicit local terminal ID, such as t1.");
+            }
+            surface.setFocusTraversable(true);
+            surface.setOnMousePressed(event -> surface.requestFocus());
+            surface.setOnKeyTyped(event -> {
+                if (!event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                    event.getCharacter().codePoints().forEach(this::queueDesktopCharacter);
+                    event.consume();
+                }
+            });
+            surface.setOnKeyPressed(event -> {
+                if (event.isAltDown() || event.isMetaDown() || event.isShiftDown()) {
+                    return;
+                }
+                String keyName = event.isControlDown()
+                        ? (event.getCode() == KeyCode.C ? "ctrl+c" : null)
+                        : switch (event.getCode()) {
+                            case ENTER -> "enter";
+                            case BACK_SPACE -> "backspace";
+                            case TAB -> "tab";
+                            case ESCAPE -> "esc";
+                            case UP -> "up";
+                            case DOWN -> "down";
+                            case LEFT -> "left";
+                            case RIGHT -> "right";
+                            default -> null;
+                        };
+                if (keyName != null) {
+                    if ("ctrl+c".equals(keyName)) {
+                        unsupportedDesktopKey = false;
+                    }
+                    if (!"enter".equals(keyName) || !unsupportedDesktopKey) {
+                        queueDesktopKey(keyName);
+                    }
+                    event.consume();
+                }
+            });
+        }
         view.setPreserveRatio(true);
         view.fitWidthProperty().bind(surface.widthProperty());
         view.fitHeightProperty().bind(surface.heightProperty());
@@ -118,7 +169,15 @@ public final class FrameBridgeDemo extends Application {
 
             @Override
             public void handle(long now) {
-                if (!pending && now >= nextCapture) {
+                if (pending || desktopFailed) {
+                    return;
+                }
+                if (!desktopKeys.isEmpty()) {
+                    List<String> keys = new ArrayList<>(desktopKeys);
+                    desktopKeys.clear();
+                    pending = true;
+                    worker.execute(() -> sendDesktopKeys(keys));
+                } else if (now >= nextCapture) {
                     pending = true;
                     nextCapture = now + TimeUnit.MILLISECONDS.toNanos(500);
                     worker.execute(() -> captureDesktop(executable));
@@ -126,6 +185,51 @@ public final class FrameBridgeDemo extends Application {
             }
         };
         timer.start();
+    }
+
+    private void queueDesktopCharacter(int character) {
+        if (character < 32 || character == 127 || desktopFailed) {
+            return;
+        }
+        if (character == ' ') {
+            queueDesktopKey("space");
+        } else if (character >= 'A' && character <= 'Z') {
+            queueDesktopKey("shift+" + Character.toString(Character.toLowerCase(character)));
+        } else if ((character >= 'a' && character <= 'z')
+                || (character >= '0' && character <= '9') || "',-./;=[\\]`".indexOf(character) >= 0) {
+            queueDesktopKey(Character.toString(character));
+        } else {
+            unsupportedDesktopKey = true;
+        }
+    }
+
+    private void queueDesktopKey(String keyName) {
+        if (!desktopFailed) {
+            if (desktopKeys.size() == 128) {
+                showFailure(new IOException("Terminal input queue is full. Reopen the preview."));
+                return;
+            }
+            desktopKeys.addLast(keyName);
+        }
+    }
+
+    private void sendDesktopKeys(List<String> keys) {
+        try {
+            List<String> command = new ArrayList<>(List.of(desktopCore, "keys", "--", desktopTerminal));
+            command.addAll(keys);
+            runDesktopCommand(command, "Herdr terminal input failed for " + desktopTerminal);
+            Platform.runLater(() -> {
+                pending = false;
+                if (!closed && !desktopFailed && smokeMode()) {
+                    smokePassed = true;
+                    Platform.exit();
+                }
+            });
+        } catch (IOException failure) {
+            Platform.runLater(() -> showFailure(failure));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void captureDesktop(String executable) {
@@ -151,12 +255,18 @@ public final class FrameBridgeDemo extends Application {
     }
 
     private static void capturePng(String executable, Path png) throws IOException, InterruptedException {
-        Process capture = new ProcessBuilder(executable, "shot", png.toString())
+        runDesktopCommand(List.of(executable, "shot", png.toString()),
+                "Herdr Desktop capture failed. Check that its window is open.");
+    }
+
+    private static void runDesktopCommand(List<String> command, String failure)
+            throws IOException, InterruptedException {
+        Process capture = new ProcessBuilder(command)
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                 .redirectError(ProcessBuilder.Redirect.INHERIT).start();
         try {
             if (!capture.waitFor(8, TimeUnit.SECONDS) || capture.exitValue() != 0) {
-                throw new IOException("Herdr Desktop capture failed. Check that its window is open.");
+                throw new IOException(failure);
             }
         } finally {
             if (capture.isAlive()) {
@@ -166,19 +276,31 @@ public final class FrameBridgeDemo extends Application {
     }
 
     private void showDesktopFrame(Image image) {
-        if (!closed) {
+        if (!closed && !desktopFailed) {
             view.setImage(image);
-            status.setText("Live Herdr Desktop frames · Read-only");
+            status.setText(desktopCore == null ? "Live Herdr Desktop frames · Read-only"
+                    : "Keyboard target: " + desktopTerminal + (unsupportedDesktopKey
+                            ? " · Unsupported character. Press Ctrl+C before submitting."
+                            : " · Click preview to type"));
             pending = false;
-            if (smokeMode()) {
+            if (smokeMode() && desktopCore == null) {
                 smokePassed = true;
                 Platform.exit();
+            } else if (smokeMode() && !desktopSmokeStarted) {
+                desktopSmokeStarted = true;
+                // Leave a harmless draft in the test shell. No Enter is sent.
+                for (String letter : List.of("x", "x", "Y")) {
+                    Event.fireEvent(surface, new KeyEvent(KeyEvent.KEY_TYPED, letter, "",
+                            KeyCode.UNDEFINED, false, false, false, false));
+                }
             }
         }
     }
 
     private void showFailure(IOException failure) {
         if (!closed) {
+            desktopFailed = true;
+            desktopKeys.clear();
             timer.stop();
             status.setText(failure.getMessage());
             if (smokeMode()) {
@@ -261,7 +383,9 @@ public final class FrameBridgeDemo extends Application {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
             String check = System.getProperty("sylph.herdr.desktop") == null
-                    ? "JavaFX frame and keyboard round trip" : "Herdr Desktop frame in JavaFX";
+                    ? "JavaFX frame and keyboard round trip"
+                    : System.getProperty("sylph.herdr.core") == null ? "Herdr Desktop frame in JavaFX"
+                    : "Herdr Desktop frame and keyboard delivery in JavaFX";
             if (!smokePassed) {
                 throw new IllegalStateException(check + " did not complete");
             }

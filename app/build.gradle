@@ -128,6 +128,15 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     if (desktop.isPresent()) {
         systemProperty 'sylph.herdr.desktop', rootProject.file(desktop.get()).absolutePath
     }
+    def core = providers.gradleProperty('herdrCoreExecutable')
+    def terminal = providers.gradleProperty('herdrTerminal')
+    if (core.isPresent() || terminal.isPresent()) {
+        if (!desktop.isPresent() || !core.isPresent() || !terminal.isPresent()) {
+            throw new GradleException('Desktop keyboard input requires herdrDesktopExecutable, herdrCoreExecutable and herdrTerminal.')
+        }
+        systemProperty 'sylph.herdr.core', rootProject.file(core.get()).absolutePath
+        systemProperty 'sylph.herdr.terminal', terminal.get()
+    }
     if (providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
         systemProperty 'glass.platform', 'Monocle'
         systemProperty 'monocle.platform', 'Headless'

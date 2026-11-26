@@ -92,8 +92,8 @@ behavior manually.
 
 The JavaFX demo can also capture the window of a running Herdr Desktop process using its
 `shot` command. The preview requests at most two frames per second, preserves their
-aspect ratio, and shows a read-only view. The Desktop window and core own the live shell.
-Resizing the preview scales the image. Embedded input and native resize are still open.
+aspect ratio, and shows a read-only view by default. The Desktop window and core own the
+live shell. Resizing the preview scales the image.
 
 On Linux, start Herdr Desktop with a temporary profile and core state for this experiment,
 open a shell, and keep the Desktop window open. Launch Gradle from the environment that
@@ -113,6 +113,28 @@ a marker in a live shell, the stock layout's captured pixels changed, and the Ja
 headless check loaded the resulting frame.
 [Herdr App release manifest](https://releases.herdr.dev/app/0.1.18/manifest.json) ·
 [Herdr core release manifest](https://releases.herdr.dev/core/0.1.22/manifest.json)
+
+### Keyboard probe
+
+Use a disposable test shell. Find its local terminal ID with `herdr-app ls` and run the
+preview against the same isolated core and Desktop profile:
+
+```sh
+./gradlew :app:herdrFrameExperiment --no-configuration-cache \
+  -PherdrDesktopExecutable=/absolute/path/to/herdr-app \
+  -PherdrCoreExecutable=/absolute/path/to/hc -PherdrTerminal=t1
+```
+
+Click the JavaFX preview to type. Input always goes to the displayed **Keyboard target**
+ID, even if the original Herdr window switches to another tab. Keep the target shell
+visible in Herdr while testing. The probe forwards letters, digits, space, punctuation
+accepted by `hc keys`, Enter, Backspace, Tab, Escape, arrow keys, and Ctrl+C.
+An unsupported character blocks Enter until Ctrl+C clears the draft in a shell.
+Mouse actions, clipboard, Unicode input, and native resizing still need a bridge.
+
+With `-PheadlessHerdrExperiment`, JavaFX sends a draft of `xxY` without submitting it.
+Check it with `hc read t1` and clear it with Ctrl+C. Verified with the isolated Wayland
+Herdr App and core versions above, including repeated characters and uppercase input.
 
 ## Native embedding checks
 
