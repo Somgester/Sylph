@@ -464,8 +464,14 @@ public class EditorApp extends Application {
         }
         Path directory = terminalDirectory();
         if (choice == TerminalChooser.Choice.HERDR_CLI) {
-            terminals.open(directory, inEditor, "Herdr CLI", folder -> new TerminalView(
-                    new TerminalSession(folder, List.of(herdrCli.toString()), System.getenv()), settings));
+            try {
+                var environment = settings.herdrThemeProperty().get()
+                        .environment(herdrCliProfile(), System.getenv());
+                terminals.open(directory, inEditor, "Herdr CLI", folder -> new TerminalView(
+                        new TerminalSession(folder, List.of(herdrCli.toString()), environment), settings));
+            } catch (IOException | SecurityException failure) {
+                status.setText("Could not prepare the Sylph Herdr theme profile: " + failure.getMessage());
+            }
         } else {
             terminals.open(directory, inEditor);
         }
@@ -549,6 +555,10 @@ public class EditorApp extends Application {
 
     Path herdrCliExecutable() {
         return TerminalSession.findOnPath("herdr", System.getenv("PATH"), System.getProperty("os.name"));
+    }
+
+    Path herdrCliProfile() {
+        return Path.of(System.getProperty("user.home"), ".sylph", "herdr-cli");
     }
 
     private boolean commandEnabled(EditorShortcuts.Command command) {

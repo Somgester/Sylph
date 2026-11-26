@@ -31,6 +31,11 @@ A new terminal starts in the opened workspace folder. Without a workspace, it us
 Duplicating a Herdr CLI tab starts another client in the same starting folder. Herdr
 manages its own sessions, so both clients can attach to the same Herdr server.
 
+Under **Settings → Herdr Themes → Terminal themes**, pick a built-in theme for newly
+opened Herdr CLI clients. A custom theme uses a separate config and session profile
+under `~/.sylph/herdr-cli`. **Reset** uses your regular Herdr configuration and sessions
+again. Open a new CLI tab after changing the setting.
+
 Expand works for Shell, Herdr CLI, and Herdr Desktop. The terminal fills the Sylph
 window with its tab strip still available. Restore brings back the editor layout
 and keeps the same terminal session and output.

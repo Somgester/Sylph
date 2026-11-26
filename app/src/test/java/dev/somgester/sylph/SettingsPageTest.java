@@ -81,6 +81,29 @@ class SettingsPageTest {
     }
 
     @Test
+    void herdrThemeSelectionAndResetArePersisted() throws Exception {
+        FxTestSupport.onFxThread(() -> {
+            AppSettingsTest.MemoryStore store = new AppSettingsTest.MemoryStore(new AppSettings.Values(true, false, 2));
+            AppSettings settings = new AppSettings(store);
+            try (SettingsPage page = new SettingsPage(settings, null, () -> { })) {
+                new Scene(page, 800, 600);
+                page.applyCss();
+                page.layout();
+                ((TitledPane) page.lookup("#settings-herdr-themes")).setExpanded(true);
+                page.applyCss();
+                page.layout();
+                ComboBox<?> theme = (ComboBox<?>) page.lookup("#herdr-cli-theme");
+                theme.getSelectionModel().select(HerdrCliTheme.NORD.ordinal());
+                assertEquals(HerdrCliTheme.NORD, new AppSettings(store).herdrThemeProperty().get());
+                ((Button) page.lookup("#herdr-theme-reset")).fire();
+                assertEquals(HerdrCliTheme.DEFAULT, theme.getValue());
+                assertEquals(HerdrCliTheme.DEFAULT, new AppSettings(store).herdrThemeProperty().get());
+            }
+            return null;
+        });
+    }
+
+    @Test
     void backAndKeyboardNavigationKeepUnsavedEditorContent() throws Exception {
         FxTestSupport.onFxThread(() -> {
             EditorApp app = new EditorApp();
@@ -248,9 +271,10 @@ class SettingsPageTest {
                 SettingsPage page = (SettingsPage) preview.root().getCenter();
                 assertTrue(page.lookup("#autosave-delay").localToScene(
                         page.lookup("#autosave-delay").getBoundsInLocal()).getMaxY() < 665);
-                assertTrue(page.getContent().getLayoutBounds().getHeight() <= page.getViewportBounds().getHeight() + 1,
-                        () -> "Content height " + page.getContent().getLayoutBounds().getHeight()
-                                + " exceeds viewport " + page.getViewportBounds().getHeight());
+                page.setVvalue(1);
+                page.layout();
+                var herdr = page.lookup("#settings-herdr-themes");
+                assertTrue(herdr.localToScene(herdr.getBoundsInLocal()).getMaxY() < 700);
                 return null;
             });
             FxTestSupport.onFxThread(() -> {

@@ -93,6 +93,11 @@ class TerminalWorkspaceTest {
         Path herdrCliExecutable() {
             return herdrCli;
         }
+
+        @Override
+        Path herdrCliProfile() {
+            return directory.resolve("sylph-herdr-profile");
+        }
     }
 
     @TempDir
@@ -234,10 +239,18 @@ class TerminalWorkspaceTest {
     @ValueSource(booleans = {true, false})
     void herdrCliOpensInTheShortcutLocationWithWorkspaceDirectory(boolean inEditor) throws Exception {
         herdrCli = directory.resolve("herdr");
-        Files.writeString(herdrCli, "#!/bin/sh\nprintf 'HERDR_PTY:%s\\n' \"$(pwd)\"\ntest -t 0\n");
+        Files.writeString(herdrCli, """
+                #!/bin/sh
+                printf 'HERDR_PTY:%s\\n' "$(pwd)"
+                if [ -n "$HERDR_CONFIG_PATH" ]; then cat "$HERDR_CONFIG_PATH"; fi
+                test -t 0
+                """);
         assertTrue(herdrCli.toFile().setExecutable(true));
         create(true);
         FxTestSupport.onFxThread(() -> {
+            if (inEditor) {
+                settings.herdrThemeProperty().set(HerdrCliTheme.NORD);
+            }
             answerTerminalChooser("terminal-choice-herdr-cli");
             EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, !inEditor, false, true);
             TabPane tabs = (TabPane) scene.lookup(inEditor ? "#editor-tabs" : "#terminal-panel");
@@ -246,6 +259,11 @@ class TerminalWorkspaceTest {
         });
         TerminalView terminal = selected(inEditor ? "#editor-tabs" : "#terminal-panel");
         FxTestSupport.await(() -> screen(terminal).contains("HERDR_PTY:" + directory));
+        if (inEditor) {
+            FxTestSupport.await(() -> screen(terminal).contains("name = \"nord\""));
+        } else {
+            assertFalse(Files.exists(app.herdrCliProfile()));
+        }
         terminal.session().completion().get(5, TimeUnit.SECONDS);
         FxTestSupport.await(() -> ((Label) terminal.getBottom()).getText().contains("exited: 0"));
     }

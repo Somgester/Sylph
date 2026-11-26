@@ -36,6 +36,22 @@
     -fx-border-radius: 8px;
 }
 
+#herdr-theme-tabs > .tab-header-area > .tab-header-background {
+    -fx-background-color: -settings-background;
+}
+
+#herdr-theme-tabs > .tab-header-area .tab {
+    -fx-background-color: -settings-surface;
+}
+
+#herdr-theme-tabs > .tab-header-area .tab:selected {
+    -fx-border-color: transparent transparent -settings-accent transparent;
+}
+
+#herdr-theme-tabs .tab-label {
+    -fx-text-fill: -settings-text;
+}
+
 .theme-card {
     -fx-padding: 10px;
     -fx-background-color: -settings-background;

@@ -27,6 +27,10 @@ external window in normal windowed mode so the preview can resize it.
 Use **Expand** in the Herdr tab header to fill the Sylph window and **Restore** to
 return to the editor layout.
 
+**Settings → Herdr Themes** separates the CLI theme picker from Desktop layouts.
+CLI theme choices apply when opening a new Herdr CLI tab. Use Herdr Desktop's layout
+picker to switch its layout. Sylph's layout importer is still pending.
+
 ## What Sylph needs to host
 
 Sylph's terminal uses a PTY and a JavaFX WebView running xterm.js. Herdr TUI can use that path,
