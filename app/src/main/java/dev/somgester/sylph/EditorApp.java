@@ -438,19 +438,27 @@ public class EditorApp extends Application {
             return;
         }
         String herdr = herdrDesktopExecutable();
-        TerminalChooser.Choice choice = herdr == null || herdr.isBlank()
-                ? TerminalChooser.Choice.SHELL : TerminalChooser.choose(stage, inEditor);
+        Path herdrCli = herdrCliExecutable();
+        boolean desktopAvailable = herdr != null && !herdr.isBlank();
+        TerminalChooser.Choice choice = herdrCli == null && !desktopAvailable ? TerminalChooser.Choice.SHELL
+                : TerminalChooser.choose(stage, inEditor, herdrCli != null, desktopAvailable);
         if (choice == TerminalChooser.Choice.HERDR_DESKTOP) {
             openHerdrDesktop(herdr);
             return;
         }
-        if (choice != TerminalChooser.Choice.SHELL) {
+        if (choice == TerminalChooser.Choice.CANCEL) {
             return;
         }
         if (toolPageVisible) {
             showEditor();
         }
-        terminals.open(terminalDirectory(), inEditor);
+        Path directory = terminalDirectory();
+        if (choice == TerminalChooser.Choice.HERDR_CLI) {
+            terminals.open(directory, inEditor, "Herdr CLI", folder -> new TerminalView(
+                    new TerminalSession(folder, List.of(herdrCli.toString()), System.getenv()), settings));
+        } else {
+            terminals.open(directory, inEditor);
+        }
     }
 
     private void openKiroTerminal() {
@@ -527,6 +535,10 @@ public class EditorApp extends Application {
 
     String herdrDesktopExecutable() {
         return System.getenv("SYLPH_HERDR_DESKTOP_EXECUTABLE");
+    }
+
+    Path herdrCliExecutable() {
+        return TerminalSession.findOnPath("herdr", System.getenv("PATH"), System.getProperty("os.name"));
     }
 
     private boolean commandEnabled(EditorShortcuts.Command command) {

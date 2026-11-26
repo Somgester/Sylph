@@ -48,6 +48,8 @@ class TerminalWorkspaceTest {
 
     private String herdrExecutable;
 
+    private Path herdrCli;
+
     private final class ScriptedApp extends EditorApp {
         private File openChoice;
 
@@ -85,6 +87,11 @@ class TerminalWorkspaceTest {
         @Override
         String herdrDesktopExecutable() {
             return herdrExecutable;
+        }
+
+        @Override
+        Path herdrCliExecutable() {
+            return herdrCli;
         }
     }
 
@@ -216,6 +223,26 @@ class TerminalWorkspaceTest {
                 }
             }
         });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void herdrCliOpensInTheShortcutLocationWithWorkspaceDirectory(boolean inEditor) throws Exception {
+        herdrCli = directory.resolve("herdr");
+        Files.writeString(herdrCli, "#!/bin/sh\nprintf 'HERDR_PTY:%s\\n' \"$(pwd)\"\ntest -t 0\n");
+        assertTrue(herdrCli.toFile().setExecutable(true));
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            answerTerminalChooser("terminal-choice-herdr-cli");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, !inEditor, false, true);
+            TabPane tabs = (TabPane) scene.lookup(inEditor ? "#editor-tabs" : "#terminal-panel");
+            assertTrue(tabs.getSelectionModel().getSelectedItem().getText().startsWith("Herdr CLI"));
+            return null;
+        });
+        TerminalView terminal = selected(inEditor ? "#editor-tabs" : "#terminal-panel");
+        FxTestSupport.await(() -> screen(terminal).contains("HERDR_PTY:" + directory));
+        terminal.session().completion().get(5, TimeUnit.SECONDS);
+        FxTestSupport.await(() -> ((Label) terminal.getBottom()).getText().contains("exited: 0"));
     }
 
     @Test

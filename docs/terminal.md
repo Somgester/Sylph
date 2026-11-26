@@ -18,12 +18,17 @@ Both opening commands also appear under View and in the command palette. The pan
 
 The opt-in **View → Open Herdr Desktop Tab** entry point uses a patched, separately started
 Herdr Desktop session. See [Herdr Desktop setup](herdr-embedding.md#open-the-sylph-tab).
-When configured, either terminal shortcut opens a **Shell / Herdr Desktop** chooser when
-it would create a new terminal. Shell follows the shortcut's location. Herdr Desktop
-always opens in an editor tab. Use Tab and Enter to choose or Esc to cancel. The bottom
-panel shortcut continues to hide or restore an existing panel without asking.
+When Herdr CLI is on Sylph's launch `PATH` or Herdr Desktop is configured, either
+terminal shortcut offers **Shell** and the available Herdr options for new terminals.
+**Herdr CLI** starts the `herdr` executable directly in a PTY in the workspace folder.
+It follows the shortcut's location, just like Shell. **Herdr Desktop** always opens
+in an editor tab. Use Tab and Enter to choose or Esc to cancel. The bottom-panel
+shortcut hides or restores an existing panel without asking again.
 
 A new terminal starts in the opened workspace folder. Without a workspace, it uses the active file's parent, or Sylph's working directory when no file is open. Changing the opened workspace affects future terminals, not existing shells. Duplicate starts an independent shell in the original terminal's **starting folder**, even after `cd`; it does not copy environment changes, history, or running commands.
+
+Duplicating a Herdr CLI tab starts another client in the same starting folder. Herdr
+manages its own sessions, so both clients can attach to the same Herdr server.
 
 Switching tabs preserves unsaved document text, selection, and undo history. If you return to the editor while a terminal is starting, renderer completion respects that focus choice. Shell input and output never become document edits or trigger autosave. Opening an existing sidebar file selects the document tab.
 

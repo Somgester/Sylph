@@ -294,18 +294,22 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
     }
 
     TerminalView open(Path directory, boolean inEditor) {
+        return open(directory, inEditor, "Terminal", createTerminal);
+    }
+
+    TerminalView open(Path directory, boolean inEditor, String name, Function<Path, TerminalView> factory) {
         if (closed) {
             return null;
         }
         TabPane pane = inEditor ? editors : panel;
-        TerminalView view = createTerminal.apply(directory);
-        Tab tab = new Tab("Terminal " + nextId++, view);
+        TerminalView view = factory.apply(directory);
+        Tab tab = new Tab(name + " " + nextId++, view);
         tab.setTooltip(new Tooltip(directory.toString()));
         Button duplicate = new Button("⧉");
         duplicate.getStyleClass().add("terminal-duplicate");
         duplicate.setAccessibleText("Duplicate " + tab.getText());
-        duplicate.setTooltip(new Tooltip("Duplicate terminal: fresh shell in the same starting folder"));
-        duplicate.setOnAction(event -> open(view.session().directory(), inEditor));
+        duplicate.setTooltip(new Tooltip("Open another " + name + " in the same starting folder"));
+        duplicate.setOnAction(event -> open(view.session().directory(), inEditor, name, factory));
         tab.setGraphic(duplicate);
         terminals.put(tab, view);
         pane.getTabs().add(tab);

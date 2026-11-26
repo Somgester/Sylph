@@ -68,6 +68,24 @@ final class TerminalSession implements AutoCloseable {
         this.environment.put("TERM_PROGRAM", "Sylph");
     }
 
+    static Path findOnPath(String program, String searchPath, String operatingSystem) {
+        if (searchPath == null) {
+            return null;
+        }
+        String filename = operatingSystem.startsWith("Windows") ? program + ".exe" : program;
+        for (String entry : searchPath.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+            try {
+                Path candidate = Path.of(entry).resolve(filename);
+                if (candidate.isAbsolute() && Files.isRegularFile(candidate) && Files.isExecutable(candidate)) {
+                    return candidate.normalize();
+                }
+            } catch (java.nio.file.InvalidPathException ignored) {
+                // Skip unusable PATH entries.
+            }
+        }
+        return null;
+    }
+
     static List<String> shell(Map<String, String> environment, String operatingSystem) {
         if (operatingSystem.startsWith("Windows")) {
             return List.of(environment.getOrDefault("ComSpec", "cmd.exe"));
