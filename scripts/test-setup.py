@@ -25,8 +25,14 @@ class SetupTest(unittest.TestCase):
         (self.project / "auth").mkdir()
         shutil.copy2(ROOT / "init.sh", self.project / "init.sh")
         shutil.copy2(ROOT / "scripts/setup-auth.sh", self.project / "scripts/setup-auth.sh")
+        shutil.copy2(ROOT / "scripts/setup-herdr.sh", self.project / "scripts/setup-herdr.sh")
         self.bin = self.directory / "bin"
         self.bin.mkdir()
+        self.herdr_log = self.directory / "herdr.log"
+        self.write_tool(self.bin / "herdr", '''
+printf '%s\\n' "$*" >> "$FAKE_HERDR_LOG"
+echo 'herdr 0.9.5'
+''')
         for name in ("bash", "dirname", "od", "tr", "chmod", "grep"):
             system_tool = Path("/usr/bin") / name
             (self.bin / name).symlink_to(system_tool if system_tool.exists() else shutil.which(name))
@@ -57,6 +63,7 @@ exit 2
         self.env = dict(os.environ, PATH=str(self.bin), JAVA_HOME=str(self.jdk),
                         PROTO_HOME=str(self.directory / "proto"), FAKE_JDK=str(self.jdk),
                         FAKE_JDK_INSTALLED=str(self.directory / "jdk-installed"),
+                        FAKE_HERDR_LOG=str(self.herdr_log),
                         FAKE_DOCKER_LOG=str(self.log))
         for key in ("FAKE_JDK_READY", "FAKE_COMPOSE_STATUS", "FAKE_DOCKER_STATUS", "FAKE_UP_STATUS", "FAKE_OLD_COMPOSE"):
             self.env.pop(key, None)
@@ -79,6 +86,8 @@ exit 2
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("JDK 21 is already installed", result.stdout)
         self.assertIn("Setup completed successfully", result.stdout)
+        self.assertIn("Herdr CLI is already installed. Skipping installation.", result.stdout)
+        self.assertEqual("--version\n", self.herdr_log.read_text())
         self.assertIn("--wait --wait-timeout 180 keycloak", self.log.read_text())
         self.assertIn(str(self.credentials), shlex.split(self.log.read_text().splitlines()[-1]))
         contents = self.credentials.read_text()
@@ -113,12 +122,24 @@ exit 2
         self.assertEqual("", result.stdout + result.stderr)
         self.assertFalse(self.log.exists())
         self.assertFalse(self.credentials.exists())
+        self.assertFalse(self.herdr_log.exists())
 
     def test_java_only_skips_keycloak_even_without_docker(self):
         (self.bin / "docker").unlink()
         result = self.run_init("--java-only")
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("Keycloak setup skipped", result.stdout)
+        self.assertFalse(self.credentials.exists())
+        self.assertFalse(self.herdr_log.exists())
+
+    def test_herdr_setup_failure_stops_before_keycloak(self):
+        # Model an installer failure without downloading anything or using real tools.
+        self.write_tool(self.project / "scripts/setup-herdr.sh", "exit 1")
+        result = self.run_init()
+        self.assertNotEqual(0, result.returncode)
+        self.assertNotIn("Setup completed successfully", result.stdout)
+        self.assertNotIn("Next, run", result.stdout)
+        self.assertFalse(self.log.exists())
         self.assertFalse(self.credentials.exists())
 
     def test_missing_docker_and_compose_fail_with_instructions(self):
