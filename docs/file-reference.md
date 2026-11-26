@@ -70,6 +70,9 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [auth/start-keycloak.sh](../auth/start-keycloak.sh) | Enables complete Google/GitHub credential pairs before first realm import. |
 | `auth/.env` (generated, ignored) | Private admin and optional OAuth credentials; created once by setup. |
 | [scripts/setup-herdr.sh](../scripts/setup-herdr.sh) | Detects an existing Herdr CLI or installs a checksum-verified, pinned binary for Linux/macOS. |
+| [scripts/import-herdr-theme.sh](../scripts/import-herdr-theme.sh) | Downloads or reads CLI theme TOML and invokes validation before installation. |
+| [scripts/validate-herdr-theme.py](../scripts/validate-herdr-theme.py) | Validates theme-only data and atomically writes a private imported-theme file. Requires Python 3.11+. |
+| [scripts/test-herdr-theme.py](../scripts/test-herdr-theme.py) | Offline importer regression checks using temporary files and a fake downloader. |
 | [scripts/setup-auth.sh](../scripts/setup-auth.sh) | Private credential generation, Docker startup, and realm readiness wait. |
 | [scripts/test-setup.py](../scripts/test-setup.py) | Isolated setup regression checks with fake tools and temporary credentials. |
 | [scripts/test-auth.py](../scripts/test-auth.py) | Disposable-user provisioning and real Keycloak integration runner. |

@@ -35,6 +35,47 @@ Selecting a built-in theme uses a separate config and session profile
 under `~/.sylph/herdr-cli`. **Reset** uses your regular Herdr configuration and sessions
 again. Open a new CLI tab after changing the setting.
 
+### Theme import script
+
+The download/validation stage is available separately while Settings integration is
+being built. It requires Python 3.11 or newer; HTTPS downloads also require `curl`.
+No AI service, Git checkout, or downloaded install script is used.
+
+```bash
+./scripts/import-herdr-theme.sh ./my-theme.toml
+./scripts/import-herdr-theme.sh https://example.org/raw/theme.toml
+```
+
+Use a direct URL to the raw TOML file, not a GitHub repository or HTML page.
+The script installs validated data to `~/.sylph/herdr-cli/imported-theme.toml`.
+An optional second argument chooses another destination, useful for testing.
+**This stage does not select or apply the imported theme in Sylph yet.** Existing
+theme selections and running terminals remain unchanged.
+
+Files must contain only a nonempty `[theme]` table and optional `[theme.custom]`,
+`[theme.custom.light]`, and `[theme.custom.dark]` color tables. For example:
+
+```toml
+[theme]
+name = "nord"
+
+[theme.custom]
+accent = "#88c0d0"
+text = "#eceff4"
+```
+
+The validator accepts the 18 built-in names and color tokens documented in
+[Herdr CLI 0.9.5's theme schema](https://github.com/herdrdev/herdr/blob/v0.9.5/src/config/theme.rs).
+Colors support hex, `rgb(r, g, b)` with components from 0 to 255, and Herdr's named
+colors. Full application configs, unknown fields, invalid UTF-8, malformed TOML,
+and files larger than 64 KiB are rejected. Imports write a private file atomically;
+validation or download failure preserves the previous imported theme. Downloads
+use HTTPS-only redirects, a size limit, and timeouts. The script never modifies
+your regular Herdr config or executes downloaded content.
+
+Herdr Desktop layouts such as Traveler and T3 cannot be imported as CLI color
+themes. Desktop installation and its layout workflow are outside this integration.
+
 Expand works for Shell and Herdr CLI. The terminal fills the Sylph
 window with its tab strip still available. Restore brings back the editor layout
 and keeps the same terminal session and output.

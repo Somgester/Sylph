@@ -83,3 +83,9 @@ When reporting an issue, include the command, current revision, file extension, 
 ## Setup script checks
 
 Run `python3 scripts/test-setup.py -v` for isolated setup regression checks. Fake Docker/JDK tools verify first-run credentials, permissions, repeated setup, readiness/startup failure, Java provisioning, Java-only/sourced behavior, and empty/complete/partial OAuth credential pairs without changing real credentials or starting containers.
+
+Run `python3 scripts/test-herdr-theme.py -v` with Python 3.11+ for offline theme-import
+checks. Temporary profiles and a fake downloader cover valid custom colors, HTTPS
+restrictions, argument handling, failed downloads, invalid/oversized content,
+symlink rejection, atomic replacement, and preservation of previous imports. These
+checks do not download anything or start Herdr or Sylph.
