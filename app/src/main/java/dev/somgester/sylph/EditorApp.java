@@ -171,10 +171,6 @@ public class EditorApp extends Application {
         chrome = new EditorChrome(null, settings, null, this::executeCommand);
         chrome.kiroButton().setOnAction(event -> openKiroTerminal());
         chrome.kiroSessionsButton().setOnAction(event -> palette.showKiroSessions());
-        String herdr = herdrDesktopExecutable();
-        if (herdr != null && !herdr.isBlank()) {
-            chrome.enableHerdrDesktop(() -> openHerdrDesktop(herdr));
-        }
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
         terminals = new TerminalWorkspace(this::createTerminal, this::focusEditor,
@@ -217,7 +213,7 @@ public class EditorApp extends Application {
             this::renameKiroSession);
         EditorShortcuts.install(scene, this::executeCommand,
                 command -> command != EditorShortcuts.Command.PREVIEW
-                        || !TerminalView.ownsFocus(scene) && !HerdrDesktopView.ownsFocus(scene));
+                        || !TerminalView.ownsFocus(scene));
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (!palette.isVisible() && toolPageVisible && event.getCode() == KeyCode.ESCAPE) {
                 showEditor();
@@ -447,15 +443,9 @@ public class EditorApp extends Application {
             terminals.togglePanel();
             return;
         }
-        String herdr = herdrDesktopExecutable();
         Path herdrCli = herdrCliExecutable();
-        boolean desktopAvailable = herdr != null && !herdr.isBlank();
-        TerminalChooser.Choice choice = herdrCli == null && !desktopAvailable ? TerminalChooser.Choice.SHELL
-                : TerminalChooser.choose(stage, inEditor, herdrCli != null, desktopAvailable);
-        if (choice == TerminalChooser.Choice.HERDR_DESKTOP) {
-            openHerdrDesktop(herdr);
-            return;
-        }
+        TerminalChooser.Choice choice = herdrCli == null ? TerminalChooser.Choice.SHELL
+                : TerminalChooser.choose(stage, inEditor);
         if (choice == TerminalChooser.Choice.CANCEL) {
             return;
         }
@@ -484,22 +474,6 @@ public class EditorApp extends Application {
         TerminalView terminal = terminals.open(terminalDirectory(), true);
         if (terminal != null) {
             terminal.session().send("kiro-cli\r");
-        }
-    }
-
-    private void openHerdrDesktop(String executable) {
-        try {
-            Path path = Path.of(executable);
-            if (!path.isAbsolute() || !Files.isRegularFile(path) || !Files.isExecutable(path)) {
-                status.setText("Set SYLPH_HERDR_DESKTOP_EXECUTABLE to an absolute path to the patched Herdr app.");
-                return;
-            }
-            if (toolPageVisible) {
-                showEditor();
-            }
-            terminals.openHerdrDesktop(path);
-        } catch (java.nio.file.InvalidPathException invalid) {
-            status.setText("Invalid SYLPH_HERDR_DESKTOP_EXECUTABLE path.");
         }
     }
 
@@ -547,10 +521,6 @@ public class EditorApp extends Application {
 
     TerminalView createTerminal(Path directory) {
         return new TerminalView(directory, settings);
-    }
-
-    String herdrDesktopExecutable() {
-        return System.getenv("SYLPH_HERDR_DESKTOP_EXECUTABLE");
     }
 
     Path herdrCliExecutable() {

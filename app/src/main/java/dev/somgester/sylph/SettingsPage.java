@@ -14,8 +14,6 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.skin.ComboBoxListViewSkin;
@@ -181,15 +179,8 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
         reset.disableProperty().bind(settings.herdrThemeProperty().isEqualTo(HerdrCliTheme.DEFAULT));
         HBox options = new HBox(12, label("Theme", "settings-field-label"), theme, reset);
         options.setAlignment(Pos.CENTER_LEFT);
-        Tab terminal = new Tab("Terminal themes", section("Herdr CLI",
+        TitledPane pane = new TitledPane("Herdr Themes", section("Herdr CLI",
                 "A built-in theme opens new clients in a separate Sylph profile.", options));
-        Label layouts = label("Switch Desktop layouts from Herdr's own layout picker.", "settings-description");
-        Tab desktop = new Tab("Desktop layouts", section("Herdr Desktop",
-                "Desktop layouts use Herdr Desktop's own settings.", layouts));
-        TabPane tabs = new TabPane(terminal, desktop);
-        tabs.setId("herdr-theme-tabs");
-        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        TitledPane pane = new TitledPane("Herdr Themes", tabs);
         pane.setId("settings-herdr-themes");
         pane.setExpanded(false);
         pane.setAnimated(false);

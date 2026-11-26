@@ -31,8 +31,6 @@ final class EditorChrome extends VBox {
 
     private final Button kiroSessionsButton = new Button("Sessions");
 
-    private final MenuItem herdrDesktop = new MenuItem("Open Herdr Desktop Tab");
-
     private final ObjectProperty<EditorSession> active = new SimpleObjectProperty<>();
 
     private final BooleanProperty fileAction = new SimpleBooleanProperty();
@@ -83,8 +81,6 @@ final class EditorChrome extends VBox {
                 item(EditorShortcuts.Command.RELOAD, execute, busy), new SeparatorMenuItem(),
                 item(EditorShortcuts.Command.TERMINAL_PANEL, execute, busy),
                 item(EditorShortcuts.Command.TERMINAL_EDITOR, execute, busy));
-        herdrDesktop.setVisible(false);
-        view.getItems().add(herdrDesktop);
         MenuBar menus = new MenuBar(file, edit, view);
         menus.setUseSystemMenuBar(false);
         menus.setId("main-menu");
@@ -149,10 +145,6 @@ final class EditorChrome extends VBox {
         edit.setDocument(view, session);
     }
 
-    void enableHerdrDesktop(Runnable open) {
-        herdrDesktop.setOnAction(event -> open.run());
-        herdrDesktop.setVisible(true);
-    }
 
     void setFileActionInProgress(boolean value) {
         fileAction.set(value);

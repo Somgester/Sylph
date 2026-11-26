@@ -13,41 +13,27 @@ import javafx.stage.Stage;
 final class TerminalChooser {
 
     enum Choice {
-        SHELL, HERDR_CLI, HERDR_DESKTOP, CANCEL
+        SHELL, HERDR_CLI, CANCEL
     }
 
     private TerminalChooser() { }
 
-    static Choice choose(Stage owner, boolean inEditor, boolean cliAvailable, boolean desktopAvailable) {
+    static Choice choose(Stage owner, boolean inEditor) {
         ButtonType shell = new ButtonType("Shell", ButtonBar.ButtonData.OK_DONE);
         ButtonType cli = new ButtonType("Herdr CLI", ButtonBar.ButtonData.OTHER);
-        ButtonType herdr = new ButtonType("Herdr Desktop", ButtonBar.ButtonData.OTHER);
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.initOwner(owner);
         dialog.setTitle("New Terminal");
         var pane = dialog.getDialogPane();
         pane.getStyleClass().add("terminal-chooser");
         pane.getStylesheets().setAll(owner.getScene().getStylesheets());
-        pane.getButtonTypes().add(shell);
-        if (cliAvailable) {
-            pane.getButtonTypes().add(cli);
-        }
-        if (desktopAvailable) {
-            pane.getButtonTypes().add(herdr);
-        }
-        pane.getButtonTypes().add(ButtonType.CANCEL);
+        pane.getButtonTypes().setAll(shell, cli, ButtonType.CANCEL);
         Label title = new Label("Choose a terminal");
         title.getStyleClass().add("terminal-chooser-title");
         pane.setContent(title);
         String location = inEditor ? "Open in an editor tab" : "Open in the bottom panel";
         styleCard((Button) pane.lookupButton(shell), "terminal-choice-shell", shell.getText(), location);
-        if (cliAvailable) {
-            styleCard((Button) pane.lookupButton(cli), "terminal-choice-herdr-cli", cli.getText(), location);
-        }
-        if (desktopAvailable) {
-            styleCard((Button) pane.lookupButton(herdr), "terminal-choice-herdr", herdr.getText(),
-                    "Connect in an editor tab");
-        }
+        styleCard((Button) pane.lookupButton(cli), "terminal-choice-herdr-cli", cli.getText(), location);
         Button cancel = (Button) pane.lookupButton(ButtonType.CANCEL);
         cancel.setId("terminal-choice-cancel");
         cancel.getStyleClass().add("terminal-chooser-cancel");
@@ -57,10 +43,7 @@ final class TerminalChooser {
         if (result == shell) {
             return Choice.SHELL;
         }
-        if (result == cli) {
-            return Choice.HERDR_CLI;
-        }
-        return result == herdr ? Choice.HERDR_DESKTOP : Choice.CANCEL;
+        return result == cli ? Choice.HERDR_CLI : Choice.CANCEL;
     }
 
     private static void styleCard(Button button, String id, String name, String detail) {

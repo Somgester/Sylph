@@ -44,10 +44,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
 
     private Tab document;
 
-    private Tab herdrTab;
-
-    private HerdrDesktopView herdrView;
-
     private final Consumer<Tab> selectDocument;
 
     private final BooleanSupplier canSelectDocument;
@@ -87,7 +83,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         panel.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
         installTabLifecycle(editors);
         installTabLifecycle(panel);
-        sceneProperty().addListener((observable, previous, current) -> syncHerdrView());
         Label empty = new Label("Double-click to create a new file\n"
                 + EditorShortcuts.Command.NEW_FILE.help() + "  •  " + EditorShortcuts.Command.OPEN_FILE.help());
         empty.setId("empty-editor");
@@ -162,11 +157,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
             while (change.next()) {
                 change.getAddedSubList().forEach(this::installTabMenu);
                 for (Tab removed : change.getRemoved()) {
-                    if (removed == herdrTab) {
-                        herdrView.close();
-                        herdrView = null;
-                        herdrTab = null;
-                    }
                     TerminalView terminal = terminals.remove(removed);
                     if (terminal != null) {
                         terminal.close();
@@ -184,10 +174,7 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
             if (expanded.get() != null && selected != expanded.get()) {
                 restoreTerminal();
             }
-            if (pane == editors) {
-                syncHerdrView();
-            }
-            if (pane == editors && selected != null && selected != herdrTab && !terminals.containsKey(selected)) {
+            if (pane == editors && selected != null && !terminals.containsKey(selected)) {
                 if (!changingDocuments && !canSelectDocument.getAsBoolean() && selected != document) {
                     pane.getSelectionModel().select(previous);
                     return;
@@ -206,16 +193,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         TerminalView terminal = terminals.get(pane.getSelectionModel().getSelectedItem());
         if (terminal != null) {
             terminal.focusTerminal(getScene());
-        } else if (pane == editors && herdrTab != null && editors.getSelectionModel().getSelectedItem() == herdrTab) {
-            var scene = getScene();
-            var preview = herdrView;
-            Node owner = scene == null ? null : scene.getFocusOwner();
-            Platform.runLater(() -> {
-                if (!closed && scene != null && getScene() == scene && scene.getFocusOwner() == owner
-                        && herdrView == preview && editors.getSelectionModel().getSelectedItem() == herdrTab) {
-                    preview.focusPreview();
-                }
-            });
         } else if (pane == editors) {
             var scene = getScene();
             Node previous = scene == null ? null : scene.getFocusOwner();
@@ -225,33 +202,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
                     focusDocument.run();
                 }
             });
-        }
-    }
-
-    private void syncHerdrView() {
-        if (herdrView != null) {
-            herdrView.setActive(!closed && getScene() != null && editors.getSelectionModel().getSelectedItem()
-                    == herdrTab && getItems().contains(editorArea));
-        }
-    }
-
-    void openHerdrDesktop(Path executable) {
-        if (closed) {
-            return;
-        }
-        restoreTerminal();
-        if (herdrTab == null) {
-            herdrView = new HerdrDesktopView(executable.toString());
-            herdrTab = new Tab("Herdr Desktop", herdrView);
-            herdrTab.setId("herdr-desktop-tab");
-            herdrTab.setGraphic(expandButton(herdrTab, editors));
-            editors.getTabs().add(herdrTab);
-        }
-        editors.getSelectionModel().select(herdrTab);
-        if (getScene() != null) {
-            getScene().getRoot().applyCss();
-            getScene().getRoot().layout();
-            herdrView.focusPreview();
         }
     }
 
@@ -366,7 +316,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
                 }
                 expanded.set(tab);
                 getItems().remove(pane == panel ? editorArea : panel);
-                syncHerdrView();
             }
             focusSelection(pane);
         });
@@ -387,7 +336,6 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
             }
             setDividerPositions(dividerBeforeExpand);
         }
-        syncHerdrView();
     }
 
     private void showPanel() {

@@ -17,26 +17,22 @@ Use Ctrl on Linux/Windows and Cmd on macOS for `Mod` below.
 
 Both opening commands also appear under View and in the command palette. The panel divider can be dragged. Hiding the panel keeps its shells alive; reopening it restores the same tabs and output. Closing its last tab removes the panel. Terminal tabs in the editor share a tab row with the current document. Sylph still edits one document at a time; adding terminal tabs does not add multiple document sessions.
 
-The opt-in **View → Open Herdr Desktop Tab** entry point uses a patched, separately started
-Herdr Desktop session. See [Herdr Desktop setup](herdr-embedding.md#open-the-sylph-tab).
-When Herdr CLI is on Sylph's launch `PATH` or Herdr Desktop is configured, either
-terminal shortcut offers **Shell** and the available Herdr options for new terminals.
-**Herdr CLI** starts the `herdr` executable directly in a PTY in the workspace folder.
-It follows the shortcut's location, just like Shell. **Herdr Desktop** always opens
-in an editor tab. Use Tab and Enter to choose or Esc to cancel. The bottom-panel
-shortcut hides or restores an existing panel without asking again.
+When Herdr CLI is on Sylph’s launch `PATH`, a shortcut that creates a terminal offers
+**Shell** and **Herdr CLI**. Both open in the location picked by the shortcut. Use Tab
+and Enter to choose or Esc to cancel. The bottom-panel shortcut hides or restores an
+existing panel without asking again.
 
 A new terminal starts in the opened workspace folder. Without a workspace, it uses the active file's parent, or Sylph's working directory when no file is open. Changing the opened workspace affects future terminals, not existing shells. Duplicate starts an independent shell in the original terminal's **starting folder**, even after `cd`; it does not copy environment changes, history, or running commands.
 
 Duplicating a Herdr CLI tab starts another client in the same starting folder. Herdr
 manages its own sessions, so both clients can attach to the same Herdr server.
 
-Under **Settings → Herdr Themes → Terminal themes**, pick a built-in theme for newly
+Under **Settings → Herdr Themes**, pick a built-in theme for newly
 opened Herdr CLI clients. A custom theme uses a separate config and session profile
 under `~/.sylph/herdr-cli`. **Reset** uses your regular Herdr configuration and sessions
 again. Open a new CLI tab after changing the setting.
 
-Expand works for Shell, Herdr CLI, and Herdr Desktop. The terminal fills the Sylph
+Expand works for Shell and Herdr CLI. The terminal fills the Sylph
 window with its tab strip still available. Restore brings back the editor layout
 and keeps the same terminal session and output.
 
