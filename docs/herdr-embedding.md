@@ -69,7 +69,9 @@ The request format describes simple state and does not preserve a complete input
 
 The [Rust helper](../experiments/herdr-embedding/gpui/src/main.rs) uses GPUI 0.3.8's headless
 renderer to draw a simple scene and read back its pixels. It dispatches pointer movement
-and changed typed characters through GPUI handlers. This uses the published GPUI crates at
+and changed typed characters through GPUI handlers. A primary click in JavaFX also sends
+its coordinates to the helper, which dispatches mouse down and mouse up through GPUI's
+hit testing. Click **Click probe** in the demo to see its background change. This uses the published GPUI crates at
 the versions declared by the pinned Herdr App source. It does not load Herdr App's patched
 renderer, Desktop layouts, or terminal sessions.
 
@@ -87,6 +89,12 @@ cargo build --locked --manifest-path experiments/herdr-embedding/gpui/Cargo.toml
 The smoke test fires a JavaFX key event and asserts that GPUI's response changes a pixel
 displayed in the JavaFX view. Omit `-PheadlessHerdrExperiment` to try the input and resize
 behavior manually.
+
+To test clicks, use the same command with `-PheadlessGpuiClickExperiment` in place of
+`-PheadlessHerdrExperiment`. This sends one click outside the button and two at the same
+point inside it. The test checks that only the two inside clicks change the button pixels.
+The probe transports completed primary clicks. It does not forward drags or send mouse
+events to the running Herdr Desktop app.
 
 ## Stock Desktop frame preview
 

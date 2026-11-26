@@ -138,16 +138,23 @@ tasks.register('herdrFrameExperiment', JavaExec) {
         systemProperty 'sylph.herdr.terminal', terminal.get()
     }
     def scrollSmoke = providers.gradleProperty('headlessHerdrScrollExperiment').isPresent()
+    def clickSmoke = providers.gradleProperty('headlessGpuiClickExperiment').isPresent()
     if (scrollSmoke && (!desktop.isPresent() || !core.isPresent() || !terminal.isPresent())) {
         throw new GradleException('The scroll smoke test requires a Desktop preview with a terminal target.')
     }
-    if (scrollSmoke || providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
+    if (clickSmoke && (!gpuiHelper.isPresent() || desktop.isPresent())) {
+        throw new GradleException('The GPUI click smoke test requires herdrFrameHelper and no Desktop executable.')
+    }
+    if (clickSmoke || scrollSmoke || providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
         systemProperty 'glass.platform', 'Monocle'
         systemProperty 'monocle.platform', 'Headless'
         systemProperty 'prism.order', 'sw'
         args '--smoke'
         if (scrollSmoke) {
             args '--scroll-smoke'
+        }
+        if (clickSmoke) {
+            args '--click-smoke'
         }
     }
 }

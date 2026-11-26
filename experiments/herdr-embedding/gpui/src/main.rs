@@ -9,6 +9,7 @@ struct Probe {
     pointer: Point<Pixels>,
     host_focused: bool,
     blue: u32,
+    clicks: u8,
 }
 
 impl Render for Probe {
@@ -35,6 +36,22 @@ impl Render for Probe {
             .child(div().w_full().h(px(8.)).bg(rgb(accent)))
             .child(
                 div()
+                    .id("probe-button")
+                    .absolute()
+                    .left(px(16.))
+                    .top(px(24.))
+                    .w(px(120.))
+                    .h(px(36.))
+                    .bg(rgb(0x204000 | u32::from(self.clicks)))
+                    .text_color(rgb(0xffffff))
+                    .child("Click probe")
+                    .on_click(cx.listener(|view, _: &ClickEvent, _, cx| {
+                        view.clicks = view.clicks.wrapping_add(96);
+                        cx.notify();
+                    })),
+            )
+            .child(
+                div()
                     .absolute()
                     .left(self.pointer.x - px(5.))
                     .top(self.pointer.y - px(5.))
@@ -51,6 +68,7 @@ struct Request {
     y: i32,
     focused: bool,
     key: Option<char>,
+    click: Option<Point<Pixels>>,
 }
 
 impl Request {
@@ -59,15 +77,23 @@ impl Request {
             .split_ascii_whitespace()
             .map(str::parse::<i32>)
             .collect::<Result<Vec<_>, _>>()?;
-        let &[width, height, x, y, focused, key] = fields.as_slice() else {
-            anyhow::bail!("Expected six frame request fields");
+        let [width, height, x, y, focused, key, extra @ ..] = fields.as_slice() else {
+            anyhow::bail!("Expected frame request fields");
         };
+        let (width, height, x, y, focused, key) = (*width, *height, *x, *y, *focused, *key);
         ensure!(
             (1..=960).contains(&width) && (1..=540).contains(&height),
             "Invalid frame size"
         );
         ensure!((0..=1).contains(&focused), "Invalid focus state");
         let key = char::from_u32(u32::try_from(key)?).context("Invalid key code point")?;
+        let click = match extra {
+            [] => None,
+            [x, y] if (0..width).contains(x) && (0..height).contains(y) => {
+                Some(point(px(*x as f32), px(*y as f32)))
+            }
+            _ => anyhow::bail!("Invalid click coordinates"),
+        };
         Ok(Self {
             width: width as u32,
             height: height as u32,
@@ -75,6 +101,7 @@ impl Request {
             y,
             focused: focused == 1,
             key: (key != '\0').then_some(key),
+            click,
         })
     }
 }
@@ -91,6 +118,7 @@ fn main() -> Result<()> {
             pointer: point(px(-10.), px(-10.)),
             host_focused: false,
             blue: 35,
+            clicks: 0,
         })
     })?;
     let mut out = BufWriter::new(io::stdout().lock());
@@ -111,6 +139,26 @@ fn main() -> Result<()> {
         let image = cx.update_window(window.into(), |_, window, cx| {
             // Draw once to register the layout's focus and key handlers.
             let _ = window.draw(cx);
+            if let Some(position) = request.click {
+                window.dispatch_event(
+                    PlatformInput::MouseDown(MouseDownEvent {
+                        button: MouseButton::Left,
+                        position,
+                        click_count: 1,
+                        ..Default::default()
+                    }),
+                    cx,
+                );
+                window.dispatch_event(
+                    PlatformInput::MouseUp(MouseUpEvent {
+                        button: MouseButton::Left,
+                        position,
+                        click_count: 1,
+                        ..Default::default()
+                    }),
+                    cx,
+                );
+            }
             window.simulate_mouse_move(point(px(request.x as f32), px(request.y as f32)), cx);
             if let Some(key) = request.key.filter(|key| Some(*key) != last_key) {
                 let input = key.to_string();

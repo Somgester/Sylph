@@ -17,6 +17,7 @@ import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.Event;
+import javafx.geometry.Point3D;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -26,6 +27,9 @@ import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.input.PickResult;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
@@ -36,7 +40,9 @@ public final class FrameBridgeDemo extends Application {
     private static final String SMOKE_KEY = "A";
     private static boolean smokePassed;
 
-    private record Request(int width, int height, int x, int y, boolean focused, int key) { }
+    private record Click(double x, double y) { }
+
+    private record Request(int width, int height, int x, int y, boolean focused, int key, Click click) { }
 
     private final ExecutorService worker = Executors.newSingleThreadExecutor(
             Thread.ofPlatform().daemon().name("frame-fixture").factory());
@@ -44,6 +50,7 @@ public final class FrameBridgeDemo extends Application {
     private final ImageView view = new ImageView();
     private final Label status = new Label();
     private final ArrayDeque<String> desktopKeys = new ArrayDeque<>();
+    private final ArrayDeque<Click> probeClicks = new ArrayDeque<>();
     private String desktopCore;
     private String desktopTerminal;
     private boolean desktopFailed;
@@ -61,6 +68,7 @@ public final class FrameBridgeDemo extends Application {
     private int pointerX = -10;
     private int pointerY = -10;
     private int key;
+    private int clickSmokeStep;
 
     @Override
     public void start(Stage stage) throws IOException {
@@ -83,6 +91,19 @@ public final class FrameBridgeDemo extends Application {
         view.fitHeightProperty().bind(surface.heightProperty());
         surface.getChildren().add(view);
         surface.setOnMousePressed(event -> surface.requestFocus());
+        if (executable != null) {
+            surface.setOnMouseClicked(event -> {
+                if (event.getButton() == MouseButton.PRIMARY && event.isStillSincePress()
+                        && surface.contains(event.getX(), event.getY())) {
+                    if (probeClicks.size() == 32) {
+                        showFailure(new IOException("GPUI click queue is full. Reopen the probe."));
+                    } else {
+                        probeClicks.addLast(new Click(event.getX() / surface.getWidth(),
+                                event.getY() / surface.getHeight()));
+                    }
+                }
+            });
+        }
         surface.setOnMouseMoved(event -> {
             pointerX = (int) event.getX();
             pointerY = (int) event.getY();
@@ -106,8 +127,11 @@ public final class FrameBridgeDemo extends Application {
         timer = new AnimationTimer() {
             @Override
             public void handle(long now) {
+                if (pending) {
+                    return;
+                }
                 Request request = snapshot();
-                if (!pending && !request.equals(shown)) {
+                if (request.click() != null || !request.equals(shown)) {
                     pending = true;
                     worker.execute(() -> exchange(requests, frames, request));
                 }
@@ -377,13 +401,19 @@ public final class FrameBridgeDemo extends Application {
         int frameWidth = Math.min(960, (int) width);
         int frameHeight = Math.min(540, (int) height);
         return new Request(frameWidth, frameHeight, (int) (pointerX * frameWidth / width),
-                (int) (pointerY * frameHeight / height), surface.isFocused(), key);
+                (int) (pointerY * frameHeight / height), surface.isFocused(), key, probeClicks.pollFirst());
     }
 
     private void exchange(BufferedWriter requests, BufferedInputStream frames, Request request) {
         try {
-            requests.write(String.format(Locale.ROOT, "%d %d %d %d %d %d%n", request.width(), request.height(),
+            requests.write(String.format(Locale.ROOT, "%d %d %d %d %d %d", request.width(), request.height(),
                     request.x(), request.y(), request.focused() ? 1 : 0, request.key()));
+            if (request.click() != null) {
+                int x = Math.clamp((int) (request.click().x() * request.width()), 0, request.width() - 1);
+                int y = Math.clamp((int) (request.click().y() * request.height()), 0, request.height() - 1);
+                requests.write(" " + x + " " + y);
+            }
+            requests.newLine();
             requests.flush();
             int size = request.width() * request.height() * 4;
             byte[] pixels = frames.readNBytes(size);
@@ -410,7 +440,9 @@ public final class FrameBridgeDemo extends Application {
         pending = false;
         status.setText("%d × %d  |  Focus: %s  |  Last key: %d".formatted(
                 request.width(), request.height(), request.focused() ? "preview" : "outside", request.key()));
-        if (smokeMode()) {
+        if (getParameters().getRaw().contains("--click-smoke")) {
+            checkProbeClick();
+        } else if (smokeMode()) {
             if (request.key() == 0) {
                 Event.fireEvent(surface, new KeyEvent(KeyEvent.KEY_TYPED, SMOKE_KEY, "",
                         KeyCode.UNDEFINED, false, false, false, false));
@@ -420,6 +452,26 @@ public final class FrameBridgeDemo extends Application {
                 Platform.exit();
             }
         }
+    }
+
+    private void checkProbeClick() {
+        // Check a stable pixel in the button, clear of the text and click coordinates.
+        int expectedBlue = Math.max(0, clickSmokeStep - 1) * 96;
+        if ((frame.getPixelReader().getArgb(120, 50) & 0xff) != expectedBlue) {
+            Platform.exit();
+            return;
+        }
+        if (clickSmokeStep == 3) {
+            smokePassed = true;
+            Platform.exit();
+            return;
+        }
+        double x = clickSmokeStep == 0 ? 160 : 68;
+        double y = clickSmokeStep == 0 ? 80 : 40;
+        clickSmokeStep++;
+        Event.fireEvent(surface, new MouseEvent(MouseEvent.MOUSE_CLICKED, x, y, x, y,
+                MouseButton.PRIMARY, 1, false, false, false, false, false, false, false, false, false, true,
+                new PickResult(surface, new Point3D(x, y, 0), 0)));
     }
 
     private boolean smokeMode() {
@@ -444,7 +496,9 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
-            String check = List.of(args).contains("--scroll-smoke")
+            String check = List.of(args).contains("--click-smoke")
+                    ? "JavaFX click hit testing in GPUI"
+                    : List.of(args).contains("--scroll-smoke")
                     ? "Herdr Desktop scroll and frame refresh in JavaFX"
                     : System.getProperty("sylph.herdr.desktop") == null
                     ? "JavaFX frame and keyboard round trip"
