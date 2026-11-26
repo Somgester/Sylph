@@ -48,8 +48,10 @@ public final class FrameBridgeDemo extends Application {
 
     @Override
     public void start(Stage stage) throws IOException {
-        helper = new ProcessBuilder("python3", "render_fixture.py")
-                .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+        String executable = System.getProperty("sylph.herdr.frameHelper");
+        ProcessBuilder command = executable == null
+                ? new ProcessBuilder("python3", "render_fixture.py") : new ProcessBuilder(executable);
+        helper = command.redirectError(ProcessBuilder.Redirect.INHERIT).start();
         var requests = new BufferedWriter(new OutputStreamWriter(helper.getOutputStream(), StandardCharsets.US_ASCII));
         var frames = new BufferedInputStream(helper.getInputStream());
         TextField source = new TextField();
@@ -104,7 +106,7 @@ public final class FrameBridgeDemo extends Application {
 
     private void exchange(BufferedWriter requests, BufferedInputStream frames, Request request) {
         try {
-            requests.write(String.format(Locale.ROOT, "%d %d %d %d %d %d%n",request.width(), request.height(),
+            requests.write(String.format(Locale.ROOT, "%d %d %d %d %d %d%n", request.width(), request.height(),
                     request.x(), request.y(), request.focused() ? 1 : 0, request.key()));
             requests.flush();
             int size = request.width() * request.height() * 4;

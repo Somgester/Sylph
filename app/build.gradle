@@ -120,6 +120,10 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     workingDir = rootProject.file('experiments/herdr-embedding')
     classpath = sourceSets.test.runtimeClasspath
     mainClass = rootProject.file('experiments/herdr-embedding/FrameBridgeDemo.java').absolutePath
+    def gpuiHelper = providers.gradleProperty('herdrFrameHelper')
+    if (gpuiHelper.isPresent()) {
+        systemProperty 'sylph.herdr.frameHelper', rootProject.file(gpuiHelper.get()).absolutePath
+    }
     if (providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
         systemProperty 'glass.platform', 'Monocle'
         systemProperty 'monocle.platform', 'Headless'

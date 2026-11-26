@@ -1,0 +1,10 @@
+[package]
+name = "sylph-gpui-frame-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1"
+gpui = { package = "gpui-pre", version = "=0.3.8", features = ["test-support"] }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.8", features = ["test-support"] }

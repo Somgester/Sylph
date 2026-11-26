@@ -63,9 +63,31 @@ a visible window:
 ./gradlew :app:herdrFrameExperiment -PheadlessHerdrExperiment --no-configuration-cache
 ```
 
-The fixture tests JavaFX's side of the exchange. Its request format describes simple state
-and does not preserve a complete input event stream. The next experiment is to replace the
-fixture with GPUI and test native input, frame latency, and resizing on Wayland.
+The request format describes simple state and does not preserve a complete input event stream.
+
+## GPUI renderer experiment
+
+The [Rust helper](../experiments/herdr-embedding/gpui/src/main.rs) uses GPUI 0.3.8's headless
+renderer to draw a simple scene and read back its pixels. It dispatches pointer movement
+and changed typed characters through GPUI handlers. This uses the published GPUI crates at
+the versions declared by the pinned Herdr App source. It does not load Herdr App's patched
+renderer, Desktop layouts, or terminal sessions.
+
+On Linux, build with Rust 1.95 and Cargo. The build needs a C toolchain, pkg-config,
+and development libraries for Fontconfig, xkbcommon, Wayland and XCB. Run with Vulkan
+available. Mesa's software Vulkan driver works for a headless check.
+
+```sh
+cargo build --locked --manifest-path experiments/herdr-embedding/gpui/Cargo.toml
+./gradlew :app:herdrFrameExperiment --no-configuration-cache \
+  -PheadlessHerdrExperiment \
+  -PherdrFrameHelper=experiments/herdr-embedding/gpui/target/debug/sylph-gpui-frame-probe
+```
+
+The smoke test fires a JavaFX key event and asserts that GPUI's response changes a pixel
+displayed in the JavaFX view. Omit `-PheadlessHerdrExperiment` to try the input and resize
+behavior manually. The next milestone is a stock Herdr Desktop layout and one live shell
+in the same surface on Wayland.
 
 ## Native embedding checks
 
