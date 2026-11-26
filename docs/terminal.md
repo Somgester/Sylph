@@ -45,6 +45,10 @@ Imports run in the background; on success Sylph selects
 to use it. A failure keeps the previous theme and selection. Reset returns to your
 regular Herdr configuration without deleting the imported file.
 
+If an import fails, its status distinguishes invalid theme/URL data, missing Python
+or curl, download failure, and file-access problems. Messages suggest the next step
+without displaying subprocess output, private file paths, or URL credentials.
+
 Imports require Bash and Python 3.11 or newer; HTTPS downloads also require `curl`.
 The UI invokes the same bundled shell workflow as the command below, including
 when launching a packaged JAR from another working directory. No AI service,
@@ -82,6 +86,11 @@ and files larger than 64 KiB are rejected. Imports write a private file atomical
 validation or download failure preserves the previous imported theme. Downloads
 use HTTPS-only redirects, a size limit, and timeouts. The script never modifies
 your regular Herdr config or executes downloaded content.
+
+For shell integrations, the importer exits with `0` on success, `2` for incorrect
+arguments, `3` for invalid theme/URL data, `4` for missing/unsupported Python, `5`
+for missing curl, `6` for download failure, and `7` for theme-file access failures.
+Other shell/tool failures can return other nonzero codes.
 
 Herdr Desktop layouts such as Traveler and T3 cannot be imported as CLI color
 themes. Desktop installation and its layout workflow are outside this integration.

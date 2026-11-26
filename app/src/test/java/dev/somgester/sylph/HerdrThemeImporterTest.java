@@ -49,8 +49,21 @@ class HerdrThemeImporterTest {
         Path imported = profile.resolve("imported-theme.toml");
         Files.writeString(imported, "previous theme");
         Files.writeString(source, "[theme]\nname = \"unknown\"\n");
-        assertThrows(IOException.class, () -> new HerdrThemeImporter(profile).importTheme(source.toString()));
+        var failure = assertThrows(HerdrThemeImporter.ImportFailure.class,
+                () -> new HerdrThemeImporter(profile).importTheme(source.toString()));
+        assertTrue(failure.getMessage().startsWith("Invalid theme or URL."));
+        assertFalse(failure.getMessage().contains(source.toString()));
         assertEquals("previous theme", Files.readString(imported));
+    }
+
+    @Test
+    void missingSourceReportsFileAccessFailureWithoutExposingItsPath() throws Exception {
+        requireImporterTools();
+        Path source = directory.resolve("private-missing-theme.toml");
+        var failure = assertThrows(HerdrThemeImporter.ImportFailure.class,
+                () -> new HerdrThemeImporter(directory.resolve("profile")).importTheme(source.toString()));
+        assertTrue(failure.getMessage().startsWith("Cannot read or install"));
+        assertFalse(failure.getMessage().contains("private-missing"));
     }
 
     @Test

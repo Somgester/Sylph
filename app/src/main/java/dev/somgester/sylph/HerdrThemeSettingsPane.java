@@ -105,8 +105,10 @@ final class HerdrThemeSettingsPane extends TitledPane implements AutoCloseable {
                 if (!closed) {
                     pending = null;
                     controls.setDisable(false);
-                    status.setText("Import failed. Check the file or raw HTTPS URL, theme format, "
-                            + "and Python 3.11+/curl installation. Previous theme was kept.");
+                    status.setText(task.getException() instanceof HerdrThemeImporter.ImportFailure failure
+                            ? failure.getMessage()
+                            : "Import failed. Check the file or raw HTTPS URL, theme format, "
+                                    + "and Python 3.11+/curl installation. Previous theme was kept.");
                 }
             });
             Thread.ofVirtual().name("herdr-theme-import").start(task);

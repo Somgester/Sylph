@@ -96,3 +96,7 @@ Those script integration cases require Bash and Python 3.11+ and skip when those
 tools are unavailable. Headless `HerdrThemeSettingsPaneTest` covers background
 execution, successful selection/persistence, failed imports, reset, and cancellation
 when the settings pane is disposed. No real user profile is modified.
+
+Importer checks also verify structured exit codes and fixed UI diagnostics for
+missing Python/curl, invalid theme data, download failure, and inaccessible source
+files. Unexpected exception text is not displayed in the settings pane.

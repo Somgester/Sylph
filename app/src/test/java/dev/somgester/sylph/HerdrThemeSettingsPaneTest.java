@@ -83,6 +83,26 @@ class HerdrThemeSettingsPaneTest {
     }
 
     @Test
+    void dependencyFailureShowsActionableMessageWithoutChangingSelection() throws Exception {
+        var settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, false, 2)));
+        var pane = FxTestSupport.onFxThread(() -> new HerdrThemeSettingsPane(settings, source -> {
+            throw HerdrThemeImporter.failureForExit(4);
+        }));
+        try {
+            beginImport(pane);
+            FxTestSupport.await(() -> control(pane, "#herdr-theme-status", Label.class)
+                    .getText().contains("Python 3.11"));
+            FxTestSupport.onFxThread(() -> {
+                assertEquals(HerdrCliTheme.DEFAULT, settings.herdrThemeProperty().get());
+                assertFalse(control(pane, "#herdr-theme-import", Button.class).isDisabled());
+                return null;
+            });
+        } finally {
+            close(pane);
+        }
+    }
+
+    @Test
     void closingSettingsCancelsPendingImportWithoutChangingSelection() throws Exception {
         var settings = new AppSettings(new AppSettingsTest.MemoryStore(new AppSettings.Values(true, false, 2)));
         CountDownLatch started = new CountDownLatch(1);

@@ -121,4 +121,4 @@ if __name__ == "__main__":
         # Input and paths can contain secrets; report a fixed diagnostic for OS/parser failures.
         message = str(error) if type(error) is ValueError else "Cannot read, validate, or install the theme file."
         print(f"Theme import failed: {message}", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(7 if isinstance(error, OSError) else 3)

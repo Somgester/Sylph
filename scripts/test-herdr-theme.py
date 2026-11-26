@@ -4,6 +4,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -89,7 +90,7 @@ text = "#ffffff"
         self.preserve_previous()
         self.env["THEME_DOWNLOAD_STATUS"] = "22"
         result = self.run_import("https://example.org/missing.toml")
-        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(6, result.returncode)
         self.assertEqual("previous theme", self.destination.read_text())
         self.assertEqual([], list(self.directory.glob("tmp*")))
 
@@ -98,7 +99,7 @@ text = "#ffffff"
                     "https://user:secret@example.org/theme.toml", "https://example.org/bad\nurl"):
             with self.subTest(url=url):
                 result = self.run_import(url)
-                self.assertNotEqual(0, result.returncode)
+                self.assertEqual(3, result.returncode)
                 self.assertFalse(self.download_log.exists())
                 self.assertNotIn("secret", result.stdout + result.stderr)
 
@@ -113,7 +114,7 @@ text = "#ffffff"
             with self.subTest(data=data):
                 self.source.write_text(data)
                 result = self.run_import()
-                self.assertNotEqual(0, result.returncode)
+                self.assertEqual(3, result.returncode)
                 self.assertEqual("previous theme", self.destination.read_text())
                 self.assertFalse((self.directory / "marker").exists())
                 self.assertEqual([], list(self.destination.parent.glob(".herdr-theme-*")))
@@ -149,6 +150,37 @@ text = "#ffffff"
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("nord", tomllib.loads(self.destination.read_text())["theme"]["name"])
         self.assertEqual([], list(self.destination.parent.glob(".herdr-theme-*")))
+
+    def test_missing_source_reports_file_access_failure(self):
+        self.preserve_previous()
+        result = self.run_import(self.directory / "missing.toml")
+        self.assertEqual(7, result.returncode)
+        self.assertEqual("previous theme", self.destination.read_text())
+
+    def test_missing_or_unsupported_python_reports_dependency_failure(self):
+        # Restrict PATH so the fixture cannot fall back to the machine's Python.
+        (self.bin / "dirname").symlink_to(shutil.which("dirname"))
+        self.env["PATH"] = str(self.bin)
+        python = self.bin / "python3"
+        python.unlink()
+        for old_python in (False, True):
+            with self.subTest(old_python=old_python):
+                if old_python:
+                    python.write_text("#!/bin/sh\nexit 1\n")
+                    python.chmod(0o755)
+                result = self.run_import()
+                self.assertEqual(4, result.returncode)
+                self.assertIn("Python 3.11", result.stderr)
+                self.assertFalse(self.destination.exists())
+
+    def test_missing_curl_reports_dependency_failure_before_downloading(self):
+        (self.bin / "dirname").symlink_to(shutil.which("dirname"))
+        (self.bin / "curl").unlink()
+        self.env["PATH"] = str(self.bin)
+        result = self.run_import("https://example.org/theme.toml")
+        self.assertEqual(5, result.returncode)
+        self.assertIn("requires curl", result.stderr)
+        self.assertFalse(self.destination.exists())
 
 
 if __name__ == "__main__":
