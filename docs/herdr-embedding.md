@@ -151,12 +151,14 @@ For a headless wheel check, fill the visible test shell's scrollback, for exampl
 `-PheadlessHerdrScrollExperiment` with the same Desktop, core and terminal arguments.
 The check scrolls toward older output and compares the captured frames.
 
-### Native Desktop click probe
+### Native Desktop input probe
 
-The [click patch](../experiments/herdr-embedding/desktop/sylph-click.patch) adds a single
-primary-click request to the pinned Herdr App build. It dispatches mouse down and mouse up
-inside the GPUI window. JavaFX maps clicks relative to the displayed image, excluding
-the empty space around it. The stock Herdr binary has no such request.
+The [input patch](../experiments/herdr-embedding/desktop/sylph-click.patch) adds primary-click
+and keyboard requests to the pinned Herdr App build. JavaFX maps clicks relative to the
+displayed image, excluding the empty space around it. Clicks and keys are sent in order.
+GPUI dispatches keys to the newly focused control after a click. This mode supports typed
+Unicode characters, basic navigation and editing keys, and Ctrl+C. Wheel scrolling
+targets the focused terminal. The stock Herdr binary does not expose these input requests.
 
 Apply the patch to a separate checkout at the pinned revision and build it with the
 [upstream build prerequisites](https://github.com/herdrdev/herdr-app/tree/3e6d56448272064fd06ed95f5b7dc2cf70ea67b4#build-from-source).
@@ -174,13 +176,17 @@ Click a visible tab in the frame. Confirm the active tab in the next frame or wi
 `herdr-app status`. For a headless click, add `-PheadlessHerdrDesktopClick=x,y` with
 normalized coordinates from a capture of that same window. This checks delivery and
 frame refresh. Use Herdr's status output to verify the action at those coordinates.
-This mode forwards primary clicks only. Run the keyboard probe separately because its
-fixed terminal ID does not follow a tab change.
+To check focus routing as well, add `-PheadlessHerdrNativeInputExperiment`. In a disposable
+Herdr space with two fresh shells, point the coordinates at the inactive tab. The test clicks
+that tab and types `xxY_é` without submitting it. Confirm with `hc read` that only the newly
+selected shell has the draft. The separate stock keyboard probe still uses a fixed target.
+Clipboard, IME composition, drag gestures, and native window resizing remain open.
 
 Verified on Wayland with a patched Herdr App 0.1.18 build. The headless JavaFX click
 changed the active tab from `Start here` to `Click me`, confirmed by the Desktop
-status response. The patched app rejected invalid coordinates and clicks with an
-unsafe profile directory or without opt-in.
+status response. The combined probe put the draft only in the clicked shell. The
+patched app rejected invalid coordinates and clicks with an unsafe profile directory
+or without opt-in.
 
 ## Native embedding checks
 

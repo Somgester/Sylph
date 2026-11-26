@@ -40,7 +40,11 @@ public final class FrameBridgeDemo extends Application {
     private static final String SMOKE_KEY = "A";
     private static boolean smokePassed;
 
-    private record Click(double x, double y) { }
+    private sealed interface NativeInput permits Click, NativeKey { }
+
+    private record Click(double x, double y) implements NativeInput { }
+
+    private record NativeKey(String token) implements NativeInput { }
 
     private record Request(int width, int height, int x, int y, boolean focused, int key, Click click) { }
 
@@ -51,6 +55,7 @@ public final class FrameBridgeDemo extends Application {
     private final Label status = new Label();
     private final ArrayDeque<String> desktopKeys = new ArrayDeque<>();
     private final ArrayDeque<Click> probeClicks = new ArrayDeque<>();
+    private final ArrayDeque<NativeInput> nativeInputs = new ArrayDeque<>();
     private String desktopCore;
     private String desktopTerminal;
     private boolean desktopClicks;
@@ -159,10 +164,10 @@ public final class FrameBridgeDemo extends Application {
                 throw new IllegalArgumentException("Smoke click coordinates must be in [0, 1).");
             }
         }
-        if (desktopCore != null) {
-            if (desktopTerminal == null || !desktopTerminal.matches("t[0-9a-z]+")) {
-                throw new IllegalArgumentException("Use an explicit local terminal ID, such as t1.");
-            }
+        if (desktopCore != null && (desktopTerminal == null || !desktopTerminal.matches("t[0-9a-z]+"))) {
+            throw new IllegalArgumentException("Use an explicit local terminal ID, such as t1.");
+        }
+        if (desktopCore != null || desktopClicks) {
             surface.setFocusTraversable(true);
             surface.setOnMousePressed(event -> surface.requestFocus());
             surface.setOnScroll(event -> {
@@ -218,12 +223,8 @@ public final class FrameBridgeDemo extends Application {
                     double x = (event.getX() - bounds.getMinX()) / bounds.getWidth();
                     double y = (event.getY() - bounds.getMinY()) / bounds.getHeight();
                     if (x >= 0 && x < 1 && y >= 0 && y < 1) {
-                        if (probeClicks.size() == 32) {
-                            showFailure(new IOException("Desktop click queue is full. Reopen the preview."));
-                        } else {
-                            probeClicks.addLast(new Click(x, y));
-                            event.consume();
-                        }
+                        queueNativeInput(new Click(x, y));
+                        event.consume();
                     }
                 }
             });
@@ -243,10 +244,19 @@ public final class FrameBridgeDemo extends Application {
                 if (pending || desktopFailed) {
                     return;
                 }
-                if (!probeClicks.isEmpty()) {
-                    Click click = probeClicks.removeFirst();
+                if (!nativeInputs.isEmpty()) {
                     pending = true;
-                    worker.execute(() -> clickDesktop(executable, click));
+                    if (nativeInputs.peekFirst() instanceof Click click) {
+                        nativeInputs.removeFirst();
+                        worker.execute(() -> clickDesktop(executable, click));
+                    } else {
+                        List<String> keys = new ArrayList<>();
+                        while (nativeInputs.peekFirst() instanceof NativeKey key) {
+                            keys.add(key.token());
+                            nativeInputs.removeFirst();
+                        }
+                        worker.execute(() -> sendNativeKeys(executable, keys));
+                    }
                 } else if (!desktopKeys.isEmpty()) {
                     List<String> keys = new ArrayList<>(desktopKeys);
                     desktopKeys.clear();
@@ -282,10 +292,10 @@ public final class FrameBridgeDemo extends Application {
 
     private void scrollDesktop(String executable, int lines) {
         try {
-            String arguments = String.format(Locale.ROOT, "{\"terminal\":\"%s\",\"lines\":%d}",
-                    desktopTerminal, lines);
+            String arguments = desktopClicks ? "{\"lines\":" + lines + "}"
+                    : String.format(Locale.ROOT, "{\"terminal\":\"%s\",\"lines\":%d}", desktopTerminal, lines);
             runDesktopCommand(List.of(executable, "do", "terminal.scroll", arguments),
-                    "Herdr could not scroll terminal " + desktopTerminal);
+                    "Herdr could not scroll the terminal.");
             captureDesktop(executable);
         } catch (IOException failure) {
             Platform.runLater(() -> showFailure(failure));
@@ -295,10 +305,12 @@ public final class FrameBridgeDemo extends Application {
     }
 
     private void queueDesktopCharacter(int character) {
-        if (character < 32 || character == 127 || desktopFailed) {
+        if (Character.isISOControl(character) || desktopFailed) {
             return;
         }
-        if (character == ' ') {
+        if (desktopClicks) {
+            queueDesktopKey("u:" + Integer.toHexString(character));
+        } else if (character == ' ') {
             queueDesktopKey("space");
         } else if (character >= 'A' && character <= 'Z') {
             queueDesktopKey("shift+" + Character.toString(Character.toLowerCase(character)));
@@ -311,12 +323,38 @@ public final class FrameBridgeDemo extends Application {
     }
 
     private void queueDesktopKey(String keyName) {
-        if (!desktopFailed) {
+        if (desktopClicks) {
+            queueNativeInput(new NativeKey(keyName));
+        } else if (!desktopFailed) {
             if (desktopKeys.size() == 128) {
                 showFailure(new IOException("Terminal input queue is full. Reopen the preview."));
                 return;
             }
             desktopKeys.addLast(keyName);
+        }
+    }
+
+    private void queueNativeInput(NativeInput input) {
+        if (desktopFailed) {
+            return;
+        }
+        if (nativeInputs.size() >= 128) {
+            showFailure(new IOException("Desktop input queue is full. Reopen the preview."));
+        } else {
+            nativeInputs.addLast(input);
+        }
+    }
+
+    private void sendNativeKeys(String executable, List<String> keys) {
+        try {
+            List<String> command = new ArrayList<>(List.of(executable, "sylph-keys"));
+            command.addAll(keys);
+            runDesktopCommand(command, "Herdr Desktop rejected the keyboard input.");
+            captureDesktop(executable);
+        } catch (IOException failure) {
+            Platform.runLater(() -> showFailure(failure));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -385,7 +423,7 @@ public final class FrameBridgeDemo extends Application {
     private void showDesktopFrame(Image image) {
         if (!closed && !desktopFailed) {
             view.setImage(image);
-            status.setText(desktopClicks ? "Live Herdr Desktop frames · Primary clicks"
+            status.setText(desktopClicks ? "Live Herdr Desktop frames · Click and type"
                     : desktopCore == null ? "Live Herdr Desktop frames · Read-only"
                     : "Keyboard target: " + desktopTerminal + (unsupportedDesktopKey
                             ? " · Unsupported character. Press Ctrl+C before submitting."
@@ -398,13 +436,19 @@ public final class FrameBridgeDemo extends Application {
                 double x = bounds.getMinX() + bounds.getWidth() * desktopSmokeClick.x();
                 double y = bounds.getMinY() + bounds.getHeight() * desktopSmokeClick.y();
                 firePrimaryClick(view, x, y);
-                if (probeClicks.isEmpty()) {
+                if (nativeInputs.isEmpty()) {
                     showFailure(new IOException("Smoke click did not reach the preview"));
+                } else if (getParameters().getRaw().contains("--native-input-smoke")) {
+                    // Queue the draft immediately after the click to catch input reordering.
+                    for (String text : List.of("x", "x", "Y_é")) {
+                        Event.fireEvent(surface, new KeyEvent(KeyEvent.KEY_TYPED, text, "",
+                                KeyCode.UNDEFINED, false, false, false, false));
+                    }
                 }
-            } else if (smokeMode() && desktopCore == null) {
+            } else if (smokeMode() && desktopCore == null && nativeInputs.isEmpty()) {
                 smokePassed = true;
                 Platform.exit();
-            } else if (smokeMode() && !desktopSmokeStarted) {
+            } else if (smokeMode() && desktopCore != null && !desktopSmokeStarted) {
                 desktopSmokeStarted = true;
                 // Leave a harmless draft in the test shell. No Enter is sent.
                 for (String letter : List.of("x", "x", "Y")) {
@@ -447,6 +491,7 @@ public final class FrameBridgeDemo extends Application {
             desktopFailed = true;
             desktopKeys.clear();
             probeClicks.clear();
+            nativeInputs.clear();
             desktopScrollLines = 0;
             timer.stop();
             status.setText(failure.getMessage());
@@ -561,7 +606,9 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
-            String check = System.getProperty("sylph.herdr.desktopSmokeClick") != null
+            String check = List.of(args).contains("--native-input-smoke")
+                    ? "JavaFX Desktop click and keyboard delivery"
+                    : System.getProperty("sylph.herdr.desktopSmokeClick") != null
                     ? "JavaFX Desktop click delivery"
                     : List.of(args).contains("--click-smoke")
                     ? "JavaFX click hit testing in GPUI"

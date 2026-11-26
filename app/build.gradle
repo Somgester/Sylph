@@ -148,6 +148,10 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     def scrollSmoke = providers.gradleProperty('headlessHerdrScrollExperiment').isPresent()
     def clickSmoke = providers.gradleProperty('headlessGpuiClickExperiment').isPresent()
     def desktopClickSmoke = providers.gradleProperty('headlessHerdrDesktopClick')
+    def nativeInputSmoke = providers.gradleProperty('headlessHerdrNativeInputExperiment').isPresent()
+    if (nativeInputSmoke && !desktopClickSmoke.isPresent()) {
+        throw new GradleException('The native input smoke test needs headlessHerdrDesktopClick coordinates.')
+    }
     if (desktopClickSmoke.isPresent() && !desktopClicks) {
         throw new GradleException('The Desktop click smoke test requires herdrDesktopClickProbe.')
     }
@@ -171,6 +175,9 @@ tasks.register('herdrFrameExperiment', JavaExec) {
         }
         if (desktopClickSmoke.isPresent()) {
             systemProperty 'sylph.herdr.desktopSmokeClick', desktopClickSmoke.get()
+        }
+        if (nativeInputSmoke) {
+            args '--native-input-smoke'
         }
     }
 }
