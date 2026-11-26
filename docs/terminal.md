@@ -16,6 +16,9 @@ Use Ctrl on Linux/Windows and Cmd on macOS for `Mod` below.
 
 Both opening commands also appear under View and in the command palette. The panel divider can be dragged. Hiding the panel keeps its shells alive; reopening it restores the same tabs and output. Closing its last tab removes the panel. Terminal tabs in the editor share a tab row with the current document. Sylph still edits one document at a time; adding terminal tabs does not add multiple document sessions.
 
+The opt-in **View → Open Herdr Desktop Tab** entry point uses a patched, separately started
+Herdr Desktop session. See [Herdr Desktop setup](herdr-embedding.md#open-the-sylph-tab).
+
 A new terminal starts in the opened workspace folder. Without a workspace, it uses the active file's parent, or Sylph's working directory when no file is open. Changing the opened workspace affects future terminals, not existing shells. Duplicate starts an independent shell in the original terminal's **starting folder**, even after `cd`; it does not copy environment changes, history, or running commands.
 
 Switching tabs preserves unsaved document text, selection, and undo history. If you return to the editor while a terminal is starting, renderer completion respects that focus choice. Shell input and output never become document edits or trigger autosave. Opening an existing sidebar file selects the document tab.

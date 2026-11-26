@@ -171,6 +171,10 @@ public class EditorApp extends Application {
         chrome = new EditorChrome(null, settings, null, this::executeCommand);
         chrome.kiroButton().setOnAction(event -> openKiroTerminal());
         chrome.kiroSessionsButton().setOnAction(event -> palette.showKiroSessions());
+        String herdr = herdrDesktopExecutable();
+        if (herdr != null && !herdr.isBlank()) {
+            chrome.enableHerdrDesktop(() -> openHerdrDesktop(herdr));
+        }
         sidebarButton = chrome.sidebarButton();
         root.setTop(chrome);
         terminals = new TerminalWorkspace(this::createTerminal, this::focusEditor,
@@ -205,7 +209,8 @@ public class EditorApp extends Application {
             this::executeCommand, this::commandEnabled, this::loadKiroSessions, this::resumeKiroSession,
             this::renameKiroSession);
         EditorShortcuts.install(scene, this::executeCommand,
-                command -> command != EditorShortcuts.Command.PREVIEW || !TerminalView.ownsFocus(scene));
+                command -> command != EditorShortcuts.Command.PREVIEW
+                        || !TerminalView.ownsFocus(scene) && !HerdrDesktopView.ownsFocus(scene));
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (!palette.isVisible() && toolPageVisible && event.getCode() == KeyCode.ESCAPE) {
                 showEditor();
@@ -446,6 +451,22 @@ public class EditorApp extends Application {
         }
     }
 
+    private void openHerdrDesktop(String executable) {
+        try {
+            Path path = Path.of(executable);
+            if (!path.isAbsolute() || !Files.isRegularFile(path) || !Files.isExecutable(path)) {
+                status.setText("Set SYLPH_HERDR_DESKTOP_EXECUTABLE to an absolute path to the patched Herdr app.");
+                return;
+            }
+            if (toolPageVisible) {
+                showEditor();
+            }
+            terminals.openHerdrDesktop(path);
+        } catch (java.nio.file.InvalidPathException invalid) {
+            status.setText("Invalid SYLPH_HERDR_DESKTOP_EXECUTABLE path.");
+        }
+    }
+
     KiroSessions.Listing loadKiroSessions() throws IOException, InterruptedException {
         return new KiroSessions().list();
     }
@@ -490,6 +511,10 @@ public class EditorApp extends Application {
 
     TerminalView createTerminal(Path directory) {
         return new TerminalView(directory, settings);
+    }
+
+    String herdrDesktopExecutable() {
+        return System.getenv("SYLPH_HERDR_DESKTOP_EXECUTABLE");
     }
 
     private boolean commandEnabled(EditorShortcuts.Command command) {

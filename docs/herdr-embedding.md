@@ -2,7 +2,25 @@
 
 The first Herdr milestone is to prove that an interactive Herdr Desktop layout can run inside
 Sylph. The terminal chooser, expand and restore controls, and layout importer follow this proof.
-This document records the design investigation. An embedded Desktop view is not implemented yet.
+Sylph can show the interactive preview in an opt-in editor tab. This milestone still uses
+the separately started, patched Herdr Desktop window as its renderer and session host.
+
+## Open the Sylph tab
+
+Start the patched Herdr Desktop using the private profile and opt-in described in
+[Native Desktop input probe](#native-desktop-input-probe). In the environment used to
+launch Sylph, use the same `HERDR_APP_HOME` and set the executable path:
+
+```sh
+export SYLPH_HERDR_DESKTOP_EXECUTABLE=/absolute/path/to/patched/herdr-app
+./run.sh
+```
+
+In Sylph, choose **View → Open Herdr Desktop Tab**. Clicking it again selects the
+existing tab. The tab shares the preview's input, clipboard, drag, and resize logic.
+Captures pause while you view a different Sylph tab. Closing the tab releases its
+bridge; the external Herdr app and its shells remain available to reopen. Keep the
+external window in normal windowed mode so the preview can resize it.
 
 ## What Sylph needs to host
 
@@ -192,8 +210,8 @@ The preview waits for the frame before accepting pointer clicks at the new size.
 
 Add `-PheadlessHerdrDesktopResize` instead to verify two different frame sizes. On
 Wayland, `stty size` in the same shell changed from 37 rows by 120 columns to 24 by 86.
-The shell PID stayed the same. This still resizes the separate Desktop window. Hosting
-the view in an actual Sylph tab remains a follow-up.
+The shell PID stayed the same. Both the demo and the Sylph tab resize the separate
+Desktop window.
 
 ### Drag selection
 

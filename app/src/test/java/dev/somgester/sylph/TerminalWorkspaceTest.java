@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
+import javafx.event.Event;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -21,12 +23,14 @@ import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
+import javax.imageio.ImageIO;
 import org.fxmisc.richtext.CodeArea;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,7 +44,9 @@ import org.junit.jupiter.params.provider.ValueSource;
 @EnabledOnOs({OS.LINUX, OS.MAC})
 class TerminalWorkspaceTest {
 
-    private static final class ScriptedApp extends EditorApp {
+    private String herdrExecutable;
+
+    private final class ScriptedApp extends EditorApp {
         private File openChoice;
 
         private AppSettings settings;
@@ -72,6 +78,11 @@ class TerminalWorkspaceTest {
         @Override
         File chooseOpenFile() {
             return openChoice;
+        }
+
+        @Override
+        String herdrDesktopExecutable() {
+            return herdrExecutable;
         }
     }
 
@@ -107,6 +118,57 @@ class TerminalWorkspaceTest {
         for (TerminalSession session : sessions) {
             session.completion().get(5, TimeUnit.SECONDS);
         }
+    }
+
+    @Test
+    void herdrMenuOpensOneInteractiveTabAndPreservesTheDirtyDocument() throws Exception {
+        Path helper = directory.resolve("herdr-app");
+        Path keys = directory.resolve("keys");
+        ImageIO.write(new BufferedImage(12, 12, BufferedImage.TYPE_INT_RGB), "png",
+                directory.resolve("frame.png").toFile());
+        Files.writeString(helper, """
+                #!/bin/sh
+                case "$1" in
+                  shot) cp "${0%/*}/frame.png" "$2" 2>/dev/null;;
+                  sylph-keys) printf '%s\\n' "$2" >> "${0%/*}/keys";;
+                  sylph-resize) exit 0;;
+                  *) exit 1;;
+                esac
+                """);
+        assertTrue(helper.toFile().setExecutable(true));
+        herdrExecutable = helper.toString();
+        create(false);
+        Tab herdr = FxTestSupport.onFxThread(() -> {
+            editor.replaceText("unsaved draft");
+            MenuBar menuBar = (MenuBar) scene.lookup("#main-menu");
+            MenuItem open = menuBar.getMenus().stream().flatMap(menu -> menu.getItems().stream())
+                    .filter(item -> "Open Herdr Desktop Tab".equals(item.getText())).findFirst().orElseThrow();
+            assertTrue(open.isVisible());
+            open.fire();
+            open.fire();
+            TabPane tabs = (TabPane) scene.lookup("#editor-tabs");
+            assertEquals(2, tabs.getTabs().size());
+            Tab selected = tabs.getSelectionModel().getSelectedItem();
+            assertEquals("herdr-desktop-tab", selected.getId());
+            assertTrue(HerdrDesktopView.ownsFocus(scene));
+            return selected;
+        });
+        FxTestSupport.await(() -> scene.lookup("#herdr-desktop-frame") instanceof ImageView image
+                && image.getImage() != null);
+        FxTestSupport.onFxThread(() -> {
+            Event.fireEvent(scene.getFocusOwner(), new KeyEvent(KeyEvent.KEY_TYPED, "x", "", KeyCode.UNDEFINED,
+                    false, false, false, false));
+            return null;
+        });
+        FxTestSupport.await(() -> Files.exists(keys) && Files.readString(keys).contains("u:78"));
+        FxTestSupport.onFxThread(() -> {
+            herdr.getContextMenu().getItems().getFirst().fire();
+            TabPane tabs = (TabPane) scene.lookup("#editor-tabs");
+            assertEquals(1, tabs.getTabs().size());
+            assertSame(editor, app.activeEditor());
+            assertEquals("unsaved draft", editor.getText());
+            return null;
+        });
     }
 
     @Test
