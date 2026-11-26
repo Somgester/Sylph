@@ -81,6 +81,12 @@ flowchart TB
     terminalView <-->|input, resize, acknowledged output| bridge["TerminalBridge"]
     bridge <-->|PTY streams| terminalSession["TerminalSession: startup, IO, cleanup workers"]
     terminalSession <-->|interactive process| shell["User shell / pty4j"]
+    page --> herdrThemes["HerdrThemeSettingsPane"]
+    herdrThemes -->|background import| herdrImport["HerdrThemeImporter: bundled shell workflow"]
+    herdrImport -->|validate and atomically install TOML| herdrProfile[("Isolated Herdr profile")]
+    herdrThemes -->|persist successful selection| settings
+    settings -->|HerdrCliTheme environment for new CLI clients| terminalSession
+    herdrProfile -->|config path| terminalSession
 
     subgraph markdown["Markdown worker"]
         renderer["MarkdownRenderer: CommonMark"]
@@ -97,6 +103,13 @@ Arrows show commands and data flow, not every constructor dependency. Worker res
 `EditorEditMenu` tracks the focused document, terminal, or text field and retains that target while menus take focus. It rechecks action availability at activation; unsupported terminal edits cannot mutate the document.
 
 `EditorApp` owns the scene and connects these components. It coordinates dialogs, foreground file actions, theme changes, preview visibility, and shutdown. `EditorChrome` means the surrounding menus/toolbars, not the text document or a browser engine.
+
+Herdr theme imports run on a virtual thread, invoking bundled scripts with separate
+process arguments. Downloads and validation finish before selecting the imported
+theme on the JavaFX thread. A failed import retains the previous selection; pane
+disposal cancels pending work. The process runner bounds runtime and removes its
+temporary scripts/downloads. Herdr CLI receives a separate config/state environment;
+theme files are never executed as shell commands. See [terminal](terminal.md).
 
 ## Document lifecycle and disk work
 

@@ -71,6 +71,13 @@ application {
     mainClass = 'dev.somgester.sylph.App'
 }
 
+tasks.named('processResources') {
+    from("$rootDir/scripts") {
+        include 'import-herdr-theme.sh', 'validate-herdr-theme.py'
+        into 'herdr'
+    }
+}
+
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 

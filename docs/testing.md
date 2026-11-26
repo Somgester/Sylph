@@ -89,3 +89,10 @@ checks. Temporary profiles and a fake downloader cover valid custom colors, HTTP
 restrictions, argument handling, failed downloads, invalid/oversized content,
 symlink rejection, atomic replacement, and preservation of previous imports. These
 checks do not download anything or start Herdr or Sylph.
+
+`HerdrThemeImporterTest` additionally runs the bundled scripts against temporary
+local theme files and verifies that the selected profile uses imported colors.
+Those script integration cases require Bash and Python 3.11+ and skip when those
+tools are unavailable. Headless `HerdrThemeSettingsPaneTest` covers background
+execution, successful selection/persistence, failed imports, reset, and cancellation
+when the settings pane is disposed. No real user profile is modified.

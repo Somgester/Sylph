@@ -194,7 +194,8 @@ public class EditorApp extends Application {
         statusBar.managedProperty().bind(showChrome);
         terminals.expandedTerminalProperty().addListener((observable, previous, expanded) ->
                 root.setLeft(expanded == null && !toolPageVisible ? sidebar : null));
-        settingsPage = new SettingsPage(settings, autoSave, this::showEditor, servers, languageServers);
+        settingsPage = new SettingsPage(settings, autoSave, this::showEditor, servers, languageServers,
+                herdrCliProfile());
         if (account == null) {
             account = AccountController.environment(uri -> getHostServices().showDocument(uri.toString()));
         }

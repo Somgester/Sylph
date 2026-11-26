@@ -1,5 +1,6 @@
 package dev.somgester.sylph;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import javafx.beans.binding.Bindings;
@@ -38,6 +39,12 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
 
     SettingsPage(AppSettings settings, AutoSaveController autoSave, Runnable onBack,
             LanguageServerSettings servers, LanguageServerManager manager) {
+        this(settings, autoSave, onBack, servers, manager,
+                Path.of(System.getProperty("user.home"), ".sylph", "herdr-cli"));
+    }
+
+    SettingsPage(AppSettings settings, AutoSaveController autoSave, Runnable onBack,
+            LanguageServerSettings servers, LanguageServerManager manager, Path herdrProfile) {
         setId("settings-page");
         setFitToWidth(true);
         setFitToHeight(true);
@@ -140,7 +147,9 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
             content.getChildren().add(serverPane);
             cleanup.add(serverPane::close);
         }
-        content.getChildren().addAll(herdrThemes(settings), keybindings, persistence);
+        HerdrThemeSettingsPane herdrThemes = new HerdrThemeSettingsPane(settings, herdrProfile);
+        cleanup.add(herdrThemes::close);
+        content.getChildren().addAll(herdrThemes, keybindings, persistence);
         StackPane canvas = new StackPane(content);
         canvas.setAlignment(Pos.TOP_CENTER);
         canvas.setPadding(new Insets(8, 28, 8, 28));
@@ -165,29 +174,7 @@ final class SettingsPage extends ScrollPane implements AutoCloseable {
         }
     }
 
-    private TitledPane herdrThemes(AppSettings settings) {
-        ComboBox<HerdrCliTheme> theme = new ComboBox<>();
-        theme.setId("herdr-cli-theme");
-        theme.setAccessibleText("Herdr CLI theme");
-        theme.getItems().setAll(HerdrCliTheme.values());
-        followPopupTheme(theme);
-        theme.valueProperty().bindBidirectional(settings.herdrThemeProperty());
-        cleanup.add(() -> theme.valueProperty().unbindBidirectional(settings.herdrThemeProperty()));
-        Button reset = new Button("Reset");
-        reset.setId("herdr-theme-reset");
-        reset.setOnAction(event -> settings.herdrThemeProperty().set(HerdrCliTheme.DEFAULT));
-        reset.disableProperty().bind(settings.herdrThemeProperty().isEqualTo(HerdrCliTheme.DEFAULT));
-        HBox options = new HBox(12, label("Theme", "settings-field-label"), theme, reset);
-        options.setAlignment(Pos.CENTER_LEFT);
-        TitledPane pane = new TitledPane("Herdr Themes", section("Herdr CLI",
-                "A built-in theme opens new clients in a separate Sylph profile.", options));
-        pane.setId("settings-herdr-themes");
-        pane.setExpanded(false);
-        pane.setAnimated(false);
-        return pane;
-    }
-
-    private static void followPopupTheme(ComboBox<?> combo) {
+    static void followPopupTheme(ComboBox<?> combo) {
         // Popup content lives in its own scene and otherwise keeps cached owner stylesheets.
         combo.skinProperty().addListener((observable, oldSkin, newSkin) -> {
             if (combo.getScene() != null) {

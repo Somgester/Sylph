@@ -26,7 +26,8 @@ enum HerdrCliTheme {
     KANAGAWA_LOTUS("Kanagawa Lotus", "kanagawa-lotus"),
     ROSE_PINE("Rosé Pine", "rose-pine"),
     ROSE_PINE_DAWN("Rosé Pine Dawn", "rose-pine-dawn"),
-    VESPER("Vesper", "vesper");
+    VESPER("Vesper", "vesper"),
+    IMPORTED("Imported theme", "");
 
     private final String label;
 
@@ -52,13 +53,20 @@ enum HerdrCliTheme {
         Path configRoot = profile.resolve("config");
         Path configDirectory = configRoot.resolve("herdr");
         Files.createDirectories(configDirectory);
-        Path config = configDirectory.resolve("sylph-theme.toml");
-        Path temporary = Files.createTempFile(configDirectory, "sylph-theme-", ".toml");
-        try {
-            Files.writeString(temporary, "onboarding = false\n\n[theme]\nname = \"" + configName + "\"\n");
-            Files.move(temporary, config, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-        } finally {
-            Files.deleteIfExists(temporary);
+        Path config = profile.resolve("imported-theme.toml");
+        if (this == IMPORTED) {
+            if (!Files.isRegularFile(config) || Files.isSymbolicLink(config)) {
+                throw new IOException("Import a Herdr CLI theme in Settings first.");
+            }
+        } else {
+            config = configDirectory.resolve("sylph-theme.toml");
+            Path temporary = Files.createTempFile(configDirectory, "sylph-theme-", ".toml");
+            try {
+                Files.writeString(temporary, "onboarding = false\n\n[theme]\nname = \"" + configName + "\"\n");
+                Files.move(temporary, config, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
         }
         Map<String, String> environment = new HashMap<>(inherited);
         environment.put("HERDR_CONFIG_PATH", config.toString());
