@@ -139,8 +139,8 @@ visible in Herdr while testing. The probe forwards letters, digits, space, punct
 accepted by `hc keys`, Enter, Backspace, Tab, Escape, arrow keys, and Ctrl+C.
 An unsupported character blocks Enter until Ctrl+C clears the draft in a shell.
 The mouse wheel scrolls the target terminal's history and refreshes the captured Desktop
-frame. It works while that terminal is visible in Herdr. Pointer clicks, clipboard,
-Unicode input, and native resizing still need a bridge.
+frame. It works while that terminal is visible in Herdr. Clipboard, Unicode input, and
+native resizing still need a bridge.
 
 With `-PheadlessHerdrExperiment`, JavaFX sends a draft of `xxY` without submitting it.
 Check it with `hc read t1` and clear it with Ctrl+C. Verified with the isolated Wayland
@@ -150,6 +150,37 @@ For a headless wheel check, fill the visible test shell's scrollback, for exampl
 `seq 1 200 | sed 's/^/Sylph scroll history row /'`. Leave it at the bottom. Use
 `-PheadlessHerdrScrollExperiment` with the same Desktop, core and terminal arguments.
 The check scrolls toward older output and compares the captured frames.
+
+### Native Desktop click probe
+
+The [click patch](../experiments/herdr-embedding/desktop/sylph-click.patch) adds a single
+primary-click request to the pinned Herdr App build. It dispatches mouse down and mouse up
+inside the GPUI window. JavaFX maps clicks relative to the displayed image, excluding
+the empty space around it. The stock Herdr binary has no such request.
+
+Apply the patch to a separate checkout at the pinned revision and build it with the
+[upstream build prerequisites](https://github.com/herdrdev/herdr-app/tree/3e6d56448272064fd06ed95f5b7dc2cf70ea67b4#build-from-source).
+Start the patched build with `SYLPH_HERDR_CLICK_PROBE=1` and an explicit, private
+`HERDR_APP_HOME` directory (mode 0700). Keep the sandbox profile and core state separate
+from your normal Herdr session. Run this from Sylph with the same profile:
+
+```sh
+./gradlew :app:herdrFrameExperiment --no-configuration-cache \
+  -PherdrDesktopExecutable=/absolute/path/to/patched/herdr-app \
+  -PherdrDesktopClickProbe
+```
+
+Click a visible tab in the frame. Confirm the active tab in the next frame or with
+`herdr-app status`. For a headless click, add `-PheadlessHerdrDesktopClick=x,y` with
+normalized coordinates from a capture of that same window. This checks delivery and
+frame refresh. Use Herdr's status output to verify the action at those coordinates.
+This mode forwards primary clicks only. Run the keyboard probe separately because its
+fixed terminal ID does not follow a tab change.
+
+Verified on Wayland with a patched Herdr App 0.1.18 build. The headless JavaFX click
+changed the active tab from `Start here` to `Click me`, confirmed by the Desktop
+status response. The patched app rejected invalid coordinates and clicks with an
+unsafe profile directory or without opt-in.
 
 ## Native embedding checks
 

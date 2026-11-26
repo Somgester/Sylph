@@ -53,6 +53,9 @@ public final class FrameBridgeDemo extends Application {
     private final ArrayDeque<Click> probeClicks = new ArrayDeque<>();
     private String desktopCore;
     private String desktopTerminal;
+    private boolean desktopClicks;
+    private Click desktopSmokeClick;
+    private boolean desktopClickSent;
     private boolean desktopFailed;
     private boolean desktopSmokeStarted;
     private boolean unsupportedDesktopKey;
@@ -143,6 +146,19 @@ public final class FrameBridgeDemo extends Application {
     private void startDesktopPreview(Stage stage, String executable) {
         desktopCore = System.getProperty("sylph.herdr.core");
         desktopTerminal = System.getProperty("sylph.herdr.terminal");
+        desktopClicks = Boolean.getBoolean("sylph.herdr.desktopClicks");
+        String smokeCoordinates = System.getProperty("sylph.herdr.desktopSmokeClick");
+        if (smokeCoordinates != null) {
+            String[] parts = smokeCoordinates.split(",", -1);
+            if (parts.length != 2) {
+                throw new IllegalArgumentException("Specify smoke click coordinates as normalized x,y.");
+            }
+            desktopSmokeClick = new Click(Double.parseDouble(parts[0]), Double.parseDouble(parts[1]));
+            if (!(desktopSmokeClick.x() >= 0 && desktopSmokeClick.x() < 1
+                    && desktopSmokeClick.y() >= 0 && desktopSmokeClick.y() < 1)) {
+                throw new IllegalArgumentException("Smoke click coordinates must be in [0, 1).");
+            }
+        }
         if (desktopCore != null) {
             if (desktopTerminal == null || !desktopTerminal.matches("t[0-9a-z]+")) {
                 throw new IllegalArgumentException("Use an explicit local terminal ID, such as t1.");
@@ -194,6 +210,24 @@ public final class FrameBridgeDemo extends Application {
             });
         }
         view.setPreserveRatio(true);
+        if (desktopClicks) {
+            view.setPickOnBounds(true);
+            view.setOnMouseClicked(event -> {
+                if (!desktopFailed && event.getButton() == MouseButton.PRIMARY && event.isStillSincePress()) {
+                    var bounds = view.getBoundsInLocal();
+                    double x = (event.getX() - bounds.getMinX()) / bounds.getWidth();
+                    double y = (event.getY() - bounds.getMinY()) / bounds.getHeight();
+                    if (x >= 0 && x < 1 && y >= 0 && y < 1) {
+                        if (probeClicks.size() == 32) {
+                            showFailure(new IOException("Desktop click queue is full. Reopen the preview."));
+                        } else {
+                            probeClicks.addLast(new Click(x, y));
+                            event.consume();
+                        }
+                    }
+                }
+            });
+        }
         view.fitWidthProperty().bind(surface.widthProperty());
         view.fitHeightProperty().bind(surface.heightProperty());
         surface.getChildren().add(view);
@@ -209,7 +243,11 @@ public final class FrameBridgeDemo extends Application {
                 if (pending || desktopFailed) {
                     return;
                 }
-                if (!desktopKeys.isEmpty()) {
+                if (!probeClicks.isEmpty()) {
+                    Click click = probeClicks.removeFirst();
+                    pending = true;
+                    worker.execute(() -> clickDesktop(executable, click));
+                } else if (!desktopKeys.isEmpty()) {
                     List<String> keys = new ArrayList<>(desktopKeys);
                     desktopKeys.clear();
                     pending = true;
@@ -227,6 +265,19 @@ public final class FrameBridgeDemo extends Application {
             }
         };
         timer.start();
+    }
+
+    private void clickDesktop(String executable, Click click) {
+        try {
+            runDesktopCommand(List.of(executable, "sylph-click", Double.toString(click.x()),
+                    Double.toString(click.y())), "Herdr Desktop click failed. Check the patched app and opt-in.");
+            Platform.runLater(() -> desktopClickSent = true);
+            captureDesktop(executable);
+        } catch (IOException failure) {
+            Platform.runLater(() -> showFailure(failure));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void scrollDesktop(String executable, int lines) {
@@ -334,13 +385,22 @@ public final class FrameBridgeDemo extends Application {
     private void showDesktopFrame(Image image) {
         if (!closed && !desktopFailed) {
             view.setImage(image);
-            status.setText(desktopCore == null ? "Live Herdr Desktop frames · Read-only"
+            status.setText(desktopClicks ? "Live Herdr Desktop frames · Primary clicks"
+                    : desktopCore == null ? "Live Herdr Desktop frames · Read-only"
                     : "Keyboard target: " + desktopTerminal + (unsupportedDesktopKey
                             ? " · Unsupported character. Press Ctrl+C before submitting."
                             : " · Click preview to type"));
             pending = false;
             if (getParameters().getRaw().contains("--scroll-smoke")) {
                 checkScrollFrame(image);
+            } else if (desktopSmokeClick != null && !desktopClickSent) {
+                var bounds = view.getBoundsInLocal();
+                double x = bounds.getMinX() + bounds.getWidth() * desktopSmokeClick.x();
+                double y = bounds.getMinY() + bounds.getHeight() * desktopSmokeClick.y();
+                firePrimaryClick(view, x, y);
+                if (probeClicks.isEmpty()) {
+                    showFailure(new IOException("Smoke click did not reach the preview"));
+                }
             } else if (smokeMode() && desktopCore == null) {
                 smokePassed = true;
                 Platform.exit();
@@ -386,6 +446,7 @@ public final class FrameBridgeDemo extends Application {
         if (!closed) {
             desktopFailed = true;
             desktopKeys.clear();
+            probeClicks.clear();
             desktopScrollLines = 0;
             timer.stop();
             status.setText(failure.getMessage());
@@ -469,9 +530,13 @@ public final class FrameBridgeDemo extends Application {
         double x = clickSmokeStep == 0 ? 160 : 68;
         double y = clickSmokeStep == 0 ? 80 : 40;
         clickSmokeStep++;
-        Event.fireEvent(surface, new MouseEvent(MouseEvent.MOUSE_CLICKED, x, y, x, y,
+        firePrimaryClick(surface, x, y);
+    }
+
+    private static void firePrimaryClick(javafx.scene.Node target, double x, double y) {
+        Event.fireEvent(target, new MouseEvent(MouseEvent.MOUSE_CLICKED, x, y, x, y,
                 MouseButton.PRIMARY, 1, false, false, false, false, false, false, false, false, false, true,
-                new PickResult(surface, new Point3D(x, y, 0), 0)));
+                new PickResult(target, new Point3D(x, y, 0), 0)));
     }
 
     private boolean smokeMode() {
@@ -496,7 +561,9 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
-            String check = List.of(args).contains("--click-smoke")
+            String check = System.getProperty("sylph.herdr.desktopSmokeClick") != null
+                    ? "JavaFX Desktop click delivery"
+                    : List.of(args).contains("--click-smoke")
                     ? "JavaFX click hit testing in GPUI"
                     : List.of(args).contains("--scroll-smoke")
                     ? "Herdr Desktop scroll and frame refresh in JavaFX"

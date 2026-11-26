@@ -128,6 +128,14 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     if (desktop.isPresent()) {
         systemProperty 'sylph.herdr.desktop', rootProject.file(desktop.get()).absolutePath
     }
+    def desktopClicks = providers.gradleProperty('herdrDesktopClickProbe').isPresent()
+    if (desktopClicks) {
+        if (!desktop.isPresent() || providers.gradleProperty('herdrCoreExecutable').isPresent()
+                || providers.gradleProperty('herdrTerminal').isPresent()) {
+            throw new GradleException('Desktop click mode requires herdrDesktopExecutable without a fixed keyboard target.')
+        }
+        systemProperty 'sylph.herdr.desktopClicks', 'true'
+    }
     def core = providers.gradleProperty('herdrCoreExecutable')
     def terminal = providers.gradleProperty('herdrTerminal')
     if (core.isPresent() || terminal.isPresent()) {
@@ -139,13 +147,18 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     }
     def scrollSmoke = providers.gradleProperty('headlessHerdrScrollExperiment').isPresent()
     def clickSmoke = providers.gradleProperty('headlessGpuiClickExperiment').isPresent()
+    def desktopClickSmoke = providers.gradleProperty('headlessHerdrDesktopClick')
+    if (desktopClickSmoke.isPresent() && !desktopClicks) {
+        throw new GradleException('The Desktop click smoke test requires herdrDesktopClickProbe.')
+    }
     if (scrollSmoke && (!desktop.isPresent() || !core.isPresent() || !terminal.isPresent())) {
         throw new GradleException('The scroll smoke test requires a Desktop preview with a terminal target.')
     }
     if (clickSmoke && (!gpuiHelper.isPresent() || desktop.isPresent())) {
         throw new GradleException('The GPUI click smoke test requires herdrFrameHelper and no Desktop executable.')
     }
-    if (clickSmoke || scrollSmoke || providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
+    if (desktopClickSmoke.isPresent() || clickSmoke || scrollSmoke
+            || providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
         systemProperty 'glass.platform', 'Monocle'
         systemProperty 'monocle.platform', 'Headless'
         systemProperty 'prism.order', 'sw'
@@ -155,6 +168,9 @@ tasks.register('herdrFrameExperiment', JavaExec) {
         }
         if (clickSmoke) {
             args '--click-smoke'
+        }
+        if (desktopClickSmoke.isPresent()) {
+            systemProperty 'sylph.herdr.desktopSmokeClick', desktopClickSmoke.get()
         }
     }
 }
