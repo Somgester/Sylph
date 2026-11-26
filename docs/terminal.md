@@ -37,8 +37,10 @@ again. Open a new CLI tab after changing the setting.
 
 ### Import a CLI theme
 
-In **Settings → Herdr Themes**, enter a local TOML file path or raw HTTPS URL, then
-click **Import and select**. Imports run in the background; on success Sylph selects
+In **Settings → Herdr Themes**, use **Browse…** to pick a local TOML file, or enter
+a file path or raw HTTPS URL. Picking a file fills the input; canceling the picker
+keeps its previous value. Click **Import and select** to validate and install it.
+Imports run in the background; on success Sylph selects
 **Imported theme** and saves that choice across restarts. Open a new Herdr CLI tab
 to use it. A failure keeps the previous theme and selection. Reset returns to your
 regular Herdr configuration without deleting the imported file.

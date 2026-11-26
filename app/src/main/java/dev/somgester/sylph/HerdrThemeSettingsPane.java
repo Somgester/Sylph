@@ -1,5 +1,6 @@
 package dev.somgester.sylph;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import javafx.concurrent.Task;
@@ -10,7 +11,9 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 
 final class HerdrThemeSettingsPane extends TitledPane implements AutoCloseable {
 
@@ -52,11 +55,28 @@ final class HerdrThemeSettingsPane extends TitledPane implements AutoCloseable {
         source.setId("herdr-theme-source");
         source.setPromptText("Local TOML file path or raw HTTPS URL");
         source.setAccessibleText("Herdr theme file or URL");
+        Button browse = new Button("Browse…");
+        browse.setId("herdr-theme-browse");
+        browse.setAccessibleText("Browse for a Herdr CLI theme file");
+        browse.setOnAction(event -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Import Herdr CLI theme");
+            chooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("TOML themes", "*.toml"),
+                    new FileChooser.ExtensionFilter("All files", "*"));
+            File selected = chooser.showOpenDialog(getScene() == null ? null : getScene().getWindow());
+            if (selected != null && !closed) {
+                source.setText(selected.getAbsolutePath());
+            }
+        });
+        HBox sourceRow = new HBox(10, source, browse);
+        sourceRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(source, Priority.ALWAYS);
         Button importButton = new Button("Import and select");
         importButton.setId("herdr-theme-import");
         Label status = description("Open a new Herdr CLI tab after changing its theme.");
         status.setId("herdr-theme-status");
-        VBox controls = new VBox(10, options, source, importButton);
+        VBox controls = new VBox(10, options, sourceRow, importButton);
         importButton.disableProperty().bind(source.textProperty().isEmpty());
         importButton.setOnAction(event -> {
             String input = source.getText().strip();

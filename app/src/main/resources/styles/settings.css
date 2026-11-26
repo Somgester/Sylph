@@ -221,7 +221,7 @@
     -fx-border-color: -settings-accent;
 }
 
-#python-server-apply, #herdr-theme-import, #herdr-theme-reset {
+#python-server-apply, #herdr-theme-import, #herdr-theme-reset, #herdr-theme-browse {
     -fx-background-color: -settings-background;
     -fx-text-fill: -settings-text;
     -fx-border-color: -settings-border;
@@ -232,7 +232,8 @@
 
 #python-server-apply:hover, #python-server-apply:focused,
 #herdr-theme-import:hover, #herdr-theme-import:focused,
-#herdr-theme-reset:hover, #herdr-theme-reset:focused {
+#herdr-theme-reset:hover, #herdr-theme-reset:focused,
+#herdr-theme-browse:hover, #herdr-theme-browse:focused {
     -fx-border-color: -settings-accent;
 }
 
