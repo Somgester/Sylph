@@ -275,14 +275,16 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         }
     }
 
-    void togglePanel(Path directory) {
+    boolean hasPanelTerminals() {
+        return !panel.getTabs().isEmpty();
+    }
+
+    void togglePanel() {
         if (panelVisible) {
             panelVisible = false;
             getItems().remove(panel);
             focusSelection(editors);
-        } else if (panel.getTabs().isEmpty()) {
-            open(directory, false);
-        } else {
+        } else if (hasPanelTerminals()) {
             showPanel();
             TerminalView selected = terminals.get(panel.getSelectionModel().getSelectedItem());
             if (selected != null) {

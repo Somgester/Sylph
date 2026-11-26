@@ -430,15 +430,27 @@ public class EditorApp extends Application {
     }
 
     private void openTerminal(boolean inEditor) {
+        if (!inEditor && terminals.hasPanelTerminals()) {
+            if (toolPageVisible) {
+                showEditor();
+            }
+            terminals.togglePanel();
+            return;
+        }
+        String herdr = herdrDesktopExecutable();
+        TerminalChooser.Choice choice = herdr == null || herdr.isBlank()
+                ? TerminalChooser.Choice.SHELL : TerminalChooser.choose(stage, inEditor);
+        if (choice == TerminalChooser.Choice.HERDR_DESKTOP) {
+            openHerdrDesktop(herdr);
+            return;
+        }
+        if (choice != TerminalChooser.Choice.SHELL) {
+            return;
+        }
         if (toolPageVisible) {
             showEditor();
         }
-        Path directory = terminalDirectory();
-        if (inEditor) {
-            terminals.open(directory, true);
-        } else {
-            terminals.togglePanel(directory);
-        }
+        terminals.open(terminalDirectory(), inEditor);
     }
 
     private void openKiroTerminal() {

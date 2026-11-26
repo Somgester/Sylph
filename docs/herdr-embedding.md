@@ -17,7 +17,9 @@ export SYLPH_HERDR_DESKTOP_EXECUTABLE=/absolute/path/to/patched/herdr-app
 ```
 
 In Sylph, choose **View → Open Herdr Desktop Tab**. Clicking it again selects the
-existing tab. The tab shares the preview's input, clipboard, drag, and resize logic.
+existing tab. A terminal shortcut that creates a terminal also offers **Shell** and
+**Herdr Desktop** when the executable is configured. The tab shares the preview's
+input, clipboard, drag, and resize logic.
 Captures pause while you view a different Sylph tab. Closing the tab releases its
 bridge; the external Herdr app and its shells remain available to reopen. Keep the
 external window in normal windowed mode so the preview can resize it.

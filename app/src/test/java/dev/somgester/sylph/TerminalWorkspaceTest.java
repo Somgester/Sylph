@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
+import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -30,6 +31,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javax.imageio.ImageIO;
 import org.fxmisc.richtext.CodeArea;
 import org.junit.jupiter.api.AfterEach;
@@ -168,6 +170,51 @@ class TerminalWorkspaceTest {
             assertSame(editor, app.activeEditor());
             assertEquals("unsaved draft", editor.getText());
             return null;
+        });
+    }
+
+    @Test
+    void terminalChooserCancelsOrOpensTheChoiceAndLeavesPanelTogglingAlone() throws Exception {
+        Path helper = directory.resolve("herdr-app");
+        Files.writeString(helper, "#!/bin/sh\nexit 0\n");
+        assertTrue(helper.toFile().setExecutable(true));
+        herdrExecutable = helper.toString();
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            TabPane tabs = (TabPane) scene.lookup("#editor-tabs");
+            answerTerminalChooser("terminal-choice-cancel");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            assertEquals(1, tabs.getTabs().size());
+            assertSame(editor, app.activeEditor());
+
+            answerTerminalChooser("terminal-choice-shell");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            TabPane panel = (TabPane) scene.lookup("#terminal-panel");
+            assertEquals(1, panel.getTabs().size());
+            sessions.add(((TerminalView) panel.getTabs().getFirst().getContent()).session());
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            assertEquals(null, scene.lookup("#terminal-panel"));
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            assertSame(panel, scene.lookup("#terminal-panel"));
+
+            settings.darkThemeProperty().set(false);
+            answerTerminalChooser("terminal-choice-herdr");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            assertEquals("herdr-desktop-tab", tabs.getSelectionModel().getSelectedItem().getId());
+            assertEquals(2, tabs.getTabs().size());
+            return null;
+        });
+    }
+
+    private void answerTerminalChooser(String id) {
+        Platform.runLater(() -> {
+            for (Window window : List.copyOf(Window.getWindows())) {
+                if (window != stage && window.isShowing()
+                        && window.getScene().lookup("#" + id) instanceof Button card) {
+                    card.fire();
+                    return;
+                }
+            }
         });
     }
 

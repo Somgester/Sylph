@@ -324,3 +324,56 @@
 #terminal-workspace > .split-pane-divider:hover {
     -fx-background-color: -shell-accent;
 }
+
+.terminal-chooser {
+    -fx-padding: 16px;
+}
+
+.terminal-chooser-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -shell-text;
+    -fx-padding: 0 0 10px 0;
+}
+
+.terminal-chooser .terminal-choice,
+.terminal-chooser .terminal-chooser-cancel {
+    -fx-background-color: -shell-surface;
+    -fx-background-radius: 8px;
+    -fx-border-color: -shell-border;
+    -fx-border-radius: 8px;
+    -fx-text-fill: -shell-text;
+    -fx-cursor: hand;
+}
+
+.terminal-chooser .terminal-choice {
+    -fx-padding: 12px 16px;
+    -fx-min-width: 168px;
+    -fx-alignment: center-left;
+}
+
+.terminal-chooser .terminal-chooser-cancel {
+    -fx-padding: 7px 12px;
+}
+
+.terminal-chooser .terminal-choice:hover,
+.terminal-chooser .terminal-chooser-cancel:hover {
+    -fx-background-color: -shell-hover;
+}
+
+.terminal-chooser .terminal-choice:focused,
+.terminal-chooser .terminal-chooser-cancel:focused {
+    -fx-border-color: -shell-accent;
+}
+
+.terminal-choice-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -shell-text;
+}
+
+.terminal-choice-detail {
+    -fx-font-size: 12px;
+    -fx-text-fill: -shell-text;
+    -fx-opacity: 0.78;
+}
