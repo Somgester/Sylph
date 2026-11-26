@@ -112,3 +112,18 @@ tasks.register('pythonServerIntegrationTest', Test) {
     systemProperty 'sylph.pythonServerExecutable', providers.gradleProperty('pythonServerExecutable').getOrElse('')
     shouldRunAfter tasks.named('test')
 }
+
+tasks.register('herdrFrameExperiment', JavaExec) {
+    group = 'verification'
+    description = 'Runs the opt-in JavaFX frame transport experiment.'
+    javaLauncher = javaToolchains.launcherFor(java.toolchain)
+    workingDir = rootProject.file('experiments/herdr-embedding')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = rootProject.file('experiments/herdr-embedding/FrameBridgeDemo.java').absolutePath
+    if (providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
+        systemProperty 'glass.platform', 'Monocle'
+        systemProperty 'monocle.platform', 'Headless'
+        systemProperty 'prism.order', 'sw'
+        args '--smoke'
+    }
+}
