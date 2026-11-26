@@ -26,6 +26,7 @@ import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
@@ -48,6 +49,8 @@ public final class FrameBridgeDemo extends Application {
     private boolean desktopFailed;
     private boolean desktopSmokeStarted;
     private boolean unsupportedDesktopKey;
+    private int desktopScrollLines;
+    private Image scrollSmokeInitial;
     private Process helper;
     private AnimationTimer timer;
     private PauseTransition smokeTimeout;
@@ -122,6 +125,16 @@ public final class FrameBridgeDemo extends Application {
             }
             surface.setFocusTraversable(true);
             surface.setOnMousePressed(event -> surface.requestFocus());
+            surface.setOnScroll(event -> {
+                double delta = event.getDeltaY();
+                if (!desktopFailed && Double.isFinite(delta) && delta != 0
+                        && !event.isControlDown() && !event.isMetaDown() && !event.isShiftDown()) {
+                    // Positive JavaFX wheel deltas move toward history, which Herdr counts as negative.
+                    int lines = Math.max(1, (int) Math.round(Math.min(Math.abs(delta) / 12, 12)));
+                    desktopScrollLines = Math.clamp(desktopScrollLines + (delta > 0 ? -lines : lines), -96, 96);
+                    event.consume();
+                }
+            });
             surface.setOnKeyTyped(event -> {
                 if (!event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
                     event.getCharacter().codePoints().forEach(this::queueDesktopCharacter);
@@ -177,6 +190,11 @@ public final class FrameBridgeDemo extends Application {
                     desktopKeys.clear();
                     pending = true;
                     worker.execute(() -> sendDesktopKeys(keys));
+                } else if (desktopScrollLines != 0) {
+                    int lines = desktopScrollLines;
+                    desktopScrollLines = 0;
+                    pending = true;
+                    worker.execute(() -> scrollDesktop(executable, lines));
                 } else if (now >= nextCapture) {
                     pending = true;
                     nextCapture = now + TimeUnit.MILLISECONDS.toNanos(500);
@@ -185,6 +203,20 @@ public final class FrameBridgeDemo extends Application {
             }
         };
         timer.start();
+    }
+
+    private void scrollDesktop(String executable, int lines) {
+        try {
+            String arguments = String.format(Locale.ROOT, "{\"terminal\":\"%s\",\"lines\":%d}",
+                    desktopTerminal, lines);
+            runDesktopCommand(List.of(executable, "do", "terminal.scroll", arguments),
+                    "Herdr could not scroll terminal " + desktopTerminal);
+            captureDesktop(executable);
+        } catch (IOException failure) {
+            Platform.runLater(() -> showFailure(failure));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void queueDesktopCharacter(int character) {
@@ -283,7 +315,9 @@ public final class FrameBridgeDemo extends Application {
                             ? " · Unsupported character. Press Ctrl+C before submitting."
                             : " · Click preview to type"));
             pending = false;
-            if (smokeMode() && desktopCore == null) {
+            if (getParameters().getRaw().contains("--scroll-smoke")) {
+                checkScrollFrame(image);
+            } else if (smokeMode() && desktopCore == null) {
                 smokePassed = true;
                 Platform.exit();
             } else if (smokeMode() && !desktopSmokeStarted) {
@@ -297,10 +331,38 @@ public final class FrameBridgeDemo extends Application {
         }
     }
 
+    private void checkScrollFrame(Image image) {
+        if (scrollSmokeInitial == null) {
+            scrollSmokeInitial = image;
+            Event.fireEvent(surface, new ScrollEvent(ScrollEvent.SCROLL, 0, 0, 0, 0,
+                    false, false, false, false, false, false, 0, 144, 0, 144,
+                    ScrollEvent.HorizontalTextScrollUnits.NONE, 0,
+                    ScrollEvent.VerticalTextScrollUnits.NONE, 0, 0, null));
+            return;
+        }
+        // Ignore tiny redraws such as a blinking caret. The test shell must have filled its scrollback.
+        int changed = 0;
+        var before = scrollSmokeInitial.getPixelReader();
+        var after = image.getPixelReader();
+        int height = (int) Math.min(image.getHeight(), scrollSmokeInitial.getHeight());
+        int width = (int) Math.min(image.getWidth(), scrollSmokeInitial.getWidth());
+        for (int y = 60; y < height; y += 2) {
+            for (int x = width / 5; x < width; x += 2) {
+                if (before.getArgb(x, y) != after.getArgb(x, y) && ++changed >= 256) {
+                    smokePassed = true;
+                    Platform.exit();
+                    return;
+                }
+            }
+        }
+        Platform.exit();
+    }
+
     private void showFailure(IOException failure) {
         if (!closed) {
             desktopFailed = true;
             desktopKeys.clear();
+            desktopScrollLines = 0;
             timer.stop();
             status.setText(failure.getMessage());
             if (smokeMode()) {
@@ -382,7 +444,9 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
-            String check = System.getProperty("sylph.herdr.desktop") == null
+            String check = List.of(args).contains("--scroll-smoke")
+                    ? "Herdr Desktop scroll and frame refresh in JavaFX"
+                    : System.getProperty("sylph.herdr.desktop") == null
                     ? "JavaFX frame and keyboard round trip"
                     : System.getProperty("sylph.herdr.core") == null ? "Herdr Desktop frame in JavaFX"
                     : "Herdr Desktop frame and keyboard delivery in JavaFX";

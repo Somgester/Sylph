@@ -130,11 +130,18 @@ ID, even if the original Herdr window switches to another tab. Keep the target s
 visible in Herdr while testing. The probe forwards letters, digits, space, punctuation
 accepted by `hc keys`, Enter, Backspace, Tab, Escape, arrow keys, and Ctrl+C.
 An unsupported character blocks Enter until Ctrl+C clears the draft in a shell.
-Mouse actions, clipboard, Unicode input, and native resizing still need a bridge.
+The mouse wheel scrolls the target terminal's history and refreshes the captured Desktop
+frame. It works while that terminal is visible in Herdr. Pointer clicks, clipboard,
+Unicode input, and native resizing still need a bridge.
 
 With `-PheadlessHerdrExperiment`, JavaFX sends a draft of `xxY` without submitting it.
 Check it with `hc read t1` and clear it with Ctrl+C. Verified with the isolated Wayland
 Herdr App and core versions above, including repeated characters and uppercase input.
+
+For a headless wheel check, fill the visible test shell's scrollback, for example with
+`seq 1 200 | sed 's/^/Sylph scroll history row /'`. Leave it at the bottom. Use
+`-PheadlessHerdrScrollExperiment` with the same Desktop, core and terminal arguments.
+The check scrolls toward older output and compares the captured frames.
 
 ## Native embedding checks
 
