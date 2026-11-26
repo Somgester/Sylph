@@ -67,6 +67,16 @@ sylph_initialize() {
   sylph_report_setup_success "JDK 21 setup completed successfully."
 }
 
+# Child scripts inherit this PATH; a fresh run.sh also discovers tools installed by init.sh.
+if ! command -v herdr >/dev/null 2>&1; then
+  for sylph_herdr_bin in "$HOME/.local/share/sylph/tools/bin" "$HOME/.local/bin"; do
+    if [[ -x "$sylph_herdr_bin/herdr" ]]; then
+      export PATH="$sylph_herdr_bin:$PATH"
+      break
+    fi
+  done
+fi
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   if [[ $# -gt 1 || ( $# -eq 1 && "$1" != "--java-only" ) ]]; then
     echo "Usage: ./init.sh [--java-only]" >&2
@@ -85,6 +95,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   if [[ "${1:-}" == "--java-only" ]]; then
     echo "Keycloak setup skipped (--java-only). Guest editing remains available."
   else
+    ./scripts/setup-herdr.sh
     ./scripts/setup-auth.sh
   fi
   echo "Setup completed successfully."

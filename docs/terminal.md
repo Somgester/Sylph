@@ -17,6 +17,7 @@ Use Ctrl on Linux/Windows and Cmd on macOS for `Mod` below.
 
 Both opening commands also appear under View and in the command palette. The panel divider can be dragged. Hiding the panel keeps its shells alive; reopening it restores the same tabs and output. Closing its last tab removes the panel. Terminal tabs in the editor share a tab row with the current document. Sylph still edits one document at a time; adding terminal tabs does not add multiple document sessions.
 
+Run `./init.sh` once to install Herdr CLI if needed, then `./run.sh`.
 When Herdr CLI is on Sylph’s launch `PATH`, a shortcut that creates a terminal offers
 **Shell** and **Herdr CLI**. Both open in the location picked by the shortcut. Use Tab
 and Enter to choose or Esc to cancel. The bottom-panel shortcut hides or restores an

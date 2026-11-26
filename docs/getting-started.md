@@ -25,16 +25,22 @@ A desktop display is needed to run the application. Tests use headless JavaFX by
 
 | Script | Work performed | Example |
 | --- | --- | --- |
-| [init.sh](../init.sh) | Sets up JDK 21 and local Keycloak; use `--java-only` for guest-only setup | `./init.sh` |
+| [init.sh](../init.sh) | Sets up JDK 21, Herdr CLI and local Keycloak; `--java-only` sets up Java alone | `./init.sh` |
 | [lint.sh](../lint.sh) | Runs `:app:checkstyleMain` and `:app:checkstyleTest` | `./lint.sh` |
 | [test.sh](../test.sh) | Runs `:app:test` | `./test.sh --tests '*ShellSyntaxTest'` |
 | [build.sh](../build.sh) | Runs `:app:assemble`; does not run tests or lint | `./build.sh` |
 | [run.sh](../run.sh) | Runs `:app:run --no-configuration-cache` | `./run.sh --console=plain` |
 | [dev.sh](../dev.sh) | Runs lint → tests → build → app | `./dev.sh --console=plain` |
 
+Direct `./init.sh` checks for an installed Herdr CLI and skips its download when available.
+Otherwise, it downloads Herdr 0.9.5 for Linux or macOS (x86_64/ARM64), verifies its
+pinned SHA-256 checksum, and installs it under `~/.local/share/sylph/tools/bin`.
+This needs curl and sha256sum (or shasum). A fresh `./run.sh` discovers the installed
+binary automatically. `./init.sh --java-only` skips Herdr and Keycloak setup.
+
 Direct `./init.sh` also requires a running Docker installation with Docker Compose v2; it starts Keycloak and imports the Sylph realm/client automatically. For automatic Google/GitHub configuration on a fresh machine, fill their client IDs/secrets in `auth/.env` before setup; see [authentication setup](authentication.md).
 
-Each workflow script resolves its own directory and sources only the Java setup from `init.sh`, so invoking it from another working directory works. Arguments are forwarded as separate quoted arguments. `dev.sh` forwards its arguments only to `run.sh`, not to its check/build steps. Arguments reach Gradle, not directly the Java main method.
+Each workflow script resolves its own directory and sources Java setup and local Herdr PATH discovery from `init.sh`, so invoking it from another working directory works. Arguments are forwarded as separate quoted arguments. `dev.sh` forwards its arguments only to `run.sh`, not to its check/build steps. Arguments reach Gradle, not directly the Java main method.
 
 On Linux, an interactive `run.sh` launch asks whether to install a user-local Sylph desktop launcher
 and scalable `S` icon. Answer `y` to create or refresh it; any other answer or end of input skips

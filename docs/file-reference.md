@@ -69,6 +69,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [auth/sylph-realm.json](../auth/sylph-realm.json) | Public desktop client, exact redirect URIs, and local registration policy. |
 | [auth/start-keycloak.sh](../auth/start-keycloak.sh) | Enables complete Google/GitHub credential pairs before first realm import. |
 | `auth/.env` (generated, ignored) | Private admin and optional OAuth credentials; created once by setup. |
+| [scripts/setup-herdr.sh](../scripts/setup-herdr.sh) | Detects an existing Herdr CLI or installs a checksum-verified, pinned binary for Linux/macOS. |
 | [scripts/setup-auth.sh](../scripts/setup-auth.sh) | Private credential generation, Docker startup, and realm readiness wait. |
 | [scripts/test-setup.py](../scripts/test-setup.py) | Isolated setup regression checks with fake tools and temporary credentials. |
 | [scripts/test-auth.py](../scripts/test-auth.py) | Disposable-user provisioning and real Keycloak integration runner. |
@@ -184,7 +185,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [gradle/wrapper/gradle-wrapper.properties](../gradle/wrapper/gradle-wrapper.properties) | Gradle distribution URL/version, wrapper download paths, and timeout settings. |
 | [gradlew](../gradlew) | Unix Gradle wrapper launcher. |
 | [gradlew.bat](../gradlew.bat) | Windows Gradle wrapper launcher. |
-| [init.sh](../init.sh) | JDK 21 detection/provisioning plus direct-run Keycloak setup; sourced usage and `--java-only` keep guest workflows independent. |
+| [init.sh](../init.sh) | JDK 21 detection/provisioning plus direct-run Herdr CLI and Keycloak setup; sourced usage and `--java-only` keep guest workflows independent. |
 | [lint.sh](../lint.sh) | Runs Checkstyle for main and test sources. |
 | [run.sh](../run.sh) | Registers the Linux desktop icon, then launches JavaFX with configuration caching disabled for the run task. |
 | [settings.gradle](../settings.gradle) | Names the root project, includes app, and configures the Foojay toolchain resolver. |
