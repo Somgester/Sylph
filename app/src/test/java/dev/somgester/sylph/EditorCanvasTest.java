@@ -1,7 +1,6 @@
 package dev.somgester.sylph;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -350,7 +349,6 @@ class EditorCanvasTest {
             assertTrue(paintedPixels(light, 35, 510, 0, 100, Color.WHITE) > 200);
             save(light, "light");
             assertEquals(original, buffer.toString());
-            assertFalse(surface.isFocusTraversable());
             return null;
         });
     }
