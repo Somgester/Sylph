@@ -1,5 +1,5 @@
 diff --git a/src/control.rs b/src/control.rs
-index 167c920..4e879be 100644
+index 167c920..d05b4c5 100644
 --- a/src/control.rs
 +++ b/src/control.rs
 @@ -4,7 +4,7 @@
@@ -11,7 +11,7 @@ index 167c920..4e879be 100644
  #[cfg(unix)]
  use std::os::unix::net::{UnixListener, UnixStream};
  #[cfg(windows)]
-@@ -87,6 +87,28 @@ pub fn client(args: &[String]) -> i32 {
+@@ -87,6 +87,36 @@ pub fn client(args: &[String]) -> i32 {
              }
              json!({ "shot": path })
          },
@@ -23,6 +23,14 @@ index 167c920..4e879be 100644
 +                return fail("sylph-click coordinates must be in [0, 1)");
 +            }
 +            json!({ "sylph_click": [x, y] })
++        }
++        [verb, coords @ ..] if verb == "sylph-drag" && coords.len() == 4 => {
++            let Some(coords) = coords.iter().map(|s| s.parse::<f64>().ok()).collect::<Option<Vec<_>>>()
++                .filter(|coords| coords.iter().all(|coord| (0.0..1.0).contains(coord)))
++            else {
++                return fail("sylph-drag needs four normalized coordinates in [0, 1)");
++            };
++            json!({ "sylph_drag": coords })
 +        }
 +        [verb, keys @ ..] if verb == "sylph-keys" && (1..=128).contains(&keys.len()) => {
 +            json!({ "sylph_keys": keys })
@@ -40,7 +48,7 @@ index 167c920..4e879be 100644
          [verb] if verb == "status" => json!({ "status": true }),
          [verb] if verb == "ls" => json!({ "ls": true }),
          [verb, message] if verb == "feedback" => json!({ "do": "app.feedback", "args": { "message": message, "from": "agent" } }),
-@@ -112,6 +134,15 @@ pub fn client(args: &[String]) -> i32 {
+@@ -112,6 +142,15 @@ pub fn client(args: &[String]) -> i32 {
          return fail("the window hung up");
      }
      let reply: Value = serde_json::from_str(&line).unwrap_or(Value::Null);
@@ -57,7 +65,7 @@ index 167c920..4e879be 100644
          if let Some(error) = reply.get("error") {
              return fail(error.as_str().unwrap_or("screenshot failed"));
 diff --git a/src/main.rs b/src/main.rs
-index 252cb44..5da0e81 100644
+index 252cb44..6a29ab6 100644
 --- a/src/main.rs
 +++ b/src/main.rs
 @@ -118,7 +118,7 @@ fn main() {
@@ -65,7 +73,7 @@ index 252cb44..5da0e81 100644
          return;
      }
 -    if matches!(args.get(1).map(String::as_str), Some("do" | "status" | "ls" | "commands" | "feedback" | "shot")) {
-+    if matches!(args.get(1).map(String::as_str), Some("do" | "status" | "ls" | "commands" | "feedback" | "shot" | "sylph-click" | "sylph-keys" | "sylph-copy" | "sylph-paste")) {
++    if matches!(args.get(1).map(String::as_str), Some("do" | "status" | "ls" | "commands" | "feedback" | "shot" | "sylph-click" | "sylph-drag" | "sylph-keys" | "sylph-copy" | "sylph-paste")) {
          std::process::exit(control::client(&args[1..]));
      }
      // Anything else from a shell answers in the shell; only a bare launch opens the window.
@@ -107,10 +115,10 @@ index a8f8d85..c49161d 100644
          };
          cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
 diff --git a/src/window.rs b/src/window.rs
-index 8fc7b52..a1ca78e 100644
+index 8fc7b52..e99944b 100644
 --- a/src/window.rs
 +++ b/src/window.rs
-@@ -688,6 +688,42 @@ impl AppWindow {
+@@ -688,6 +688,46 @@ impl AppWindow {
              while let Ok(req) = requests.recv().await {
                  let req = match req {
                      Request::Control { cmd, reply } => {
@@ -128,7 +136,9 @@ index 8fc7b52..a1ca78e 100644
 +                            let _ = reply.send(body);
 +                            continue;
 +                        }
-+                        if cmd.get("sylph_click").is_some() || cmd.get("sylph_keys").is_some() {
++                        if cmd.get("sylph_click").is_some() || cmd.get("sylph_drag").is_some()
++                            || cmd.get("sylph_keys").is_some()
++                        {
 +                            let body = if !sylph_probe_enabled() {
 +                                json!({ "error": "Sylph input probe needs opt-in and a private HERDR_APP_HOME" })
 +                            } else {
@@ -136,7 +146,9 @@ index 8fc7b52..a1ca78e 100644
 +                                match (**cx).update(|cx| {
 +                                    cx.update_window(handle, |_, window, cx| {
 +                                        if let Some(click) = cmd.get("sylph_click") {
-+                                            sylph_probe_click(click, window, cx)
++                                            sylph_probe_pointer(click, false, window, cx)
++                                        } else if let Some(drag) = cmd.get("sylph_drag") {
++                                            sylph_probe_pointer(drag, true, window, cx)
 +                                        } else {
 +                                            sylph_probe_keys(&cmd["sylph_keys"], window, cx)
 +                                        }
@@ -153,7 +165,7 @@ index 8fc7b52..a1ca78e 100644
                          if let Some(path) = cmd.get("shot").and_then(Value::as_str) {
                              if this.upgrade().is_none() {
                                  break;
-@@ -1785,6 +1821,31 @@ impl AppWindow {
+@@ -1785,6 +1825,31 @@ impl AppWindow {
          self.swapped.get(pane).and_then(|_| self.terms.get(&format!("{pane}{SWAP}"))).or_else(|| self.terms.get(pane))
      }
 
@@ -185,7 +197,7 @@ index 8fc7b52..a1ca78e 100644
      /// Key path for `terminal.copy`. Copies and clears when there is a selection.
      /// Returns whether it copied. False means the key should reach the program.
      fn copy_key(&mut self, window: &Window, cx: &mut Context<Self>) -> bool {
-@@ -8378,3 +8439,73 @@ export default class Probe extends View { render() { return div().child("probe")
+@@ -8378,3 +8443,84 @@ export default class Probe extends View { render() { return div().child("probe")
          );
      }
  }
@@ -207,20 +219,31 @@ index 8fc7b52..a1ca78e 100644
 +    false
 +}
 +
-+fn sylph_probe_click(value: &Value, window: &mut Window, cx: &mut App) -> Result<(), &'static str> {
-+    let (Some(x), Some(y)) = (value.get(0).and_then(Value::as_f64), value.get(1).and_then(Value::as_f64)) else {
-+        return Err("invalid click coordinates");
-+    };
-+    if !(0.0..1.0).contains(&x) || !(0.0..1.0).contains(&y) {
-+        return Err("invalid click coordinates");
++fn sylph_probe_pointer(
++    value: &Value, drag: bool, window: &mut Window, cx: &mut App,
++) -> Result<(), &'static str> {
++    let coords = value.as_array().ok_or("invalid pointer coordinates")?;
++    if coords.len() != if drag { 4 } else { 2 } {
++        return Err("invalid pointer coordinates");
 +    }
 +    let viewport = window.viewport_size();
-+    let position = point(viewport.width * x as f32, viewport.height * y as f32);
++    let point_at = |index: usize| {
++        let x = coords[index].as_f64().filter(|v| (0.0..1.0).contains(v))?;
++        let y = coords[index + 1].as_f64().filter(|v| (0.0..1.0).contains(v))?;
++        Some(point(viewport.width * x as f32, viewport.height * y as f32))
++    };
++    let start = point_at(0).ok_or("invalid pointer start")?;
++    let end = if drag { point_at(2).ok_or("invalid pointer end")? } else { start };
 +    window.dispatch_event(PlatformInput::MouseDown(MouseDownEvent {
-+        button: MouseButton::Left, position, click_count: 1, ..Default::default()
++        button: MouseButton::Left, position: start, click_count: 1, ..Default::default()
 +    }), cx);
++    if drag {
++        window.dispatch_event(PlatformInput::MouseMove(MouseMoveEvent {
++            position: end, pressed_button: Some(MouseButton::Left), modifiers: Modifiers::default(),
++        }), cx);
++    }
 +    window.dispatch_event(PlatformInput::MouseUp(MouseUpEvent {
-+        button: MouseButton::Left, position, click_count: 1, ..Default::default()
++        button: MouseButton::Left, position: end, click_count: 1, ..Default::default()
 +    }), cx);
 +    Ok(())
 +}

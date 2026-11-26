@@ -48,9 +48,11 @@ public final class FrameBridgeDemo extends Application {
     private static final String PASTE_MARKER = "Sylph paste é";
     private static boolean smokePassed;
 
-    private sealed interface NativeInput permits Click, NativeKey, NativeClipboard { }
+    private sealed interface NativeInput permits Click, Drag, NativeKey, NativeClipboard { }
 
     private record Click(double x, double y) implements NativeInput { }
+
+    private record Drag(Click start, Click end) implements NativeInput { }
 
     private record NativeKey(String token) implements NativeInput { }
 
@@ -71,7 +73,9 @@ public final class FrameBridgeDemo extends Application {
     private String desktopTerminal;
     private boolean desktopClicks;
     private Click desktopSmokeClick;
-    private boolean desktopClickSent;
+    private Drag desktopSmokeDrag;
+    private Click dragStart;
+    private boolean desktopPointerSent;
     private boolean desktopFailed;
     private boolean desktopSmokeStarted;
     private boolean unsupportedDesktopKey;
@@ -165,17 +169,13 @@ public final class FrameBridgeDemo extends Application {
         desktopCore = System.getProperty("sylph.herdr.core");
         desktopTerminal = System.getProperty("sylph.herdr.terminal");
         desktopClicks = Boolean.getBoolean("sylph.herdr.desktopClicks");
-        String smokeCoordinates = System.getProperty("sylph.herdr.desktopSmokeClick");
-        if (smokeCoordinates != null) {
-            String[] parts = smokeCoordinates.split(",", -1);
-            if (parts.length != 2) {
-                throw new IllegalArgumentException("Specify smoke click coordinates as normalized x,y.");
-            }
-            desktopSmokeClick = new Click(Double.parseDouble(parts[0]), Double.parseDouble(parts[1]));
-            if (!(desktopSmokeClick.x() >= 0 && desktopSmokeClick.x() < 1
-                    && desktopSmokeClick.y() >= 0 && desktopSmokeClick.y() < 1)) {
-                throw new IllegalArgumentException("Smoke click coordinates must be in [0, 1).");
-            }
+        String[] click = smokeCoordinates("sylph.herdr.desktopSmokeClick", 2);
+        if (click != null) {
+            desktopSmokeClick = parsePoint(click, 0);
+        }
+        String[] drag = smokeCoordinates("sylph.herdr.desktopSmokeDrag", 4);
+        if (drag != null) {
+            desktopSmokeDrag = new Drag(parsePoint(drag, 0), parsePoint(drag, 2));
         }
         if (desktopCore != null && (desktopTerminal == null || !desktopTerminal.matches("t[0-9a-z]+"))) {
             throw new IllegalArgumentException("Use an explicit local terminal ID, such as t1.");
@@ -234,13 +234,29 @@ public final class FrameBridgeDemo extends Application {
         view.setPreserveRatio(true);
         if (desktopClicks) {
             view.setPickOnBounds(true);
+            view.setOnMousePressed(event -> {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    dragStart = imagePoint(event, false);
+                }
+            });
+            view.setOnMouseReleased(event -> {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    Click start = dragStart;
+                    dragStart = null;
+                    if (!event.isStillSincePress() && start != null) {
+                        Click end = imagePoint(event, true);
+                        if (end != null && !start.equals(end)) {
+                            queueNativeInput(new Drag(start, end));
+                            event.consume();
+                        }
+                    }
+                }
+            });
             view.setOnMouseClicked(event -> {
-                if (!desktopFailed && event.getButton() == MouseButton.PRIMARY && event.isStillSincePress()) {
-                    var bounds = view.getBoundsInLocal();
-                    double x = (event.getX() - bounds.getMinX()) / bounds.getWidth();
-                    double y = (event.getY() - bounds.getMinY()) / bounds.getHeight();
-                    if (x >= 0 && x < 1 && y >= 0 && y < 1) {
-                        queueNativeInput(new Click(x, y));
+                if (event.getButton() == MouseButton.PRIMARY && event.isStillSincePress()) {
+                    Click point = imagePoint(event, false);
+                    if (point != null) {
+                        queueNativeInput(point);
                         event.consume();
                     }
                 }
@@ -265,7 +281,10 @@ public final class FrameBridgeDemo extends Application {
                     pending = true;
                     if (nativeInputs.peekFirst() instanceof Click click) {
                         nativeInputs.removeFirst();
-                        worker.execute(() -> clickDesktop(executable, click));
+                        worker.execute(() -> sendDesktopPointer(executable, click, null));
+                    } else if (nativeInputs.peekFirst() instanceof Drag dragEvent) {
+                        nativeInputs.removeFirst();
+                        worker.execute(() -> sendDesktopPointer(executable, dragEvent.start(), dragEvent.end()));
                     } else if (nativeInputs.peekFirst() instanceof NativeClipboard clipboard) {
                         nativeInputs.removeFirst();
                         worker.execute(() -> exchangeClipboard(executable, clipboard));
@@ -297,11 +316,53 @@ public final class FrameBridgeDemo extends Application {
         timer.start();
     }
 
-    private void clickDesktop(String executable, Click click) {
+    private static String[] smokeCoordinates(String property, int count) {
+        String configured = System.getProperty(property);
+        if (configured == null) {
+            return null;
+        }
+        String[] parts = configured.split(",", -1);
+        if (parts.length != count) {
+            throw new IllegalArgumentException("Incorrect number of normalized pointer coordinates.");
+        }
+        return parts;
+    }
+
+    private static Click parsePoint(String[] fields, int offset) {
+        double x = Double.parseDouble(fields[offset]);
+        double y = Double.parseDouble(fields[offset + 1]);
+        if (!(x >= 0 && x < 1 && y >= 0 && y < 1)) {
+            throw new IllegalArgumentException("Pointer coordinates must be in [0, 1).");
+        }
+        return new Click(x, y);
+    }
+
+    private Click imagePoint(MouseEvent event, boolean clamp) {
+        var bounds = view.getBoundsInLocal();
+        if (bounds.getWidth() <= 0 || bounds.getHeight() <= 0) {
+            return null;
+        }
+        double x = (event.getX() - bounds.getMinX()) / bounds.getWidth();
+        double y = (event.getY() - bounds.getMinY()) / bounds.getHeight();
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            return null;
+        }
+        if (clamp) {
+            return new Click(Math.clamp(x, 0, Math.nextDown(1.0)), Math.clamp(y, 0, Math.nextDown(1.0)));
+        }
+        return x >= 0 && x < 1 && y >= 0 && y < 1 ? new Click(x, y) : null;
+    }
+
+    private void sendDesktopPointer(String executable, Click start, Click end) {
         try {
-            runDesktopCommand(List.of(executable, "sylph-click", Double.toString(click.x()),
-                    Double.toString(click.y())), "Herdr Desktop click failed. Check the patched app and opt-in.");
-            Platform.runLater(() -> desktopClickSent = true);
+            List<String> command = new ArrayList<>(List.of(executable, end == null ? "sylph-click" : "sylph-drag",
+                    Double.toString(start.x()), Double.toString(start.y())));
+            if (end != null) {
+                command.add(Double.toString(end.x()));
+                command.add(Double.toString(end.y()));
+            }
+            runDesktopCommand(command, "Herdr Desktop pointer request failed. Check the patched app and opt-in.");
+            Platform.runLater(() -> desktopPointerSent = true);
             captureDesktop(executable);
         } catch (IOException failure) {
             Platform.runLater(() -> showFailure(failure));
@@ -574,7 +635,14 @@ public final class FrameBridgeDemo extends Application {
                 }
             } else if (getParameters().getRaw().contains("--scroll-smoke")) {
                 checkScrollFrame(image);
-            } else if (desktopSmokeClick != null && !desktopClickSent) {
+            } else if (desktopSmokeDrag != null && !desktopPointerSent) {
+                fireImagePointer(MouseEvent.MOUSE_PRESSED, desktopSmokeDrag.start(), true, true);
+                fireImagePointer(MouseEvent.MOUSE_DRAGGED, desktopSmokeDrag.end(), true, false);
+                fireImagePointer(MouseEvent.MOUSE_RELEASED, desktopSmokeDrag.end(), false, false);
+                if (nativeInputs.isEmpty()) {
+                    showFailure(new IOException("Smoke drag did not reach the preview"));
+                }
+            } else if (desktopSmokeClick != null && !desktopPointerSent) {
                 var bounds = view.getBoundsInLocal();
                 double x = bounds.getMinX() + bounds.getWidth() * desktopSmokeClick.x();
                 double y = bounds.getMinY() + bounds.getHeight() * desktopSmokeClick.y();
@@ -600,6 +668,16 @@ public final class FrameBridgeDemo extends Application {
                 }
             }
         }
+    }
+
+    private void fireImagePointer(javafx.event.EventType<MouseEvent> type, Click point,
+            boolean primaryDown, boolean stillSincePress) {
+        var bounds = view.getBoundsInLocal();
+        double x = bounds.getMinX() + bounds.getWidth() * point.x();
+        double y = bounds.getMinY() + bounds.getHeight() * point.y();
+        Event.fireEvent(view, new MouseEvent(type, x, y, x, y,
+                MouseButton.PRIMARY, 1, false, false, false, false, primaryDown, false, false,
+                false, false, stillSincePress, new PickResult(view, new Point3D(x, y, 0), 0)));
     }
 
     private void checkScrollFrame(Image image) {
@@ -749,7 +827,9 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
-            String check = List.of(args).contains("--clipboard-smoke")
+            String check = System.getProperty("sylph.herdr.desktopSmokeDrag") != null
+                    ? "JavaFX Herdr drag delivery"
+                    : List.of(args).contains("--clipboard-smoke")
                     ? "JavaFX Herdr text clipboard round trip"
                     : List.of(args).contains("--native-input-smoke")
                     ? "JavaFX Desktop click and keyboard delivery"

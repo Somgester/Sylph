@@ -153,8 +153,8 @@ The check scrolls toward older output and compares the captured frames.
 
 ### Native Desktop input probe
 
-The [input patch](../experiments/herdr-embedding/desktop/sylph-click.patch) adds primary-click
-and keyboard requests to the pinned Herdr App build. JavaFX maps clicks relative to the
+The [input patch](../experiments/herdr-embedding/desktop/sylph-click.patch) adds primary-click,
+drag, and keyboard requests to the pinned Herdr App build. JavaFX maps pointer coordinates relative to the
 displayed image, excluding the empty space around it. Clicks and keys are sent in order.
 GPUI dispatches keys to the newly focused control after a click. This mode supports typed
 Unicode characters, basic navigation and editing keys, and Ctrl+C. Wheel scrolling
@@ -180,14 +180,25 @@ To check focus routing as well, add `-PheadlessHerdrNativeInputExperiment`. In a
 Herdr space with two fresh shells, point the coordinates at the inactive tab. The test clicks
 that tab and types `xxY_é` without submitting it. Confirm with `hc read` that only the newly
 selected shell has the draft. The separate stock keyboard probe still uses a fixed target.
-IME composition, drag gestures, and native window resizing remain open.
+IME composition and native window resizing remain open.
+
+### Drag selection
+
+Drag across terminal text in the preview. Herdr applies the drag when you release the
+primary button and the preview refreshes the selection. The probe sends the two endpoints,
+so it does not show a live highlight or scroll at the edge while dragging.
+
+For a headless delivery check, add `-PheadlessHerdrDesktopDrag=x1,y1,x2,y2` to the native
+preview command, using normalized coordinates from the captured frame. Use the patched
+`herdr-app sylph-copy` command to verify the selected text. On Wayland, the probe selected
+an exact substring from a real shell's output.
 
 ### Text clipboard
 
 In native input mode, use **Ctrl+Shift+C** to copy Herdr's terminal selection and
 **Ctrl+Shift+V** to paste JavaFX clipboard text into the terminal with keyboard focus.
 The bridge also accepts **Cmd+C** and **Cmd+V**. Copy without a selection leaves the
-clipboard alone. Use Herdr's own window to select text until drag forwarding is available.
+clipboard alone. You can select the text by dragging in either window.
 
 The probe transfers up to 64 KiB of UTF-8 text. Paste accepts a single line without control
 characters and uses Herdr's terminal paste encoding. It leaves the pasted text at the shell

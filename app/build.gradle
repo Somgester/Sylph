@@ -148,9 +148,16 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     def scrollSmoke = providers.gradleProperty('headlessHerdrScrollExperiment').isPresent()
     def clickSmoke = providers.gradleProperty('headlessGpuiClickExperiment').isPresent()
     def desktopClickSmoke = providers.gradleProperty('headlessHerdrDesktopClick')
+    def desktopDragSmoke = providers.gradleProperty('headlessHerdrDesktopDrag')
+    if (desktopDragSmoke.isPresent()) {
+        if (!desktopClicks || desktopClickSmoke.isPresent()) {
+            throw new GradleException('The Desktop drag smoke test needs native input mode and no click coordinates.')
+        }
+        systemProperty 'sylph.herdr.desktopSmokeDrag', desktopDragSmoke.get()
+    }
     def nativeInputSmoke = providers.gradleProperty('headlessHerdrNativeInputExperiment').isPresent()
     def clipboardSmoke = providers.gradleProperty('headlessHerdrClipboardExperiment').isPresent()
-    if (clipboardSmoke && (!desktopClicks || desktopClickSmoke.isPresent())) {
+    if (clipboardSmoke && (!desktopClicks || desktopClickSmoke.isPresent() || desktopDragSmoke.isPresent())) {
         throw new GradleException('The clipboard smoke test needs a patched Desktop preview with a preselected terminal.')
     }
     if (nativeInputSmoke && !desktopClickSmoke.isPresent()) {
@@ -165,7 +172,7 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     if (clickSmoke && (!gpuiHelper.isPresent() || desktop.isPresent())) {
         throw new GradleException('The GPUI click smoke test requires herdrFrameHelper and no Desktop executable.')
     }
-    if (clipboardSmoke || desktopClickSmoke.isPresent() || clickSmoke || scrollSmoke
+    if (clipboardSmoke || desktopClickSmoke.isPresent() || desktopDragSmoke.isPresent() || clickSmoke || scrollSmoke
             || providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
         systemProperty 'glass.platform', 'Monocle'
         systemProperty 'monocle.platform', 'Headless'
