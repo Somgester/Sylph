@@ -191,6 +191,13 @@ public class EditorApp extends Application {
         statusBar.setCenter(status);
         statusBar.setRight(language);
         root.setBottom(statusBar);
+        var showChrome = terminals.expandedTerminalProperty().isNull();
+        chrome.visibleProperty().bind(showChrome);
+        chrome.managedProperty().bind(showChrome);
+        statusBar.visibleProperty().bind(showChrome);
+        statusBar.managedProperty().bind(showChrome);
+        terminals.expandedTerminalProperty().addListener((observable, previous, expanded) ->
+                root.setLeft(expanded == null && !toolPageVisible ? sidebar : null));
         settingsPage = new SettingsPage(settings, autoSave, this::showEditor, servers, languageServers);
         if (account == null) {
             account = AccountController.environment(uri -> getHostServices().showDocument(uri.toString()));
@@ -234,6 +241,7 @@ public class EditorApp extends Application {
     }
 
     private void toggleSettings() {
+        terminals.restoreTerminal();
         if (toolPageVisible && root.getCenter() == settingsPage) {
             showEditor();
         } else {
@@ -249,6 +257,7 @@ public class EditorApp extends Application {
     }
 
     private void showAccount() {
+        terminals.restoreTerminal();
         toolPageVisible = true;
         if (document != null) {
             document.setActive(false);
@@ -260,6 +269,7 @@ public class EditorApp extends Application {
     }
 
     private void showEditor() {
+        terminals.restoreTerminal();
         toolPageVisible = false;
         root.setLeft(sidebar);
         showDocument();

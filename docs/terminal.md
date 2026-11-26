@@ -13,6 +13,7 @@ Use Ctrl on Linux/Windows and Cmd on macOS for `Mod` below.
 | Return to the current file | Select its tab above the editor, or open a sidebar file |
 | Duplicate a terminal | The duplicate button beside its tab name |
 | Close a terminal | Its tab's close button |
+| Fill the Sylph window with a terminal | **Expand** in its tab header, then **Restore** to return |
 
 Both opening commands also appear under View and in the command palette. The panel divider can be dragged. Hiding the panel keeps its shells alive; reopening it restores the same tabs and output. Closing its last tab removes the panel. Terminal tabs in the editor share a tab row with the current document. Sylph still edits one document at a time; adding terminal tabs does not add multiple document sessions.
 
@@ -29,6 +30,10 @@ A new terminal starts in the opened workspace folder. Without a workspace, it us
 
 Duplicating a Herdr CLI tab starts another client in the same starting folder. Herdr
 manages its own sessions, so both clients can attach to the same Herdr server.
+
+Expand works for Shell, Herdr CLI, and Herdr Desktop. The terminal fills the Sylph
+window with its tab strip still available. Restore brings back the editor layout
+and keeps the same terminal session and output.
 
 Switching tabs preserves unsaved document text, selection, and undo history. If you return to the editor while a terminal is starting, renderer completion respects that focus choice. Shell input and output never become document edits or trigger autosave. Opening an existing sidebar file selects the document tab.
 

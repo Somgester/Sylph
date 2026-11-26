@@ -165,6 +165,10 @@ class TerminalWorkspaceTest {
         FxTestSupport.await(() -> scene.lookup("#herdr-desktop-frame") instanceof ImageView image
                 && image.getImage() != null);
         FxTestSupport.onFxThread(() -> {
+            TabPane tabs = (TabPane) scene.lookup("#editor-tabs");
+            Button expand = terminalButton(tabs, "#toggle-terminal-expand");
+            expand.fire();
+            assertEquals("Restore", expand.getText());
             Event.fireEvent(scene.getFocusOwner(), new KeyEvent(KeyEvent.KEY_TYPED, "x", "", KeyCode.UNDEFINED,
                     false, false, false, false));
             return null;
@@ -174,6 +178,7 @@ class TerminalWorkspaceTest {
             herdr.getContextMenu().getItems().getFirst().fire();
             TabPane tabs = (TabPane) scene.lookup("#editor-tabs");
             assertEquals(1, tabs.getTabs().size());
+            assertTrue(scene.lookup("#toolbar").getParent().isVisible());
             assertSame(editor, app.activeEditor());
             assertEquals("unsaved draft", editor.getText());
             return null;
@@ -379,7 +384,7 @@ class TerminalWorkspaceTest {
         original.session().send("export SYLPH_DUPLICATE_TEST=original\r");
         FxTestSupport.onFxThread(() -> {
             TabPane pane = (TabPane) scene.lookup(selector);
-            ((Button) pane.getSelectionModel().getSelectedItem().getGraphic()).fire();
+            terminalButton(pane, "#duplicate-terminal").fire();
             return null;
         });
         TerminalView duplicate = selected(selector);
@@ -579,7 +584,7 @@ class TerminalWorkspaceTest {
             editor.requestFocus();
             if (duplicate) {
                 TabPane panel = (TabPane) scene.lookup("#terminal-panel");
-                ((Button) panel.getSelectionModel().getSelectedItem().getGraphic()).fire();
+                terminalButton(panel, "#duplicate-terminal").fire();
             } else {
                 EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
             }
@@ -714,6 +719,53 @@ class TerminalWorkspaceTest {
             TerminalView terminal = (TerminalView) pane.getSelectionModel().getSelectedItem().getContent();
             sessions.add(terminal.session());
             return terminal;
+        });
+    }
+
+    private static Button terminalButton(TabPane pane, String selector) {
+        return (Button) pane.getSelectionModel().getSelectedItem().getGraphic().lookup(selector);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void expandAndRestoreKeepTheLiveTerminalAndDocument(boolean inEditor) throws Exception {
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            editor.replaceText("draft");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, true, false, true);
+            if (inEditor) {
+                EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            }
+            return null;
+        });
+        String paneId = inEditor ? "#editor-tabs" : "#terminal-panel";
+        TerminalView terminal = selected(paneId);
+        awaitShell(terminal);
+        FxTestSupport.onFxThread(() -> {
+            TerminalWorkspace workspace = (TerminalWorkspace) scene.lookup("#terminal-workspace");
+            TabPane pane = (TabPane) scene.lookup(paneId);
+            Button expand = terminalButton(pane, "#toggle-terminal-expand");
+            expand.fire();
+            assertEquals("Restore", expand.getText());
+            assertEquals(1, workspace.getItems().size());
+            assertSame(terminal, pane.getSelectionModel().getSelectedItem().getContent());
+            assertFalse(scene.lookup("#toolbar").getParent().isVisible());
+            assertEquals(null, scene.lookup("#sidebar"));
+            return null;
+        });
+        terminal.session().send("printf 'expanded-ok\\n'\r");
+        FxTestSupport.await(() -> screen(terminal).contains("expanded-ok"));
+        FxTestSupport.onFxThread(() -> {
+            TabPane pane = (TabPane) scene.lookup(paneId);
+            terminalButton(pane, "#toggle-terminal-expand").fire();
+            TerminalWorkspace workspace = (TerminalWorkspace) scene.lookup("#terminal-workspace");
+            assertEquals(2, workspace.getItems().size());
+            assertSame(terminal, pane.getSelectionModel().getSelectedItem().getContent());
+            assertTrue(screen(terminal).contains("expanded-ok"));
+            assertTrue(scene.lookup("#toolbar").getParent().isVisible());
+            assertTrue(scene.lookup("#sidebar").isVisible());
+            assertEquals("draft", editor.getText());
+            return null;
         });
     }
 

@@ -24,6 +24,8 @@ input, clipboard, drag, and resize logic.
 Captures pause while you view a different Sylph tab. Closing the tab releases its
 bridge; the external Herdr app and its shells remain available to reopen. Keep the
 external window in normal windowed mode so the preview can resize it.
+Use **Expand** in the Herdr tab header to fill the Sylph window and **Restore** to
+return to the editor layout.
 
 ## What Sylph needs to host
 

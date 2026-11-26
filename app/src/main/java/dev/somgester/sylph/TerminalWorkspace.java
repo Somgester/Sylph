@@ -10,6 +10,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.property.ReadOnlyObjectProperty;
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -26,12 +28,19 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.StackPane;
+import javafx.scene.layout.HBox;
 
 final class TerminalWorkspace extends SplitPane implements AutoCloseable {
 
     private final TabPane editors = new TabPane();
 
     private final TabPane panel = new TabPane();
+
+    private final StackPane editorArea;
+
+    private final ReadOnlyObjectWrapper<Tab> expanded = new ReadOnlyObjectWrapper<>();
+
+    private double dividerBeforeExpand;
 
     private Tab document;
 
@@ -98,9 +107,9 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
                 event.consume();
             }
         });
-        StackPane area = new StackPane(editors, empty);
-        area.setId("editor-area");
-        getItems().add(area);
+        editorArea = new StackPane(editors, empty);
+        editorArea.setId("editor-area");
+        getItems().add(editorArea);
     }
 
     private static boolean isDoubleClick(MouseEvent event) {
@@ -127,6 +136,9 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
     }
 
     void removeTabs(List<Tab> tabs) {
+        if (expanded.get() != null && tabs.contains(expanded.get())) {
+            restoreTerminal();
+        }
         for (Tab tab : tabs) {
             if (tab == document) {
                 removeDocument(tab);
@@ -169,6 +181,9 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
             }
         });
         pane.getSelectionModel().selectedItemProperty().addListener((observable, previous, selected) -> {
+            if (expanded.get() != null && selected != expanded.get()) {
+                restoreTerminal();
+            }
             if (pane == editors) {
                 syncHerdrView();
             }
@@ -216,7 +231,7 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
     private void syncHerdrView() {
         if (herdrView != null) {
             herdrView.setActive(!closed && getScene() != null && editors.getSelectionModel().getSelectedItem()
-                    == herdrTab);
+                    == herdrTab && getItems().contains(editorArea));
         }
     }
 
@@ -224,10 +239,12 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         if (closed) {
             return;
         }
+        restoreTerminal();
         if (herdrTab == null) {
             herdrView = new HerdrDesktopView(executable.toString());
             herdrTab = new Tab("Herdr Desktop", herdrView);
             herdrTab.setId("herdr-desktop-tab");
+            herdrTab.setGraphic(expandButton(herdrTab, editors));
             editors.getTabs().add(herdrTab);
         }
         editors.getSelectionModel().select(herdrTab);
@@ -280,6 +297,7 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
     }
 
     void togglePanel() {
+        restoreTerminal();
         if (panelVisible) {
             panelVisible = false;
             getItems().remove(panel);
@@ -301,16 +319,18 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         if (closed) {
             return null;
         }
+        restoreTerminal();
         TabPane pane = inEditor ? editors : panel;
         TerminalView view = factory.apply(directory);
         Tab tab = new Tab(name + " " + nextId++, view);
         tab.setTooltip(new Tooltip(directory.toString()));
         Button duplicate = new Button("⧉");
+        duplicate.setId("duplicate-terminal");
         duplicate.getStyleClass().add("terminal-duplicate");
         duplicate.setAccessibleText("Duplicate " + tab.getText());
         duplicate.setTooltip(new Tooltip("Open another " + name + " in the same starting folder"));
         duplicate.setOnAction(event -> open(view.session().directory(), inEditor, name, factory));
-        tab.setGraphic(duplicate);
+        tab.setGraphic(new HBox(3, duplicate, expandButton(tab, pane)));
         terminals.put(tab, view);
         pane.getTabs().add(tab);
         pane.getSelectionModel().select(tab);
@@ -326,12 +346,56 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         return view;
     }
 
+    ReadOnlyObjectProperty<Tab> expandedTerminalProperty() {
+        return expanded.getReadOnlyProperty();
+    }
+
+    private Button expandButton(Tab tab, TabPane pane) {
+        Button button = new Button();
+        button.setId("toggle-terminal-expand");
+        button.getStyleClass().add("terminal-duplicate");
+        button.textProperty().bind(Bindings.when(expanded.isEqualTo(tab)).then("Restore").otherwise("Expand"));
+        button.setOnAction(event -> {
+            if (expanded.get() == tab) {
+                restoreTerminal();
+            } else {
+                restoreTerminal();
+                pane.getSelectionModel().select(tab);
+                if (getItems().size() == 2) {
+                    dividerBeforeExpand = getDividerPositions()[0];
+                }
+                expanded.set(tab);
+                getItems().remove(pane == panel ? editorArea : panel);
+                syncHerdrView();
+            }
+            focusSelection(pane);
+        });
+        return button;
+    }
+
+    void restoreTerminal() {
+        if (expanded.get() == null) {
+            return;
+        }
+        expanded.set(null);
+        if (!getItems().contains(editorArea)) {
+            getItems().addFirst(editorArea);
+        }
+        if (panelVisible && !panel.getTabs().isEmpty()) {
+            if (!getItems().contains(panel)) {
+                getItems().add(panel);
+            }
+            setDividerPositions(dividerBeforeExpand);
+        }
+        syncHerdrView();
+    }
+
     private void showPanel() {
         panelVisible = true;
         if (!getItems().contains(panel)) {
             getItems().add(panel);
             Platform.runLater(() -> {
-                if (!closed && panelVisible) {
+                if (!closed && panelVisible && expanded.get() == null) {
                     setDividerPositions(0.65);
                 }
             });
@@ -342,6 +406,7 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
     public void close() {
         if (!closed) {
             closed = true;
+            expanded.set(null);
             terminals.values().forEach(TerminalView::close);
             terminals.clear();
             editors.getTabs().clear();
