@@ -9,9 +9,12 @@ import java.util.Locale;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javafx.animation.AnimationTimer;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
@@ -25,6 +28,8 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
@@ -38,13 +43,19 @@ import javafx.util.Duration;
 
 public final class FrameBridgeDemo extends Application {
     private static final String SMOKE_KEY = "A";
+    private static final int CLIPBOARD_LIMIT = 65_536;
+    private static final String COPY_MARKER = "SYLPH_COPY_CHECK";
+    private static final String PASTE_MARKER = "Sylph paste é";
     private static boolean smokePassed;
 
-    private sealed interface NativeInput permits Click, NativeKey { }
+    private sealed interface NativeInput permits Click, NativeKey, NativeClipboard { }
 
     private record Click(double x, double y) implements NativeInput { }
 
     private record NativeKey(String token) implements NativeInput { }
+
+    // Null text requests a copy. Non-null text is a snapshot of the JavaFX clipboard at keypress.
+    private record NativeClipboard(String text) implements NativeInput { }
 
     private record Request(int width, int height, int x, int y, boolean focused, int key, Click click) { }
 
@@ -77,6 +88,8 @@ public final class FrameBridgeDemo extends Application {
     private int pointerY = -10;
     private int key;
     private int clickSmokeStep;
+    private int clipboardSmokeStep;
+    private String clipboardStatus;
 
     @Override
     public void start(Stage stage) throws IOException {
@@ -187,6 +200,10 @@ public final class FrameBridgeDemo extends Application {
                 }
             });
             surface.setOnKeyPressed(event -> {
+                if (desktopClicks && handleClipboardShortcut(event)) {
+                    event.consume();
+                    return;
+                }
                 if (event.isAltDown() || event.isMetaDown() || event.isShiftDown()) {
                     return;
                 }
@@ -249,6 +266,9 @@ public final class FrameBridgeDemo extends Application {
                     if (nativeInputs.peekFirst() instanceof Click click) {
                         nativeInputs.removeFirst();
                         worker.execute(() -> clickDesktop(executable, click));
+                    } else if (nativeInputs.peekFirst() instanceof NativeClipboard clipboard) {
+                        nativeInputs.removeFirst();
+                        worker.execute(() -> exchangeClipboard(executable, clipboard));
                     } else {
                         List<String> keys = new ArrayList<>();
                         while (nativeInputs.peekFirst() instanceof NativeKey key) {
@@ -345,6 +365,123 @@ public final class FrameBridgeDemo extends Application {
         }
     }
 
+    private boolean handleClipboardShortcut(KeyEvent event) {
+        boolean chord = event.isControlDown() && event.isShiftDown() && !event.isMetaDown()
+                || event.isMetaDown() && !event.isControlDown() && !event.isShiftDown();
+        if (!chord || event.isAltDown() || (event.getCode() != KeyCode.C && event.getCode() != KeyCode.V)) {
+            return false;
+        }
+        if (event.getCode() == KeyCode.C) {
+            queueNativeInput(new NativeClipboard(null));
+        } else {
+            String text = Clipboard.getSystemClipboard().getString();
+            if (text == null || text.isEmpty()) {
+                clipboardStatus = "Clipboard has no text";
+            } else if (text.length() > CLIPBOARD_LIMIT || text.codePoints().anyMatch(Character::isISOControl)
+                    || text.getBytes(StandardCharsets.UTF_8).length > CLIPBOARD_LIMIT) {
+                clipboardStatus = "Paste accepts up to 64 KiB of single-line text";
+            } else {
+                queueNativeInput(new NativeClipboard(text));
+            }
+        }
+        return true;
+    }
+
+    private void exchangeClipboard(String executable, NativeClipboard clipboard) {
+        boolean copy = clipboard.text() == null;
+        try {
+            byte[] reply = runClipboardCommand(executable, clipboard.text());
+            Platform.runLater(() -> {
+                if (closed || desktopFailed) {
+                    return;
+                }
+                pending = false;
+                if (copy) {
+                    String text = new String(reply, StandardCharsets.UTF_8);
+                    clipboardStatus = text.isEmpty() ? "No terminal selection"
+                            : writeClipboard(text) ? "Copied terminal selection" : "Could not write to clipboard";
+                } else {
+                    clipboardStatus = "Pasted text into Herdr";
+                }
+                status.setText(clipboardStatus);
+                if (getParameters().getRaw().contains("--clipboard-smoke")) {
+                    finishClipboardSmoke(copy);
+                }
+            });
+        } catch (IOException failure) {
+            Platform.runLater(() -> {
+                if (!closed && !desktopFailed) {
+                    pending = false;
+                    clipboardStatus = failure.getMessage();
+                    if (smokeMode()) {
+                        showFailure(failure);
+                    }
+                }
+            });
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static byte[] runClipboardCommand(String executable, String text)
+            throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(executable, text == null ? "sylph-copy" : "sylph-paste")
+                .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+        FutureTask<byte[]> transfer = new FutureTask<>(() -> {
+            try (var input = process.getOutputStream()) {
+                if (text != null) {
+                    input.write(text.getBytes(StandardCharsets.UTF_8));
+                }
+            }
+            try (var output = process.getInputStream()) {
+                return output.readNBytes(CLIPBOARD_LIMIT + 1);
+            }
+        });
+        Thread.startVirtualThread(transfer);
+        try {
+            if (!process.waitFor(8, TimeUnit.SECONDS) || process.exitValue() != 0) {
+                throw new IOException("Herdr clipboard request failed. Focus a terminal in the preview.");
+            }
+            byte[] reply = transfer.get(1, TimeUnit.SECONDS);
+            if (reply.length > CLIPBOARD_LIMIT) {
+                throw new IOException("Herdr clipboard reply exceeds 64 KiB");
+            }
+            return reply;
+        } catch (ExecutionException | TimeoutException failure) {
+            throw new IOException("Could not exchange clipboard text with Herdr", failure);
+        } finally {
+            if (process.isAlive()) {
+                process.destroyForcibly();
+            }
+            transfer.cancel(true);
+        }
+    }
+
+    private static boolean writeClipboard(String text) {
+        ClipboardContent content = new ClipboardContent();
+        content.putString(text);
+        return Clipboard.getSystemClipboard().setContent(content);
+    }
+
+    private void finishClipboardSmoke(boolean copy) {
+        if (copy && clipboardSmokeStep == 1) {
+            String copied = Clipboard.getSystemClipboard().getString();
+            if (copied != null && copied.contains(COPY_MARKER) && writeClipboard(PASTE_MARKER)) {
+                clipboardSmokeStep = 2;
+                fireClipboardShortcut(KeyCode.V);
+                return;
+            }
+        } else if (!copy && clipboardSmokeStep == 2) {
+            smokePassed = true;
+        }
+        Platform.exit();
+    }
+
+    private void fireClipboardShortcut(KeyCode code) {
+        Event.fireEvent(surface, new KeyEvent(KeyEvent.KEY_PRESSED, "", "", code,
+                true, true, false, false));
+    }
+
     private void sendNativeKeys(String executable, List<String> keys) {
         try {
             List<String> command = new ArrayList<>(List.of(executable, "sylph-keys"));
@@ -423,13 +560,19 @@ public final class FrameBridgeDemo extends Application {
     private void showDesktopFrame(Image image) {
         if (!closed && !desktopFailed) {
             view.setImage(image);
-            status.setText(desktopClicks ? "Live Herdr Desktop frames · Click and type"
+            status.setText(desktopClicks ? (clipboardStatus == null
+                    ? "Live Herdr Desktop frames · Click and type" : clipboardStatus)
                     : desktopCore == null ? "Live Herdr Desktop frames · Read-only"
                     : "Keyboard target: " + desktopTerminal + (unsupportedDesktopKey
                             ? " · Unsupported character. Press Ctrl+C before submitting."
                             : " · Click preview to type"));
             pending = false;
-            if (getParameters().getRaw().contains("--scroll-smoke")) {
+            if (getParameters().getRaw().contains("--clipboard-smoke")) {
+                if (clipboardSmokeStep == 0) {
+                    clipboardSmokeStep = 1;
+                    fireClipboardShortcut(KeyCode.C);
+                }
+            } else if (getParameters().getRaw().contains("--scroll-smoke")) {
                 checkScrollFrame(image);
             } else if (desktopSmokeClick != null && !desktopClickSent) {
                 var bounds = view.getBoundsInLocal();
@@ -606,7 +749,9 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
-            String check = List.of(args).contains("--native-input-smoke")
+            String check = List.of(args).contains("--clipboard-smoke")
+                    ? "JavaFX Herdr text clipboard round trip"
+                    : List.of(args).contains("--native-input-smoke")
                     ? "JavaFX Desktop click and keyboard delivery"
                     : System.getProperty("sylph.herdr.desktopSmokeClick") != null
                     ? "JavaFX Desktop click delivery"

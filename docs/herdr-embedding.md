@@ -180,7 +180,25 @@ To check focus routing as well, add `-PheadlessHerdrNativeInputExperiment`. In a
 Herdr space with two fresh shells, point the coordinates at the inactive tab. The test clicks
 that tab and types `xxY_é` without submitting it. Confirm with `hc read` that only the newly
 selected shell has the draft. The separate stock keyboard probe still uses a fixed target.
-Clipboard, IME composition, drag gestures, and native window resizing remain open.
+IME composition, drag gestures, and native window resizing remain open.
+
+### Text clipboard
+
+In native input mode, use **Ctrl+Shift+C** to copy Herdr's terminal selection and
+**Ctrl+Shift+V** to paste JavaFX clipboard text into the terminal with keyboard focus.
+The bridge also accepts **Cmd+C** and **Cmd+V**. Copy without a selection leaves the
+clipboard alone. Use Herdr's own window to select text until drag forwarding is available.
+
+The probe transfers up to 64 KiB of UTF-8 text. Paste accepts a single line without control
+characters and uses Herdr's terminal paste encoding. It leaves the pasted text at the shell
+prompt for review. Files, images, and multiline paste are outside this checkpoint.
+
+For a headless check, print `SYLPH_COPY_CHECK` in a disposable Herdr shell and select its
+text (for example, with `herdr-app do terminal.select_all`). Keep that terminal focused,
+then run the native preview command above with `-PheadlessHerdrClipboardExperiment`.
+The check reads the selection into the JavaFX clipboard and pastes `Sylph paste é`.
+Use `hc read` to confirm it is still a draft at the prompt. Verified on Wayland with the
+patched Herdr App.
 
 Verified on Wayland with a patched Herdr App 0.1.18 build. The headless JavaFX click
 changed the active tab from `Start here` to `Click me`, confirmed by the Desktop

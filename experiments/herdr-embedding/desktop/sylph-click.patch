@@ -1,8 +1,17 @@
 diff --git a/src/control.rs b/src/control.rs
-index 167c920..5bf6cbd 100644
+index 167c920..4e879be 100644
 --- a/src/control.rs
 +++ b/src/control.rs
-@@ -87,6 +87,18 @@ pub fn client(args: &[String]) -> i32 {
+@@ -4,7 +4,7 @@
+
+ use crate::mods::{self, Request};
+ use serde_json::{Value, json};
+-use std::io::{BufRead, BufReader, Write};
++use std::io::{BufRead, BufReader, Read, Write};
+ #[cfg(unix)]
+ use std::os::unix::net::{UnixListener, UnixStream};
+ #[cfg(windows)]
+@@ -87,6 +87,28 @@ pub fn client(args: &[String]) -> i32 {
              }
              json!({ "shot": path })
          },
@@ -18,11 +27,37 @@ index 167c920..5bf6cbd 100644
 +        [verb, keys @ ..] if verb == "sylph-keys" && (1..=128).contains(&keys.len()) => {
 +            json!({ "sylph_keys": keys })
 +        }
++        [verb] if verb == "sylph-copy" => json!({ "sylph_copy": true }),
++        [verb] if verb == "sylph-paste" => {
++            let mut text = String::new();
++            if std::io::stdin().take(65_537).read_to_string(&mut text).is_err()
++                || text.len() > 65_536 || text.chars().any(char::is_control)
++            {
++                return fail("Sylph paste needs up to 64 KiB of single-line UTF-8 text");
++            }
++            json!({ "sylph_paste": text })
++        }
          [verb] if verb == "status" => json!({ "status": true }),
          [verb] if verb == "ls" => json!({ "ls": true }),
          [verb, message] if verb == "feedback" => json!({ "do": "app.feedback", "args": { "message": message, "from": "agent" } }),
+@@ -112,6 +134,15 @@ pub fn client(args: &[String]) -> i32 {
+         return fail("the window hung up");
+     }
+     let reply: Value = serde_json::from_str(&line).unwrap_or(Value::Null);
++    if args == ["sylph-copy"] {
++        if let Some(error) = reply.get("error").and_then(Value::as_str) {
++            return fail(error);
++        }
++        return match reply.get("text").and_then(Value::as_str) {
++            Some(text) => if std::io::stdout().write_all(text.as_bytes()).is_ok() { 0 } else { 1 },
++            None => fail("invalid clipboard reply"),
++        };
++    }
+     if args.first().is_some_and(|v| v == "shot") {
+         if let Some(error) = reply.get("error") {
+             return fail(error.as_str().unwrap_or("screenshot failed"));
 diff --git a/src/main.rs b/src/main.rs
-index 252cb44..4c0c69f 100644
+index 252cb44..5da0e81 100644
 --- a/src/main.rs
 +++ b/src/main.rs
 @@ -118,7 +118,7 @@ fn main() {
@@ -30,18 +65,69 @@ index 252cb44..4c0c69f 100644
          return;
      }
 -    if matches!(args.get(1).map(String::as_str), Some("do" | "status" | "ls" | "commands" | "feedback" | "shot")) {
-+    if matches!(args.get(1).map(String::as_str), Some("do" | "status" | "ls" | "commands" | "feedback" | "shot" | "sylph-click" | "sylph-keys")) {
++    if matches!(args.get(1).map(String::as_str), Some("do" | "status" | "ls" | "commands" | "feedback" | "shot" | "sylph-click" | "sylph-keys" | "sylph-copy" | "sylph-paste")) {
          std::process::exit(control::client(&args[1..]));
      }
      // Anything else from a shell answers in the shell; only a bare launch opens the window.
+diff --git a/src/terminal.rs b/src/terminal.rs
+index a8f8d85..c49161d 100644
+--- a/src/terminal.rs
++++ b/src/terminal.rs
+@@ -800,13 +800,21 @@ impl TerminalView {
+         if let Some(paths) = copied_files(&item) {
+             self.dropped(paths, cx);
+         } else if let Some(text) = item.text() {
+-            let bytes = self.grid.borrow().vt.paste_bytes(&text);
+-            self.send(&bytes);
++            self.paste_text(&text);
+         } else if item.entries().iter().any(|e| matches!(e, ClipboardEntry::Image(_))) {
+             self.paste_image(cx);
+         }
+     }
+
++    pub(crate) fn paste_text(&self, text: &str) {
++        let bytes = self.grid.borrow().vt.paste_bytes(text);
++        self.send(&bytes);
++    }
++
++    pub(crate) fn selection_text(&self) -> Option<String> {
++        self.grid.borrow().vt.selection_text()
++    }
++
+     /// Ctrl+V: a remote image, clipboard text on Windows, or the key itself.
+     pub fn paste_image(&mut self, cx: &mut Context<Self>) {
+         if self.send_image(cx) {
+@@ -835,7 +843,7 @@ impl TerminalView {
+     /// Returns whether anything was copied. Does not clear the selection: mouse
+     /// copy-on-select uses this and keeps the highlight.
+     pub fn copy(&mut self, cx: &mut Context<Self>) -> bool {
+-        let Some(text) = self.grid.borrow().vt.selection_text() else {
++        let Some(text) = self.selection_text() else {
+             return false;
+         };
+         cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
 diff --git a/src/window.rs b/src/window.rs
-index 8fc7b52..9f837ed 100644
+index 8fc7b52..a1ca78e 100644
 --- a/src/window.rs
 +++ b/src/window.rs
-@@ -688,6 +688,28 @@ impl AppWindow {
+@@ -688,6 +688,42 @@ impl AppWindow {
              while let Ok(req) = requests.recv().await {
                  let req = match req {
                      Request::Control { cmd, reply } => {
++                        if cmd.get("sylph_copy").is_some() || cmd.get("sylph_paste").is_some() {
++                            let body = if !sylph_probe_enabled() {
++                                json!({ "error": "Sylph input probe needs opt-in and a private HERDR_APP_HOME" })
++                            } else {
++                                match this.update_in(cx, |this, window, cx| {
++                                    this.sylph_probe_clipboard(&cmd, window, cx)
++                                }) {
++                                    Ok(body) => body,
++                                    Err(error) => json!({ "error": error.to_string() }),
++                                }
++                            };
++                            let _ = reply.send(body);
++                            continue;
++                        }
 +                        if cmd.get("sylph_click").is_some() || cmd.get("sylph_keys").is_some() {
 +                            let body = if !sylph_probe_enabled() {
 +                                json!({ "error": "Sylph input probe needs opt-in and a private HERDR_APP_HOME" })
@@ -67,7 +153,39 @@ index 8fc7b52..9f837ed 100644
                          if let Some(path) = cmd.get("shot").and_then(Value::as_str) {
                              if this.upgrade().is_none() {
                                  break;
-@@ -8378,3 +8400,73 @@ export default class Probe extends View { render() { return div().child("probe")
+@@ -1785,6 +1821,31 @@ impl AppWindow {
+         self.swapped.get(pane).and_then(|_| self.terms.get(&format!("{pane}{SWAP}"))).or_else(|| self.terms.get(pane))
+     }
+
++    fn sylph_probe_clipboard(&self, cmd: &Value, window: &Window, cx: &App) -> Value {
++        // A stale model pane is not a clipboard target when a dialog or mod owns focus.
++        let Some(term) = self.terms.values().find(|term| {
++            term.view.read(cx).focus_handle().is_focused(window)
++        }) else {
++            return json!({ "error": "no terminal has keyboard focus" });
++        };
++        let view = term.view.read(cx);
++        if let Some(paste) = cmd.get("sylph_paste") {
++            let Some(text) = paste.as_str().filter(|text|
++                text.len() <= 65_536 && !text.chars().any(char::is_control)
++            ) else {
++                return json!({ "error": "invalid Sylph paste text" });
++            };
++            view.paste_text(text);
++            json!({ "ok": true })
++        } else {
++            let text = view.selection_text().unwrap_or_default();
++            if text.len() > 65_536 {
++                return json!({ "error": "terminal selection exceeds 64 KiB" });
++            }
++            json!({ "text": text })
++        }
++    }
++
+     /// Key path for `terminal.copy`. Copies and clears when there is a selection.
+     /// Returns whether it copied. False means the key should reach the program.
+     fn copy_key(&mut self, window: &Window, cx: &mut Context<Self>) -> bool {
+@@ -8378,3 +8439,73 @@ export default class Probe extends View { render() { return div().child("probe")
          );
      }
  }
