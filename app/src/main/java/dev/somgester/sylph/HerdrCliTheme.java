@@ -10,10 +10,23 @@ import java.util.Map;
 enum HerdrCliTheme {
     DEFAULT("Use Herdr configuration", ""),
     CATPPUCCIN("Catppuccin", "catppuccin"),
+    CATPPUCCIN_LATTE("Catppuccin Latte", "catppuccin-latte"),
+    TERMINAL("Terminal", "terminal"),
     TOKYO_NIGHT("Tokyo Night", "tokyo-night"),
+    TOKYO_NIGHT_DAY("Tokyo Night Day", "tokyo-night-day"),
     DRACULA("Dracula", "dracula"),
     NORD("Nord", "nord"),
-    GRUVBOX("Gruvbox", "gruvbox");
+    GRUVBOX("Gruvbox", "gruvbox"),
+    GRUVBOX_LIGHT("Gruvbox Light", "gruvbox-light"),
+    ONE_DARK("One Dark", "one-dark"),
+    ONE_LIGHT("One Light", "one-light"),
+    SOLARIZED("Solarized", "solarized"),
+    SOLARIZED_LIGHT("Solarized Light", "solarized-light"),
+    KANAGAWA("Kanagawa", "kanagawa"),
+    KANAGAWA_LOTUS("Kanagawa Lotus", "kanagawa-lotus"),
+    ROSE_PINE("Rosé Pine", "rose-pine"),
+    ROSE_PINE_DAWN("Rosé Pine Dawn", "rose-pine-dawn"),
+    VESPER("Vesper", "vesper");
 
     private final String label;
 

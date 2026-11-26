@@ -29,7 +29,9 @@ Duplicating a Herdr CLI tab starts another client in the same starting folder. H
 manages its own sessions, so both clients can attach to the same Herdr server.
 
 Under **Settings → Herdr Themes**, pick a built-in theme for newly
-opened Herdr CLI clients. A custom theme uses a separate config and session profile
+opened Herdr CLI clients. All 18 themes bundled with Herdr CLI 0.9.5 are available,
+including light variants such as Catppuccin Latte, Tokyo Night Day, and One Light.
+Selecting a built-in theme uses a separate config and session profile
 under `~/.sylph/herdr-cli`. **Reset** uses your regular Herdr configuration and sessions
 again. Open a new CLI tab after changing the setting.
 
