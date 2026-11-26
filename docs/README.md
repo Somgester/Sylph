@@ -9,6 +9,7 @@
 - [Open source extension host experiment](../experiments/extension-host/README.md)
 - [Syntax highlighting and grammar maintenance](syntax-highlighting.md)
 - [Integrated terminal](terminal.md)
+- [Herdr Desktop embedding investigation](herdr-embedding.md)
 - [Testing and troubleshooting](testing.md)
 - [Complete file reference](file-reference.md)
 
