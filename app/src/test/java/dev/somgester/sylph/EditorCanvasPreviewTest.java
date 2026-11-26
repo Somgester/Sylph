@@ -131,6 +131,114 @@ class EditorCanvasPreviewTest {
     }
 
     @Test
+    void draggingOutsidePreviewScrollsBothAxesAndKeepsSourceReadOnly() throws Exception {
+        String text = ("long line " + "word ".repeat(100) + "\n").repeat(200);
+        open(Files.writeString(directory.resolve("edge-drag.txt"), text));
+        FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            render();
+            EditorCanvas canvas = canvas();
+            var area = document.view.area();
+            double x = origin() + cell() * 2;
+            double y = canvas.lineHeight() / 2;
+            mouse(canvas, MouseEvent.MOUSE_PRESSED, x, y, false, true, true);
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, x, canvas.getHeight() + 100, false, true, false);
+            int anchor = area.getAnchor();
+            int previousLine = area.getCurrentParagraph();
+            for (int step = 0; step < 30; step++) {
+                canvas.scrollDrag(0.05);
+            }
+            assertTrue(canvas.scrollY() > 0);
+            assertTrue(area.getCurrentParagraph() > previousLine);
+            assertEquals(anchor, area.getAnchor());
+
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, x, -100, false, true, false);
+            for (int step = 0; step < 30; step++) {
+                canvas.scrollDrag(0.05);
+            }
+            assertEquals(0, canvas.scrollY());
+            assertEquals(0, area.getCurrentParagraph());
+            assertEquals(anchor, area.getAnchor());
+
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, canvas.getWidth() + 100, y, false, true, false);
+            int previousColumn = area.getCaretColumn();
+            for (int step = 0; step < 20; step++) {
+                canvas.scrollDrag(0.05);
+            }
+            assertTrue(canvas.scrollX() > 0);
+            assertTrue(area.getCaretColumn() > previousColumn);
+            assertEquals(anchor, area.getAnchor());
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, -100, y, false, true, false);
+            for (int step = 0; step < 20; step++) {
+                canvas.scrollDrag(0.05);
+            }
+            assertEquals(0, canvas.scrollX());
+            assertEquals(0, area.getCaretColumn());
+            mouse(canvas, MouseEvent.MOUSE_RELEASED, -100, y, false, false, false);
+            int caret = area.getCaretPosition();
+            canvas.scrollDrag(0.05);
+            assertEquals(caret, area.getCaretPosition());
+            assertEquals(text, document.session.textProperty().get());
+            assertFalse(document.session.dirtyProperty().get());
+            assertFalse(document.view.undoAvailableProperty().get());
+            return null;
+        });
+    }
+
+    @Test
+    void holdingPointerOutsideContinuesScrollingOnAnimationPulses() throws Exception {
+        open(Files.writeString(directory.resolve("pulse-drag.txt"), "line\n".repeat(200)));
+        EditorCanvas canvas = FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            render();
+            EditorCanvas surface = canvas();
+            mouse(surface, MouseEvent.MOUSE_PRESSED, origin(), surface.lineHeight() / 2, false, true, true);
+            mouse(surface, MouseEvent.MOUSE_DRAGGED, origin(), surface.getHeight() + 100, false, true, false);
+            return surface;
+        });
+        try {
+            FxTestSupport.await(() -> canvas.scrollY() > canvas.lineHeight());
+            FxTestSupport.onFxThread(() -> {
+                assertEquals(0, document.view.area().getAnchor());
+                assertFalse(document.session.dirtyProperty().get());
+                return null;
+            });
+        } finally {
+            FxTestSupport.onFxThread(() -> {
+                mouse(canvas, MouseEvent.MOUSE_RELEASED, origin(), canvas.getHeight() + 100, false, false, false);
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void returningInsideOrClosingPreviewStopsEdgeScrolling() throws Exception {
+        open(Files.writeString(directory.resolve("stop-edge-drag.txt"), "line\n".repeat(200)));
+        FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            render();
+            EditorCanvas canvas = canvas();
+            double x = origin();
+            double y = canvas.lineHeight() / 2;
+            mouse(canvas, MouseEvent.MOUSE_PRESSED, x, y, false, true, true);
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, x, canvas.getHeight() + 100, false, true, false);
+            canvas.scrollDrag(0.05);
+            assertTrue(canvas.scrollY() > 0);
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, x, y, false, true, false);
+            double scroll = canvas.scrollY();
+            canvas.scrollDrag(0.05);
+            assertEquals(scroll, canvas.scrollY());
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, x, canvas.getHeight() + 100, false, true, false);
+            menu().fire();
+            int caret = document.view.area().getCaretPosition();
+            canvas.scrollDrag(0.05);
+            assertEquals(0, canvas.scrollY());
+            assertEquals(caret, document.view.area().getCaretPosition());
+            return null;
+        });
+    }
+
+    @Test
     void previewKeepsKeyboardFocusAndAllowsCopyWithoutEditingSource() throws Exception {
         String text = "abcd";
         open(Files.writeString(directory.resolve("read-only.txt"), text));

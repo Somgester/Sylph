@@ -16,6 +16,13 @@ Files must be regular UTF-8 text files. Symbolic links, special files, invalid U
 
 UTF-8 BOMs are preserved. Line endings are normalized to LF while editing; saves use the detected original convention. A file with mixed line endings is normalized to one convention on an edited save, rather than preserving each individual line ending.
 
+## Canvas Preview
+
+For the experimental read-only renderer, right-click the source editor and choose
+**Show Canvas Preview**. Click or drag in the preview to navigate/select source text.
+Hold a drag past any edge to scroll and extend the selection; release to stop.
+The preview does not accept text edits. See [editor core](editor-core.md).
+
 ## Create and delete workspace entries
 
 Open a folder to enable the sidebar's New File and New Folder buttons. Creation uses the selected directory, the parent of a selected file, or the workspace root when nothing is selected. Right-click a row for the same actions, or right-click empty sidebar space to create at the workspace root. Enter a single filename/folder name; nested paths, absolute paths, and existing names are refused.

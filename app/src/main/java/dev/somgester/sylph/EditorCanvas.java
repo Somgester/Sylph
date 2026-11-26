@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import javafx.animation.AnimationTimer;
 import javafx.geometry.VPos;
 import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
@@ -62,6 +63,25 @@ final class EditorCanvas extends Region {
 
     private boolean dragging;
 
+    private double dragX;
+
+    private double dragY;
+
+    private long previousDragFrame;
+
+    private final AnimationTimer dragScroll = new AnimationTimer() {
+        @Override
+        public void handle(long now) {
+            if (previousDragFrame != 0) {
+                double seconds = Math.min(0.05, (now - previousDragFrame) / 1_000_000_000.0);
+                previousDragFrame = now;
+                scrollDrag(seconds);
+            } else {
+                previousDragFrame = now;
+            }
+        }
+    };
+
     private TextLines document;
 
     private double scrollY;
@@ -92,6 +112,17 @@ final class EditorCanvas extends Region {
         addEventHandler(MouseEvent.MOUSE_PRESSED, this::prepareDrag);
         addEventHandler(MouseEvent.MOUSE_DRAGGED, this::extendDrag);
         addEventHandler(MouseEvent.MOUSE_RELEASED, event -> cancelDrag());
+        focusedProperty().addListener((observable, previous, focused) -> {
+            if (!focused) {
+                cancelDrag();
+            }
+        });
+        sceneProperty().addListener((observable, previous, scene) -> cancelDrag());
+        visibleProperty().addListener((observable, previous, visible) -> {
+            if (!visible) {
+                cancelDrag();
+            }
+        });
         addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1
                     && event.isStillSincePress() && !hasNavigationModifier(event)) {
@@ -140,16 +171,61 @@ final class EditorCanvas extends Region {
         if (dragOrigin == null || event.isStillSincePress()) {
             return;
         }
-        // Keep the endpoint on the visible rows when the pointer leaves the pane.
-        double y = Math.clamp(event.getY(), 0, Math.max(0, Math.nextDown(getHeight())));
-        hitTest(event.getX(), y).ifPresent(position -> {
+        dragX = event.getX();
+        dragY = event.getY();
+        updateDragSelection();
+        if (dragging) {
+            if (edgeVelocity(dragX, getWidth()) != 0 || edgeVelocity(dragY, getHeight()) != 0) {
+                dragScroll.start();
+            } else {
+                stopDragScroll();
+            }
+            event.consume();
+        }
+    }
+
+    private void updateDragSelection() {
+        double y = Math.clamp(dragY, 0, Math.max(0, Math.nextDown(getHeight())));
+        double x = dragX < 0 && scrollX > 0 ? metrics.measure(Integer.toString(document.lineCount())) + 24
+                : Math.clamp(dragX, 0, Math.max(0, Math.nextDown(getWidth())));
+        hitTest(x, y).ifPresent(position -> {
             if (!dragging) {
                 dragging = true;
                 onNavigate.accept(dragOrigin, dragExtendsSelection);
             }
             onNavigate.accept(position, true);
-            event.consume();
         });
+    }
+
+    // One elapsed-time step; kept separate from the pulse clock for deterministic input tests.
+    void scrollDrag(double seconds) {
+        if (!dragging || !Double.isFinite(seconds) || seconds <= 0) {
+            return;
+        }
+        if (getWidth() <= 0 || getHeight() <= 0) {
+            cancelDrag();
+            return;
+        }
+        double previousX = scrollX;
+        double previousY = scrollY;
+        double elapsed = Math.min(seconds, 0.05);
+        scrollToX(scrollX + edgeVelocity(dragX, getWidth()) * elapsed);
+        scrollTo(scrollY + edgeVelocity(dragY, getHeight()) * elapsed);
+        updateDragSelection();
+        if (scrollX == previousX && scrollY == previousY) {
+            stopDragScroll();
+        }
+    }
+
+    private double edgeVelocity(double coordinate, double extent) {
+        double outside = coordinate < 0 ? coordinate : coordinate > extent ? coordinate - extent : 0;
+        return outside == 0 || extent <= 0 ? 0
+                : Math.copySign(lineHeight * Math.clamp(Math.abs(outside) / lineHeight * 8, 4, 40), outside);
+    }
+
+    private void stopDragScroll() {
+        dragScroll.stop();
+        previousDragFrame = 0;
     }
 
     private static boolean hasNavigationModifier(MouseEvent event) {
@@ -157,6 +233,7 @@ final class EditorCanvas extends Region {
     }
 
     void cancelDrag() {
+        stopDragScroll();
         dragOrigin = null;
         dragging = false;
     }

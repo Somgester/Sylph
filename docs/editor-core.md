@@ -164,8 +164,8 @@ The preview keeps keyboard focus after a click or drag. To type, return focus to
 
 Drag with the primary mouse button to select from the press position to the pointer. Hold Shift at
 the start of the drag to extend from the existing source anchor. The source editor owns the selection,
-so the Edit menu can copy the selected text while the preview has focus. Dragging outside the preview stops at its
-visible rows. The preview does not auto-scroll at the edges.
+so the Edit menu can copy the selected text while the preview has focus. Dragging outside the preview
+scrolls toward that edge while keeping the endpoint on visible text, as described below.
 
 ## History contract
 
@@ -213,10 +213,25 @@ Save As leaves history intact. Closing the view detaches listeners and releases 
 `forgetHistory()` semantics retain redo; document resets deliberately replace the entire manager.
 Position/mark tracking survives undo/redo and invalidates forgotten or abandoned positions.
 
+## Edge scrolling during selection
+
+Dragging a selection beyond the Canvas Preview's top, bottom, left, or right edge
+now scrolls that axis while extending the source selection from its original anchor.
+Holding the pointer outside continues scrolling on JavaFX animation pulses; moving
+farther outside increases speed up to a cap. Diagonal drags can scroll both axes.
+Endpoints remain on visible text and use the existing grapheme-aware hit testing.
+The gutter stays fixed while text scrolls horizontally.
+
+Returning inside stops automatic scrolling. Releasing the mouse, losing focus,
+detaching/hiding the preview, replacing or editing its document, starting a blocking
+file operation, or closing the pane cancels the drag. Scrolling stops at document
+bounds and for zero-sized surfaces. Elapsed steps are capped so a delayed pulse
+does not cause a large viewport jump. Source text, dirty state, and undo history
+remain unchanged.
+
 ## Next review chunks
 
-1. Add edge scrolling during drag selection.
-2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
+1. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
    accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
 These remain follow-up changes.
@@ -265,3 +280,7 @@ Hit-test checks cover glyph midpoint placement, tab edges, both scroll axes, tra
 Unicode grapheme boundaries, and mixed-direction glyphs. Navigation checks cover source caret/anchor
 mapping, Shift-click, read-only preview focus, undo group boundaries, foreground-save blocking, and
 closed-pane callbacks. `live-navigation.png` shows source selection created from preview clicks.
+Edge-drag checks cover all four directions, anchor preservation, real animation
+pulses with a stationary outside pointer, returning inside, release, and closing
+the preview. They verify scrolling and selection do not alter source text, dirty
+state, or undo history, and run headless without desktop popups.
