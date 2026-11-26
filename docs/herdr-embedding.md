@@ -180,7 +180,20 @@ To check focus routing as well, add `-PheadlessHerdrNativeInputExperiment`. In a
 Herdr space with two fresh shells, point the coordinates at the inactive tab. The test clicks
 that tab and types `xxY_é` without submitting it. Confirm with `hc read` that only the newly
 selected shell has the draft. The separate stock keyboard probe still uses a fixed target.
-IME composition and native window resizing remain open.
+IME composition remains open.
+
+### Native viewport resize
+
+Add `-PherdrDesktopResizeProbe` to the native input command. Changing the preview size
+asks the patched Herdr window to resize its viewport so its layout and terminal grid
+reflow. Changes are sent after a short pause and clamped to 320–1920 by 200–1080 logical
+pixels. Keep the separate Herdr window in normal windowed mode during the experiment.
+The preview waits for the frame before accepting pointer clicks at the new size.
+
+Add `-PheadlessHerdrDesktopResize` instead to verify two different frame sizes. On
+Wayland, `stty size` in the same shell changed from 37 rows by 120 columns to 24 by 86.
+The shell PID stayed the same. This still resizes the separate Desktop window. Hosting
+the view in an actual Sylph tab remains a follow-up.
 
 ### Drag selection
 

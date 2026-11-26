@@ -129,6 +129,13 @@ tasks.register('herdrFrameExperiment', JavaExec) {
         systemProperty 'sylph.herdr.desktop', rootProject.file(desktop.get()).absolutePath
     }
     def desktopClicks = providers.gradleProperty('herdrDesktopClickProbe').isPresent()
+    def desktopResizeSmoke = providers.gradleProperty('headlessHerdrDesktopResize').isPresent()
+    if (desktopResizeSmoke || providers.gradleProperty('herdrDesktopResizeProbe').isPresent()) {
+        if (!desktopClicks) {
+            throw new GradleException('Desktop resize mode requires herdrDesktopClickProbe.')
+        }
+        systemProperty 'sylph.herdr.desktopResize', 'true'
+    }
     if (desktopClicks) {
         if (!desktop.isPresent() || providers.gradleProperty('herdrCoreExecutable').isPresent()
                 || providers.gradleProperty('herdrTerminal').isPresent()) {
@@ -172,7 +179,8 @@ tasks.register('herdrFrameExperiment', JavaExec) {
     if (clickSmoke && (!gpuiHelper.isPresent() || desktop.isPresent())) {
         throw new GradleException('The GPUI click smoke test requires herdrFrameHelper and no Desktop executable.')
     }
-    if (clipboardSmoke || desktopClickSmoke.isPresent() || desktopDragSmoke.isPresent() || clickSmoke || scrollSmoke
+    if (desktopResizeSmoke || clipboardSmoke || desktopClickSmoke.isPresent() || desktopDragSmoke.isPresent()
+            || clickSmoke || scrollSmoke
             || providers.gradleProperty('headlessHerdrExperiment').isPresent()) {
         systemProperty 'glass.platform', 'Monocle'
         systemProperty 'monocle.platform', 'Headless'
@@ -192,6 +200,9 @@ tasks.register('herdrFrameExperiment', JavaExec) {
         }
         if (clipboardSmoke) {
             args '--clipboard-smoke'
+        }
+        if (desktopResizeSmoke) {
+            args '--resize-smoke'
         }
     }
 }

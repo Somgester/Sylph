@@ -54,6 +54,13 @@ public final class FrameBridgeDemo extends Application {
 
     private record Drag(Click start, Click end) implements NativeInput { }
 
+    private record Viewport(int width, int height) {
+        boolean matches(Image image) {
+            // Captured frames use physical pixels. Compare aspect ratios across display scales.
+            return Math.abs(image.getWidth() * height / image.getHeight() - width) <= 2;
+        }
+    }
+
     private record NativeKey(String token) implements NativeInput { }
 
     // Null text requests a copy. Non-null text is a snapshot of the JavaFX clipboard at keypress.
@@ -72,6 +79,13 @@ public final class FrameBridgeDemo extends Application {
     private String desktopCore;
     private String desktopTerminal;
     private boolean desktopClicks;
+    private boolean desktopResize;
+    private Viewport requestedViewport;
+    private Viewport confirmedViewport;
+    private Image confirmedFrame;
+    private long resizeDeadline;
+    private Viewport initialSmokeViewport;
+    private boolean resizeUnconfirmed;
     private Click desktopSmokeClick;
     private Drag desktopSmokeDrag;
     private Click dragStart;
@@ -169,6 +183,7 @@ public final class FrameBridgeDemo extends Application {
         desktopCore = System.getProperty("sylph.herdr.core");
         desktopTerminal = System.getProperty("sylph.herdr.terminal");
         desktopClicks = Boolean.getBoolean("sylph.herdr.desktopClicks");
+        desktopResize = Boolean.getBoolean("sylph.herdr.desktopResize");
         String[] click = smokeCoordinates("sylph.herdr.desktopSmokeClick", 2);
         if (click != null) {
             desktopSmokeClick = parsePoint(click, 0);
@@ -236,7 +251,7 @@ public final class FrameBridgeDemo extends Application {
             view.setPickOnBounds(true);
             view.setOnMousePressed(event -> {
                 if (event.getButton() == MouseButton.PRIMARY) {
-                    dragStart = imagePoint(event, false);
+                    dragStart = resizeDeadline == 0 ? imagePoint(event, false) : null;
                 }
             });
             view.setOnMouseReleased(event -> {
@@ -253,7 +268,7 @@ public final class FrameBridgeDemo extends Application {
                 }
             });
             view.setOnMouseClicked(event -> {
-                if (event.getButton() == MouseButton.PRIMARY && event.isStillSincePress()) {
+                if (resizeDeadline == 0 && event.getButton() == MouseButton.PRIMARY && event.isStillSincePress()) {
                     Click point = imagePoint(event, false);
                     if (point != null) {
                         queueNativeInput(point);
@@ -271,11 +286,18 @@ public final class FrameBridgeDemo extends Application {
         stage.show();
         timer = new AnimationTimer() {
             private long nextCapture;
+            private Viewport observedViewport;
+            private long viewportChangedAt;
 
             @Override
             public void handle(long now) {
                 if (pending || desktopFailed) {
                     return;
+                }
+                Viewport viewport = desktopResize ? viewport() : null;
+                if (!java.util.Objects.equals(viewport, observedViewport)) {
+                    observedViewport = viewport;
+                    viewportChangedAt = now;
                 }
                 if (!nativeInputs.isEmpty()) {
                     pending = true;
@@ -306,6 +328,13 @@ public final class FrameBridgeDemo extends Application {
                     desktopScrollLines = 0;
                     pending = true;
                     worker.execute(() -> scrollDesktop(executable, lines));
+                } else if (viewport != null && dragStart == null && !viewport.equals(requestedViewport)
+                        && now - viewportChangedAt >= TimeUnit.MILLISECONDS.toNanos(150)) {
+                    requestedViewport = viewport;
+                    resizeDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+                    resizeUnconfirmed = false;
+                    pending = true;
+                    worker.execute(() -> resizeDesktop(executable, viewport));
                 } else if (now >= nextCapture) {
                     pending = true;
                     nextCapture = now + TimeUnit.MILLISECONDS.toNanos(500);
@@ -314,6 +343,23 @@ public final class FrameBridgeDemo extends Application {
             }
         };
         timer.start();
+    }
+
+    private Viewport viewport() {
+        return new Viewport(Math.clamp((int) surface.getWidth(), 320, 1920),
+                Math.clamp((int) surface.getHeight(), 200, 1080));
+    }
+
+    private void resizeDesktop(String executable, Viewport viewport) {
+        try {
+            runDesktopCommand(List.of(executable, "sylph-resize", Integer.toString(viewport.width()),
+                    Integer.toString(viewport.height())), "Herdr Desktop resize request failed.");
+            Platform.runLater(() -> pending = false);
+        } catch (IOException failure) {
+            Platform.runLater(() -> showFailure(failure));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static String[] smokeCoordinates(String property, int count) {
@@ -621,14 +667,31 @@ public final class FrameBridgeDemo extends Application {
     private void showDesktopFrame(Image image) {
         if (!closed && !desktopFailed) {
             view.setImage(image);
-            status.setText(desktopClicks ? (clipboardStatus == null
+            if (resizeDeadline != 0) {
+                boolean changedSize = confirmedFrame == null || requestedViewport.equals(confirmedViewport)
+                        || image.getWidth() != confirmedFrame.getWidth()
+                        || image.getHeight() != confirmedFrame.getHeight();
+                if (changedSize && requestedViewport.matches(image)) {
+                    confirmedViewport = requestedViewport;
+                    confirmedFrame = image;
+                    resizeDeadline = 0;
+                } else if (System.nanoTime() >= resizeDeadline) {
+                    resizeUnconfirmed = true;
+                    resizeDeadline = 0;
+                }
+            }
+            status.setText(resizeDeadline != 0 ? "Waiting for resized Herdr frame…"
+                    : resizeUnconfirmed ? "Herdr did not confirm the new size"
+                    : desktopClicks ? (clipboardStatus == null
                     ? "Live Herdr Desktop frames · Click and type" : clipboardStatus)
                     : desktopCore == null ? "Live Herdr Desktop frames · Read-only"
                     : "Keyboard target: " + desktopTerminal + (unsupportedDesktopKey
                             ? " · Unsupported character. Press Ctrl+C before submitting."
                             : " · Click preview to type"));
             pending = false;
-            if (getParameters().getRaw().contains("--clipboard-smoke")) {
+            if (getParameters().getRaw().contains("--resize-smoke")) {
+                checkResizeFrame(image);
+            } else if (getParameters().getRaw().contains("--clipboard-smoke")) {
                 if (clipboardSmokeStep == 0) {
                     clipboardSmokeStep = 1;
                     fireClipboardShortcut(KeyCode.C);
@@ -666,6 +729,23 @@ public final class FrameBridgeDemo extends Application {
                     Event.fireEvent(surface, new KeyEvent(KeyEvent.KEY_TYPED, letter, "",
                             KeyCode.UNDEFINED, false, false, false, false));
                 }
+            }
+        }
+    }
+
+    private void checkResizeFrame(Image image) {
+        if (resizeUnconfirmed) {
+            Platform.exit();
+        } else if (requestedViewport != null && viewport().equals(requestedViewport)
+                && requestedViewport.equals(confirmedViewport)) {
+            if (initialSmokeViewport != null && !initialSmokeViewport.equals(requestedViewport)) {
+                smokePassed = true;
+                Platform.exit();
+            } else if (initialSmokeViewport == null) {
+                initialSmokeViewport = requestedViewport;
+                var window = surface.getScene().getWindow();
+                window.setWidth(window.getWidth() + 210);
+                window.setHeight(window.getHeight() + 60);
             }
         }
     }
@@ -827,7 +907,9 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
-            String check = System.getProperty("sylph.herdr.desktopSmokeDrag") != null
+            String check = List.of(args).contains("--resize-smoke")
+                    ? "JavaFX Herdr viewport reflow"
+                    : System.getProperty("sylph.herdr.desktopSmokeDrag") != null
                     ? "JavaFX Herdr drag delivery"
                     : List.of(args).contains("--clipboard-smoke")
                     ? "JavaFX Herdr text clipboard round trip"
