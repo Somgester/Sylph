@@ -154,7 +154,6 @@ final class EditorView extends StackPane implements AutoCloseable {
             area.getUndoManager().preventMerge();
             area.selectRange(extend ? area.getAnchor() : offset, offset);
             area.requestFollowCaret();
-            area.requestFocus();
         }
     }
 

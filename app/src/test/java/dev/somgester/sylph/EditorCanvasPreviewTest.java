@@ -10,11 +10,14 @@ import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import javafx.event.Event;
+import javafx.event.EventType;
 import javafx.geometry.Point3D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.MenuItem;
 import javafx.scene.image.WritableImage;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
@@ -94,20 +97,81 @@ class EditorCanvasPreviewTest {
     }
 
     @Test
-    void clickingPreviewReturnsFocusFromHeaderControlToSource() throws Exception {
+    void draggingAcrossLinesKeepsSourceAnchorAndShiftDragExtendsItWithoutEditing() throws Exception {
+        String text = "first\nabcd\nlast";
+        open(Files.writeString(directory.resolve("drag.txt"), text));
+        FxTestSupport.onFxThread(() -> {
+            menu().fire();
+            render();
+            EditorCanvas canvas = canvas();
+            var area = document.view.area();
+            double upperX = origin() + cell() * 2;
+            double lowerX = origin() + cell();
+            double upperY = canvas.lineHeight() * 1.5;
+            double lowerY = canvas.lineHeight() * 2.5;
+
+            mouse(canvas, MouseEvent.MOUSE_PRESSED, lowerX, lowerY, false, true, true);
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, upperX, upperY, false, true, false);
+            assertEquals(12, area.getAnchor());
+            assertEquals(8, area.getCaretPosition());
+            assertEquals("cd\nl", area.getSelectedText());
+            mouse(canvas, MouseEvent.MOUSE_RELEASED, upperX, upperY, false, false, false);
+            mouse(canvas, MouseEvent.MOUSE_CLICKED, upperX, upperY, false, false, false);
+            assertEquals(12, area.getAnchor());
+
+            mouse(canvas, MouseEvent.MOUSE_PRESSED, upperX, upperY, true, true, true);
+            mouse(canvas, MouseEvent.MOUSE_DRAGGED, origin(), 1, true, true, false);
+            assertEquals(12, area.getAnchor());
+            assertEquals(0, area.getCaretPosition());
+            assertEquals(text, document.session.textProperty().get());
+            assertFalse(document.session.dirtyProperty().get());
+            assertFalse(document.view.undoAvailableProperty().get());
+            return null;
+        });
+    }
+
+    @Test
+    void previewKeepsKeyboardFocusAndAllowsCopyWithoutEditingSource() throws Exception {
+        String text = "abcd";
+        open(Files.writeString(directory.resolve("read-only.txt"), text));
         FxTestSupport.onFxThread(() -> {
             Stage stage = new Stage();
-            stage.setScene(root.getScene());
+            Scene scene = root.getScene();
+            stage.setScene(scene);
+            EditorEditMenu edit = new EditorEditMenu(document.view, document.session);
+            edit.setScene(scene);
             try {
                 stage.show();
                 menu().fire();
                 render();
-                Button close = (Button) root.lookup("#close-canvas-preview");
-                close.requestFocus();
-                assertEquals(close, root.getScene().getFocusOwner());
-                click(canvas(), 1, canvas().lineHeight() * 0.5, false);
-                assertEquals(document.view.area(), root.getScene().getFocusOwner());
+                EditorCanvas preview = canvas();
+                double y = preview.lineHeight() / 2;
+                mouse(preview, MouseEvent.MOUSE_PRESSED, origin(), y, false, true, true);
+                assertEquals(preview, scene.getFocusOwner());
+                click(preview, origin(), y, false);
+                Event.fireEvent(scene.getFocusOwner(), new KeyEvent(KeyEvent.KEY_TYPED,
+                        "x", "", KeyCode.UNDEFINED, false, false, false, false));
+                assertEquals(text, document.session.textProperty().get());
+
+                mouse(preview, MouseEvent.MOUSE_PRESSED, origin(), y, false, true, true);
+                mouse(preview, MouseEvent.MOUSE_DRAGGED, origin() + cell() * 2, y, false, true, false);
+                assertEquals(preview, scene.getFocusOwner());
+                assertEquals("ab", document.view.area().getSelectedText());
+                for (MenuItem item : edit.getItems()) {
+                    if (!(item instanceof javafx.scene.control.SeparatorMenuItem)) {
+                        assertEquals(!"Copy".equals(item.getText()), item.isDisable(), item.getText());
+                    }
+                }
+                assertFalse(document.session.dirtyProperty().get());
+
+                document.view.area().requestFocus();
+                assertTrue(edit.getItems().stream().anyMatch(item -> "Paste".equals(item.getText())
+                        && !item.isDisable()));
+                Event.fireEvent(scene.getFocusOwner(), new KeyEvent(KeyEvent.KEY_TYPED,
+                        "x", "", KeyCode.UNDEFINED, false, false, false, false));
+                assertEquals("xcd", document.session.textProperty().get());
             } finally {
+                edit.setScene(null);
                 stage.hide();
             }
             return null;
@@ -191,8 +255,13 @@ class EditorCanvasPreviewTest {
     }
 
     private static void click(EditorCanvas canvas, double x, double y, boolean shift) {
-        Event.fireEvent(canvas, new MouseEvent(MouseEvent.MOUSE_CLICKED, x, y, x, y, MouseButton.PRIMARY, 1,
-                shift, false, false, false, false, false, false, false, false, true,
+        mouse(canvas, MouseEvent.MOUSE_CLICKED, x, y, shift, false, true);
+    }
+
+    private static void mouse(EditorCanvas canvas, EventType<MouseEvent> type, double x, double y,
+            boolean shift, boolean primaryDown, boolean stillSincePress) {
+        Event.fireEvent(canvas, new MouseEvent(type, x, y, x, y, MouseButton.PRIMARY, 1,
+                shift, false, false, false, primaryDown, false, false, false, false, stillSincePress,
                 new PickResult(canvas, new Point3D(x, y, 0), 0)));
     }
 

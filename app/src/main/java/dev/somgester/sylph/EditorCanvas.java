@@ -56,6 +56,12 @@ final class EditorCanvas extends Region {
 
     private BiConsumer<Position, Boolean> onNavigate = (position, extend) -> { };
 
+    private Position dragOrigin;
+
+    private boolean dragExtendsSelection;
+
+    private boolean dragging;
+
     private TextLines document;
 
     private double scrollY;
@@ -81,12 +87,14 @@ final class EditorCanvas extends Region {
         getChildren().add(canvas);
         setMinSize(0, 0);
         setPrefSize(640, 400);
-        setFocusTraversable(false);
+        setFocusTraversable(true);
         setCursor(Cursor.TEXT);
+        addEventHandler(MouseEvent.MOUSE_PRESSED, this::prepareDrag);
+        addEventHandler(MouseEvent.MOUSE_DRAGGED, this::extendDrag);
+        addEventHandler(MouseEvent.MOUSE_RELEASED, event -> cancelDrag());
         addEventHandler(MouseEvent.MOUSE_CLICKED, event -> {
             if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1
-                    && event.isStillSincePress() && !event.isControlDown()
-                    && !event.isMetaDown() && !event.isAltDown()) {
+                    && event.isStillSincePress() && !hasNavigationModifier(event)) {
                 hitTest(event.getX(), event.getY()).ifPresent(position -> {
                     onNavigate.accept(position, event.isShiftDown());
                     event.consume();
@@ -112,6 +120,45 @@ final class EditorCanvas extends Region {
                 }
             }
         });
+    }
+
+    private void prepareDrag(MouseEvent event) {
+        requestFocus();
+        cancelDrag();
+        if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 1
+                && !hasNavigationModifier(event)) {
+            dragOrigin = hitTest(event.getX(), event.getY()).orElse(null);
+            dragExtendsSelection = event.isShiftDown();
+        }
+    }
+
+    private void extendDrag(MouseEvent event) {
+        if (!event.isPrimaryButtonDown() || hasNavigationModifier(event)) {
+            cancelDrag();
+            return;
+        }
+        if (dragOrigin == null || event.isStillSincePress()) {
+            return;
+        }
+        // Keep the endpoint on the visible rows when the pointer leaves the pane.
+        double y = Math.clamp(event.getY(), 0, Math.max(0, Math.nextDown(getHeight())));
+        hitTest(event.getX(), y).ifPresent(position -> {
+            if (!dragging) {
+                dragging = true;
+                onNavigate.accept(dragOrigin, dragExtendsSelection);
+            }
+            onNavigate.accept(position, true);
+            event.consume();
+        });
+    }
+
+    private static boolean hasNavigationModifier(MouseEvent event) {
+        return event.isControlDown() || event.isMetaDown() || event.isAltDown();
+    }
+
+    void cancelDrag() {
+        dragOrigin = null;
+        dragging = false;
     }
 
     void setDocument(TextLines value) {
@@ -194,6 +241,7 @@ final class EditorCanvas extends Region {
 
     // Owners call this after edits; the surface never subscribes to mutable document state.
     void refresh() {
+        cancelDrag();
         knownWidth = 0;
         requestLayout();
     }

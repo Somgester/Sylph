@@ -31,6 +31,8 @@ final class EditorCanvasPreview extends BorderPane implements AutoCloseable {
 
     private final InvalidationListener selectionListener;
 
+    private final ChangeListener<Boolean> editingBlockedListener;
+
     private boolean closed;
 
     @SuppressWarnings("this-escape")
@@ -55,7 +57,7 @@ final class EditorCanvasPreview extends BorderPane implements AutoCloseable {
         setId("canvas-preview");
         setMinWidth(180);
         Label title = new Label("Canvas Preview · Read-only");
-        title.setTooltip(new Tooltip("Click preview text to locate source; Shift-click extends source selection."));
+        title.setTooltip(new Tooltip("Click to locate source, drag to select, or hold Shift to extend selection."));
         canvas.setOnNavigate((position, extend) -> {
             if (!closed) {
                 onNavigate.accept(position, extend);
@@ -73,8 +75,10 @@ final class EditorCanvasPreview extends BorderPane implements AutoCloseable {
         textListener = (observable, previous, text) -> canvas.refresh();
         revisionListener = (observable, previous, revision) -> canvas.setDocument(session);
         themeListener = (observable, previous, dark) -> updateTheme();
+        editingBlockedListener = (observable, previous, blocked) -> canvas.cancelDrag();
         session.textProperty().addListener(textListener);
         session.documentRevisionProperty().addListener(revisionListener);
+        session.editingBlockedProperty().addListener(editingBlockedListener);
         darkTheme.addListener(themeListener);
         updateTheme();
     }
@@ -95,6 +99,7 @@ final class EditorCanvasPreview extends BorderPane implements AutoCloseable {
             closed = true;
             session.textProperty().removeListener(textListener);
             session.documentRevisionProperty().removeListener(revisionListener);
+            session.editingBlockedProperty().removeListener(editingBlockedListener);
             darkTheme.removeListener(themeListener);
             source.anchorProperty().removeListener(selectionListener);
             source.caretPositionProperty().removeListener(selectionListener);

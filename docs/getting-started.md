@@ -53,9 +53,10 @@ Open or create a document, right-click inside its source editor, and choose **Sh
 The optional pane renders the live buffer beside the editable source and follows the theme setting.
 It is read-only; edit in the source pane. Scroll long lines with **Shift + mouse wheel** or a horizontal
 trackpad gesture; line numbers stay fixed. Horizontal range grows as wider rows are displayed.
-Click preview text to move the source caret, or **Shift-click** to extend source selection. Clicking
+Click preview text to move the source caret, or drag to select. Hold **Shift** while clicking or
+starting a drag to extend the existing source selection. Clicking
 the gutter moves to the line start. The preview mirrors source selection and shows a steady caret;
-selected newlines have a small end marker. Typing then goes to the focused source editor, not a Canvas input engine.
+selected newlines have a small end marker. Use **Ctrl+C** (or **Cmd+C**) to copy. Click back in the source pane to edit.
 Use **Close** in its header or **Hide Canvas Preview** in
 the context menu to remove it. This is the custom renderer's preview stage; see [editor core](editor-core.md).
 

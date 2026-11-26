@@ -126,8 +126,8 @@ undo/selection. The click-to-source bridge below deliberately moves source selec
 
 ## Click-to-source navigation
 
-The tenth review chunk adds text hit testing. A primary single click in Canvas Preview focuses the
-source editor and places its caret at the corresponding location; Shift-click extends its selection
+The tenth review chunk adds text hit testing. A primary single click in Canvas Preview keeps focus
+in the preview and places the source caret at the corresponding location; Shift-click extends its selection
 from the existing source anchor. Gutter clicks move to that line's start, independently of horizontal
 scroll. Blank space below the document resolves to the last line; positions beyond a line resolve
 through the font layout to its nearest caret. Scroll offsets and pending layout updates are applied
@@ -142,7 +142,7 @@ line/column against the live piece-table index before source navigation.
 Navigation does not create an undo entry or change dirty state. It starts a new typing undo group,
 even if the clicked caret equals the current one, and dismisses completion suggestions. Foreground
 file operations block navigation; background autosaves do not. Modified Ctrl/Cmd/Alt clicks, secondary
-clicks, drags, and multi-click gestures are not handled by this bridge. Closing the pane removes the
+clicks and multi-click gestures are not handled by this bridge. Closing the pane removes the
 navigation callback along with its document subscriptions.
 
 ## Mirrored caret and selection
@@ -158,8 +158,14 @@ Selection backgrounds follow the theme, and a steady caret marks the active endp
 reversed selection. Painting stays inside the text clip and leaves the gutter unchanged. Closing the
 preview removes source selection listeners and clears the selection provider before disposing its source.
 
-The Canvas still has no editing input engine: typing after a preview click goes to the focused source
-editor. Drag selection and direct Canvas keyboard/IME handling remain follow-ups.
+The preview keeps keyboard focus after a click or drag. To type, return focus to the source pane.
+
+## Drag selection
+
+Drag with the primary mouse button to select from the press position to the pointer. Hold Shift at
+the start of the drag to extend from the existing source anchor. The source editor owns the selection,
+so the Edit menu can copy the selected text while the preview has focus. Dragging outside the preview stops at its
+visible rows. The preview does not auto-scroll at the edges.
 
 ## History contract
 
@@ -209,7 +215,7 @@ Position/mark tracking survives undo/redo and invalidates forgotten or abandoned
 
 ## Next review chunks
 
-1. Add drag-selection interaction to Canvas.
+1. Add edge scrolling during drag selection.
 2. Connect custom input and editing separately, preserving selection, keyboard/IME input, clipboard,
    accessibility, highlighting, and language-server offsets before replacing RichTextFX.
 
@@ -257,5 +263,5 @@ resize/shrink/reset clamping, and both axes across Save As/failed/successful ope
 render snapshot is saved as `horizontal.png` beside the other Canvas previews.
 Hit-test checks cover glyph midpoint placement, tab edges, both scroll axes, trailing/empty lines,
 Unicode grapheme boundaries, and mixed-direction glyphs. Navigation checks cover source caret/anchor
-mapping, Shift-click, native focus transfer, undo group boundaries, foreground-save blocking, and
+mapping, Shift-click, read-only preview focus, undo group boundaries, foreground-save blocking, and
 closed-pane callbacks. `live-navigation.png` shows source selection created from preview clicks.

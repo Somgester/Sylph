@@ -121,7 +121,8 @@ offsets to the source caret, with Shift-click selection extension and a typing-h
 Source anchor/caret listeners repaint the mirrored selection and steady caret without resetting scroll
 or changing history. Glyph range geometry handles tabs and mixed-direction runs; the text clip protects
 the gutter. Positions are read during layout, and closing the pane releases these listeners/providers.
-Canvas input, syntax, drag selection, and accessibility integration remain follow-up chunks.
+Canvas drags extend the source selection through the same hit-test bridge. Edge scrolling during
+drag, direct Canvas editing, syntax, and accessibility remain follow-up chunks.
 
 `EditorDocument` owns one tab, session, editor view, autosave controller, and optional preview. There is no document on startup or after closing the last document. Chrome, Edit actions, settings status, and title support that empty state. A separate session supplies a file worker for workspace actions when no document is open; it has no editor tab or autosave controller. Switching tabs retargets the existing controls without losing undo/cursor state. Existing paths (including filesystem aliases) select their existing tab. An explicitly created clean Untitled document can be reused; failed opens dispose provisional documents. File close events and tab context-menu actions wait for Save/Discard/Cancel. Close All checks every dirty document before removing tabs or disposing terminals.
 

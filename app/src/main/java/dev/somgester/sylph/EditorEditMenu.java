@@ -88,7 +88,7 @@ final class EditorEditMenu extends Menu {
             if (node instanceof MenuBar || node instanceof EditorChrome) {
                 return;
             }
-            if (node instanceof TerminalView || node instanceof TextInputControl
+            if (node instanceof TerminalView || node instanceof TextInputControl || node instanceof EditorCanvasPreview
                     || editor != null && node == editor.area()) {
                 target = node;
                 refresh();
@@ -100,6 +100,9 @@ final class EditorEditMenu extends Menu {
     }
 
     private boolean enabled(Action action) {
+        if (editor != null && target instanceof EditorCanvasPreview) {
+            return action == Action.COPY && !editor.area().getSelectedText().isEmpty();
+        }
         if (target instanceof TerminalView terminal) {
             return switch (action) {
                 case COPY -> terminal.hasSelection();
@@ -140,7 +143,9 @@ final class EditorEditMenu extends Menu {
         if (!enabled(action)) {
             return;
         }
-        if (target instanceof TerminalView terminal) {
+        if (target instanceof EditorCanvasPreview) {
+            editor.area().copy();
+        } else if (target instanceof TerminalView terminal) {
             switch (action) {
                 case COPY -> terminal.copySelection();
                 case PASTE -> terminal.pasteClipboard();
