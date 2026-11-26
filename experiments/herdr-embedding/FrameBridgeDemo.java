@@ -3,9 +3,12 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import javafx.animation.AnimationTimer;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
@@ -14,6 +17,7 @@ import javafx.event.Event;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.WritableImage;
@@ -48,6 +52,11 @@ public final class FrameBridgeDemo extends Application {
 
     @Override
     public void start(Stage stage) throws IOException {
+        String desktop = System.getProperty("sylph.herdr.desktop");
+        if (desktop != null) {
+            startDesktopPreview(stage, desktop);
+            return;
+        }
         String executable = System.getProperty("sylph.herdr.frameHelper");
         ProcessBuilder command = executable == null
                 ? new ProcessBuilder("python3", "render_fixture.py") : new ProcessBuilder(executable);
@@ -95,6 +104,89 @@ public final class FrameBridgeDemo extends Application {
         timer.start();
     }
 
+    private void startDesktopPreview(Stage stage, String executable) {
+        view.setPreserveRatio(true);
+        view.fitWidthProperty().bind(surface.widthProperty());
+        view.fitHeightProperty().bind(surface.heightProperty());
+        surface.getChildren().add(view);
+        status.setText("Connecting to Herdr Desktop…");
+        stage.setTitle("Sylph / Herdr Desktop frame preview");
+        stage.setScene(new Scene(new BorderPane(surface, null, null, status, null), 800, 540));
+        stage.show();
+        timer = new AnimationTimer() {
+            private long nextCapture;
+
+            @Override
+            public void handle(long now) {
+                if (!pending && now >= nextCapture) {
+                    pending = true;
+                    nextCapture = now + TimeUnit.MILLISECONDS.toNanos(500);
+                    worker.execute(() -> captureDesktop(executable));
+                }
+            }
+        };
+        timer.start();
+    }
+
+    private void captureDesktop(String executable) {
+        try {
+            Path png = Files.createTempFile("sylph-herdr-frame-", ".png");
+            try {
+                capturePng(executable, png);
+                try (var input = Files.newInputStream(png)) {
+                    Image image = new Image(input);
+                    if (image.isError() || image.getPixelReader() == null) {
+                        throw new IOException("Herdr Desktop returned an unreadable PNG");
+                    }
+                    Platform.runLater(() -> showDesktopFrame(image));
+                }
+            } finally {
+                Files.deleteIfExists(png);
+            }
+        } catch (IOException failure) {
+            Platform.runLater(() -> showFailure(failure));
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private static void capturePng(String executable, Path png) throws IOException, InterruptedException {
+        Process capture = new ProcessBuilder(executable, "shot", png.toString())
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+        try {
+            if (!capture.waitFor(8, TimeUnit.SECONDS) || capture.exitValue() != 0) {
+                throw new IOException("Herdr Desktop capture failed. Check that its window is open.");
+            }
+        } finally {
+            if (capture.isAlive()) {
+                capture.destroyForcibly();
+            }
+        }
+    }
+
+    private void showDesktopFrame(Image image) {
+        if (!closed) {
+            view.setImage(image);
+            status.setText("Live Herdr Desktop frames · Read-only");
+            pending = false;
+            if (smokeMode()) {
+                smokePassed = true;
+                Platform.exit();
+            }
+        }
+    }
+
+    private void showFailure(IOException failure) {
+        if (!closed) {
+            timer.stop();
+            status.setText(failure.getMessage());
+            if (smokeMode()) {
+                Platform.exit();
+            }
+        }
+    }
+
     private Request snapshot() {
         double width = Math.max(1, surface.getWidth());
         double height = Math.max(1, surface.getHeight());
@@ -116,15 +208,7 @@ public final class FrameBridgeDemo extends Application {
             }
             Platform.runLater(() -> present(request, pixels));
         } catch (IOException failure) {
-            Platform.runLater(() -> {
-                if (!closed) {
-                    timer.stop();
-                    status.setText(failure.getMessage());
-                    if (smokeMode()) {
-                        Platform.exit();
-                    }
-                }
-            });
+            Platform.runLater(() -> showFailure(failure));
         }
     }
 
@@ -176,10 +260,12 @@ public final class FrameBridgeDemo extends Application {
     public static void main(String[] args) {
         launch(FrameBridgeDemo.class, args);
         if (java.util.List.of(args).contains("--smoke")) {
+            String check = System.getProperty("sylph.herdr.desktop") == null
+                    ? "JavaFX frame and keyboard round trip" : "Herdr Desktop frame in JavaFX";
             if (!smokePassed) {
-                throw new IllegalStateException("Frame and keyboard round trip did not complete");
+                throw new IllegalStateException(check + " did not complete");
             }
-            System.out.println("JavaFX frame and keyboard round trip passed");
+            System.out.println(check + " passed");
         }
     }
 }
