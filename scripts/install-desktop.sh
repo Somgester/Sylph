@@ -54,7 +54,7 @@ sylph_install_file "$SYLPH_DESKTOP" <<EOF
 Type=Application
 Name=Sylph
 Comment=Sylph code editor
-Exec=/bin/bash -- $(sylph_exec_argument "$SYLPH_PROJECT_DIR/run.sh")
+Exec=env SYLPH_SKIP_DESKTOP_INSTALL=1 /bin/bash -- $(sylph_exec_argument "$SYLPH_PROJECT_DIR/run.sh")
 Icon=${SYLPH_ICON//\\/\\\\}
 Terminal=false
 StartupNotify=true
