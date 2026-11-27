@@ -22,6 +22,8 @@ final class TerminalView extends BorderPane implements AutoCloseable {
 
     private final TerminalSession session;
 
+    private final HerdrSessionStore.Tab herdrSession;
+
     private final AppSettings settings;
 
     private final WebView web = new WebView();
@@ -48,9 +50,14 @@ final class TerminalView extends BorderPane implements AutoCloseable {
         this(new TerminalSession(directory), settings);
     }
 
-    @SuppressWarnings("this-escape")
     TerminalView(TerminalSession session, AppSettings settings) {
+        this(session, settings, null);
+    }
+
+    @SuppressWarnings("this-escape")
+    TerminalView(TerminalSession session, AppSettings settings, HerdrSessionStore.Tab herdrSession) {
         this.session = session;
+        this.herdrSession = herdrSession;
         this.settings = settings;
         bridge = new TerminalBridge(session, drained::release);
         getStyleClass().add("terminal-view");
@@ -117,6 +124,10 @@ final class TerminalView extends BorderPane implements AutoCloseable {
         };
         web.getEngine().getLoadWorker().stateProperty().addListener(loadListener);
         web.getEngine().loadContent(TerminalPage.html());
+    }
+
+    HerdrSessionStore.Tab herdrSession() {
+        return herdrSession;
     }
 
     TerminalSession session() {

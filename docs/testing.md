@@ -122,4 +122,17 @@ It checks ordered round trips, IDs, placement/theme/active-tab references, missi
 working directories, private permissions, atomic-write cleanup, immutable state,
 invalid/oversized/non-UTF-8 files, unknown schema versions, and symlink rejection.
 Malformed existing state is preserved on both failed loads and attempted saves.
-This validates the storage foundation; reboot restoration is not wired up yet.
+`HerdrTabTrackerTest` covers ordered lifecycle saves, explicit-close removal,
+normal-shutdown retention, preservation of an existing exact Kiro ID, and reporting
+corrupt-state failures without overwriting the file. Headless `TerminalWorkspaceTest`
+checks real PTY launch arguments, placement persistence, unique duplicate session
+IDs, explicit-close removal, and retention when disposing the application. Fake
+Herdr executables and temporary stores keep real Herdr/Kiro sessions untouched.
+Reboot restoration and Kiro lifecycle capture are not wired up yet.
+
+To review tab persistence manually, launch `./run.sh`, open a Herdr tab using its
+terminal chooser, then open `.sylph/herdr-sessions.json`. Verify a new named identity
+and its editor/panel location. Duplicate and select tabs, then close one: its entry
+should disappear while the others remain. Exit Sylph normally with a Herdr tab
+still open: its entry should remain. Reopening does not restore it automatically
+until the startup-restoration chunk is implemented.

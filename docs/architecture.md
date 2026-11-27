@@ -123,8 +123,12 @@ theme files are never executed as shell commands. See [terminal](terminal.md).
 feature. Its immutable state records Herdr tab identities and optional native Kiro
 conversation IDs, with placement, theme, directory, and active-tab metadata. The
 versioned JSON file is validated before atomic replacement; invalid existing data
-is retained. Runtime capture and startup restoration are subsequent chunks, so the
-store does not yet participate in terminal lifecycle callbacks.
+is retained. `TerminalView` carries the tab's descriptor. `TerminalWorkspace`
+reports open/selection/explicit-close events to `HerdrTabTracker`, which serializes
+disk work on a separate worker. Whole-workspace disposal suppresses removal events,
+preserving tabs for restart. Each new/duplicated tab invokes `herdr --session` with
+a distinct named identity and clears inherited session/socket overrides. Kiro ID
+capture and automatic startup restoration remain subsequent chunks.
 
 ## Document lifecycle and disk work
 

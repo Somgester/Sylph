@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Consumer;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -97,6 +98,8 @@ public class EditorApp extends Application {
     private LocalUpdateMonitor localUpdates;
 
     private Alert localUpdateNotice;
+
+    private HerdrTabTracker herdrTabs;
 
     private final class FileAction implements AutoCloseable {
 
@@ -197,6 +200,8 @@ public class EditorApp extends Application {
                 () -> !foregroundAction.get() && documents.stream()
                         .noneMatch(item -> item.session.editingBlockedProperty().get()),
                 this::closeTabs, this::newFile);
+        terminals.setHerdrLifecycle(tab -> herdrTabTracker().opened(tab),
+                id -> herdrTabTracker().selected(id), id -> herdrTabTracker().removed(id));
         root.setCenter(terminals);
         language = new Label();
         language.setId("document-language");
@@ -475,10 +480,16 @@ public class EditorApp extends Application {
         Path directory = terminalDirectory();
         if (choice == TerminalChooser.Choice.HERDR_CLI) {
             try {
-                var environment = settings.herdrThemeProperty().get()
-                        .environment(herdrCliProfile(), System.getenv());
-                terminals.open(directory, inEditor, "Herdr CLI", folder -> new TerminalView(
-                        new TerminalSession(folder, List.of(herdrCli.toString()), environment), settings));
+                HerdrCliTheme theme = settings.herdrThemeProperty().get();
+                var inherited = new java.util.HashMap<>(theme.environment(herdrCliProfile(), System.getenv()));
+                inherited.remove("HERDR_SESSION");
+                inherited.remove("HERDR_SOCKET_PATH");
+                terminals.open(directory, inEditor, "Herdr CLI", folder -> {
+                    String id = "sylph-" + UUID.randomUUID();
+                    var saved = new HerdrSessionStore.Tab(id, null, folder.toAbsolutePath(), inEditor, theme);
+                    return new TerminalView(new TerminalSession(folder,
+                            List.of(herdrCli.toString(), "--session", id), inherited), settings, saved);
+                });
             } catch (IOException | SecurityException failure) {
                 status.setText("Could not prepare the Sylph Herdr theme profile: " + failure.getMessage());
             }
@@ -549,6 +560,21 @@ public class EditorApp extends Application {
 
     Path herdrCliProfile() {
         return Path.of(System.getProperty("user.home"), ".sylph", "herdr-cli");
+    }
+
+    Path herdrSessionFile() {
+        String checkout = System.getenv("SYLPH_UPDATE_ROOT");
+        Path root = checkout == null || checkout.isBlank() ? Path.of(System.getProperty("user.home"))
+                : Path.of(checkout);
+        return root.resolve(".sylph/herdr-sessions.json");
+    }
+
+    private HerdrTabTracker herdrTabTracker() {
+        if (herdrTabs == null) {
+            herdrTabs = new HerdrTabTracker(new HerdrSessionStore(herdrSessionFile()),
+                    message -> Platform.runLater(() -> status.setText(message)));
+        }
+        return herdrTabs;
     }
 
     private boolean commandEnabled(EditorShortcuts.Command command) {
@@ -959,6 +985,10 @@ public class EditorApp extends Application {
     }
 
     private void closeResources(boolean closeAccount) {
+        if (closeAccount && herdrTabs != null) {
+            herdrTabs.close();
+            herdrTabs = null;
+        }
         if (closeAccount && localUpdates != null) {
             localUpdates.close();
             localUpdates = null;

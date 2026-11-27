@@ -64,6 +64,12 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
 
     private boolean closed;
 
+    private Consumer<HerdrSessionStore.Tab> onHerdrOpened = tab -> { };
+
+    private Consumer<String> onHerdrSelected = id -> { };
+
+    private Consumer<String> onHerdrRemoved = id -> { };
+
     @SuppressWarnings("this-escape")
     TerminalWorkspace(Function<Path, TerminalView> createTerminal, Runnable focusDocument,
             Consumer<Tab> selectDocument, BooleanSupplier canSelectDocument,
@@ -159,6 +165,9 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
                 for (Tab removed : change.getRemoved()) {
                     TerminalView terminal = terminals.remove(removed);
                     if (terminal != null) {
+                        if (!closed && terminal.herdrSession() != null) {
+                            onHerdrRemoved.accept(terminal.herdrSession().herdrSessionId());
+                        }
                         terminal.close();
                     }
                     removed.setContent(null);
@@ -192,6 +201,9 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         }
         TerminalView terminal = terminals.get(pane.getSelectionModel().getSelectedItem());
         if (terminal != null) {
+            if (terminal.herdrSession() != null) {
+                onHerdrSelected.accept(terminal.herdrSession().herdrSessionId());
+            }
             terminal.focusTerminal(getScene());
         } else if (pane == editors) {
             var scene = getScene();
@@ -265,6 +277,13 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         return open(directory, inEditor, "Terminal", createTerminal);
     }
 
+    void setHerdrLifecycle(Consumer<HerdrSessionStore.Tab> opened, Consumer<String> selected,
+            Consumer<String> removed) {
+        onHerdrOpened = opened;
+        onHerdrSelected = selected;
+        onHerdrRemoved = removed;
+    }
+
     TerminalView open(Path directory, boolean inEditor, String name, Function<Path, TerminalView> factory) {
         if (closed) {
             return null;
@@ -282,6 +301,9 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         duplicate.setOnAction(event -> open(view.session().directory(), inEditor, name, factory));
         tab.setGraphic(new HBox(3, duplicate, expandButton(tab, pane)));
         terminals.put(tab, view);
+        if (view.herdrSession() != null) {
+            onHerdrOpened.accept(view.herdrSession());
+        }
         pane.getTabs().add(tab);
         pane.getSelectionModel().select(tab);
         if (!inEditor) {

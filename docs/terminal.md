@@ -25,8 +25,9 @@ existing panel without asking again.
 
 A new terminal starts in the opened workspace folder. Without a workspace, it uses the active file's parent, or Sylph's working directory when no file is open. Changing the opened workspace affects future terminals, not existing shells. Duplicate starts an independent shell in the original terminal's **starting folder**, even after `cd`; it does not copy environment changes, history, or running commands.
 
-Duplicating a Herdr CLI tab starts another client in the same starting folder. Herdr
-manages its own sessions, so both clients can attach to the same Herdr server.
+Every new Herdr CLI tab uses a unique named Herdr session (`sylph-…`). Duplicate
+starts an independent named session in the same starting folder, with the same
+theme choice. It does not attach another client to the original tab's server.
 
 Under **Settings → Herdr Themes**, pick a built-in theme for newly
 opened Herdr CLI clients. All 18 themes bundled with Herdr CLI 0.9.5 are available,
@@ -103,16 +104,27 @@ Switching tabs preserves unsaved document text, selection, and undo history. If 
 
 ## Kiro session restore work in progress
 
-Session restore is being delivered in three review chunks:
+Session restore is being delivered in four review chunks:
 
 1. **Implemented:** a versioned local JSON store and validation.
-2. **Next:** connect Herdr tabs and exact Kiro lifecycle-reported session IDs to the store.
-3. **Then:** restore saved tabs and resume Kiro using `kiro-cli --resume-id <id>`.
+2. **Implemented:** stable named Herdr sessions and open/select/close persistence.
+3. **Next:** capture exact Kiro lifecycle-reported session IDs with compatibility checks.
+4. **Then:** restore saved tabs and resume Kiro using `kiro-cli --resume-id <id>`.
 
-The planned checkout-local state file is `.sylph/herdr-sessions.json`.
+The checkout-local state file is `.sylph/herdr-sessions.json` when launched through
+`run.sh`. Direct launches without `SYLPH_UPDATE_ROOT` use
+`~/.sylph/herdr-sessions.json` instead.
 The entire root `.sylph/` directory is ignored by Git, including temporary files
-used for atomic replacement. This foundation does not create the file automatically
-or change terminal startup yet; tab capture and automatic restore are not active.
+used for atomic replacement. Opening a Herdr tab creates/updates the file in the
+background. Selecting a Herdr tab records it as the last active one. Explicitly
+closing a tab removes only its saved entry; closing all tabs removes those entries.
+Application shutdown and Reload Window retain open-tab entries for the later
+restore step. Closing a Sylph tab does not delete Kiro's own conversation history.
+Saved entries from an earlier launch are retained until restoration is implemented;
+they are not silently discarded when another tab opens.
+
+Exact Kiro ID capture and automatic restoration are not active yet. New records
+therefore have `kiroSessionId: null`; no conversation is guessed from its directory.
 
 `HerdrSessionStore` saves ordered Herdr tab/session identifiers, optional exact Kiro
 session IDs, absolute working directories, editor/panel placement, selected themes,
@@ -148,6 +160,8 @@ The terminal runs with the user's normal permissions. Its commands can change fi
 ## Implementation and verification
 
 - `TerminalWorkspace` owns file/terminal tabs, the resizable panel, and duplicate/close lifecycle.
+- `HerdrTabTracker` serializes open/select/explicit-close saves on a dedicated worker;
+  normal application shutdown drains queued writes while retaining open-tab entries.
 - `TerminalPage` embeds bundled scripts/styles into a page with a fresh CSP nonce, so development and packaged JAR launches use the same renderer without resource-origin assumptions.
 - `TerminalView` owns a local WebView, theme changes, clipboard routing, and output acknowledgements.
 - `TerminalBridge` exposes only terminal input, binary input, resize, and output acknowledgements to the application-owned page.
