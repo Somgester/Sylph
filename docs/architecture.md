@@ -119,6 +119,13 @@ disposal cancels pending work. The process runner bounds runtime and removes its
 temporary scripts/downloads. Herdr CLI receives a separate config/state environment;
 theme files are never executed as shell commands. See [terminal](terminal.md).
 
+`HerdrSessionStore` is the persistence foundation for a separate session-restore
+feature. Its immutable state records Herdr tab identities and optional native Kiro
+conversation IDs, with placement, theme, directory, and active-tab metadata. The
+versioned JSON file is validated before atomic replacement; invalid existing data
+is retained. Runtime capture and startup restoration are subsequent chunks, so the
+store does not yet participate in terminal lifecycle callbacks.
+
 ## Document lifecycle and disk work
 
 The [custom editor core](editor-core.md) uses `PieceTable` as the session's text buffer. Session

@@ -101,6 +101,38 @@ and keeps the same terminal session and output.
 
 Switching tabs preserves unsaved document text, selection, and undo history. If you return to the editor while a terminal is starting, renderer completion respects that focus choice. Shell input and output never become document edits or trigger autosave. Opening an existing sidebar file selects the document tab.
 
+## Kiro session restore work in progress
+
+Session restore is being delivered in three review chunks:
+
+1. **Implemented:** a versioned local JSON store and validation.
+2. **Next:** connect Herdr tabs and exact Kiro lifecycle-reported session IDs to the store.
+3. **Then:** restore saved tabs and resume Kiro using `kiro-cli --resume-id <id>`.
+
+The planned checkout-local state file is `.sylph/herdr-sessions.json`.
+The entire root `.sylph/` directory is ignored by Git, including temporary files
+used for atomic replacement. This foundation does not create the file automatically
+or change terminal startup yet; tab capture and automatic restore are not active.
+
+`HerdrSessionStore` saves ordered Herdr tab/session identifiers, optional exact Kiro
+session IDs, absolute working directories, editor/panel placement, selected themes,
+and the last active Herdr tab. A missing Kiro ID stays missing rather than selecting
+the newest conversation from that folder. Conversation contents and credentials are
+not copied into this file. Missing working directories remain recorded so a later
+restore step can report the problem without losing the reference.
+
+State files are limited to 100 tabs and 1 MiB, validate identifiers and references,
+and use private `0600` file permissions on POSIX filesystems. Writes force file data
+to disk before atomic replacement. Invalid, oversized, non-UTF-8, symbolic-link,
+and newer-format files are rejected; automatic saves refuse to replace them with
+empty defaults. These protections do not promise recovery from disk failure or
+every forced power-loss scenario.
+
+Kiro supports resuming a specific conversation by ID; see its
+[session-management documentation](https://kiro.dev/docs/cli/chat/session-management/).
+Herdr's named server sessions and Kiro's conversation IDs are separate identities.
+Restoring a Herdr layout alone is not proof that its Kiro conversation resumed.
+
 ## Shell behavior
 
 The terminal uses a real pseudo-terminal through [pty4j](https://github.com/JetBrains/pty4j) and renders ANSI sequences with [xterm.js](https://github.com/xtermjs/xterm.js). Interactive command input, arrow keys, control characters, colors, alternate screens, and resize events use the terminal protocol. Terminal scrollback is capped at 5,000 lines.

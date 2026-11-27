@@ -15,3 +15,6 @@ auth/.env
 
 # Ignore PRD
 /Product-Requirements-Document.docx
+
+# Private local tab/session restore state, including atomic-write temporary files
+/.sylph/

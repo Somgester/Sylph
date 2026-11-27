@@ -40,6 +40,7 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [HerdrThemeSettingsPane.java](../app/src/main/java/dev/somgester/sylph/HerdrThemeSettingsPane.java) | Herdr theme selection, asynchronous import controls, reset, status, and cancellation on disposal. |
 | [HerdrThemeImporter.java](../app/src/main/java/dev/somgester/sylph/HerdrThemeImporter.java) | Extracts bundled import scripts and runs them with separate arguments, a timeout, and temporary-file cleanup. |
 | [HerdrCliTheme.java](../app/src/main/java/dev/somgester/sylph/HerdrCliTheme.java) | Persistent theme choices and isolated Herdr CLI configuration/session environment. |
+| [HerdrSessionStore.java](../app/src/main/java/dev/somgester/sylph/HerdrSessionStore.java) | Versioned, validated, atomic local restore references for Herdr tabs and exact Kiro session IDs; runtime capture/restore follows separately. |
 | [LocalUpdateMonitor.java](../app/src/main/java/dev/somgester/sylph/LocalUpdateMonitor.java) | Background content fingerprints for local checkout changes and one update notification per launch. |
 | [LocalUpdateNotice.java](../app/src/main/java/dev/somgester/sylph/LocalUpdateNotice.java) | Nonmodal, theme-aware restart instructions; leaves running documents untouched. |
 | [app/src/main/java/dev/somgester/sylph/Sidebar.java](../app/src/main/java/dev/somgester/sylph/Sidebar.java) | Resizable/collapsible file tree, directory loading, sorted entries, and file activation callbacks. |

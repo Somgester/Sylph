@@ -116,3 +116,10 @@ when the settings pane is disposed. No real user profile is modified.
 Importer checks also verify structured exit codes and fixed UI diagnostics for
 missing Python/curl, invalid theme data, download failure, and inaccessible source
 files. Unexpected exception text is not displayed in the settings pane.
+
+`HerdrSessionStoreTest` exercises local persistence without launching Herdr or Kiro.
+It checks ordered round trips, IDs, placement/theme/active-tab references, missing
+working directories, private permissions, atomic-write cleanup, immutable state,
+invalid/oversized/non-UTF-8 files, unknown schema versions, and symlink rejection.
+Malformed existing state is preserved on both failed loads and attempted saves.
+This validates the storage foundation; reboot restoration is not wired up yet.
