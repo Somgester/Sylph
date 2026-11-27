@@ -21,4 +21,5 @@ if [[ "$OSTYPE" == linux* && "${SYLPH_SKIP_DESKTOP_INSTALL:-0}" != 1 && -t 0 ]];
 fi
 
 # The JavaFX run task captures source sets that Gradle cannot configuration-cache.
+export SYLPH_UPDATE_ROOT="$SYLPH_SCRIPT_DIR"
 exec ./gradlew :app:run --no-configuration-cache "$@"

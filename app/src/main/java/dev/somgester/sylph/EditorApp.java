@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -93,6 +94,10 @@ public class EditorApp extends Application {
 
     private ChangeListener<Boolean> themeListener;
 
+    private LocalUpdateMonitor localUpdates;
+
+    private Alert localUpdateNotice;
+
     private final class FileAction implements AutoCloseable {
 
         private final List<AutoSaveController.Suspension> suspensions = documents.stream()
@@ -134,6 +139,20 @@ public class EditorApp extends Application {
         createScene(primaryStage, new AppSettings(AppSettings.preferencesStore()),
                 new LanguageServerSettings(LanguageServerSettings.preferencesStore()));
         primaryStage.show();
+        String updateRoot = System.getenv("SYLPH_UPDATE_ROOT");
+        if (updateRoot != null && !updateRoot.isBlank()) {
+            localUpdates = new LocalUpdateMonitor(Path.of(updateRoot),
+                    () -> Platform.runLater(this::showLocalUpdateNotice));
+            localUpdates.start();
+        }
+    }
+
+    private void showLocalUpdateNotice() {
+        if (localUpdates == null || !stage.isShowing()) {
+            return;
+        }
+        localUpdateNotice = LocalUpdateNotice.create(stage, () -> localUpdateNotice = null);
+        localUpdateNotice.show();
     }
 
     Scene createScene(Stage primaryStage, AppSettings settings) {
@@ -940,6 +959,13 @@ public class EditorApp extends Application {
     }
 
     private void closeResources(boolean closeAccount) {
+        if (closeAccount && localUpdates != null) {
+            localUpdates.close();
+            localUpdates = null;
+        }
+        if (localUpdateNotice != null) {
+            localUpdateNotice.close();
+        }
         if (languageServers != null) {
             languageServers.close();
         }

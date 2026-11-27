@@ -53,6 +53,27 @@ registration failure does not prevent app launch. Restart an already-running Syl
 the desktop identity. For direct Gradle launches, register it once with
 `bash scripts/install-desktop.sh`.
 
+### Updates after pulling code
+
+The desktop icon launches this checkout's `run.sh`; Gradle compiles changed sources
+before opening the app. After `git pull`, closing and reopening Sylph through the
+desktop icon or `./run.sh` uses the local changes. The launcher does not need to be
+installed again for source updates.
+
+While an app started through `run.sh` is open, a background check looks for changes
+to its local application sources/resources, scripts, and build configuration about
+every 10 seconds. One themed, nonmodal **Sylph update available** notice appears per
+launch when those inputs change, including uncommitted edits. Save your work, close
+Sylph normally, then relaunch to rebuild and use the update. **Reload Window** only
+recreates the UI inside the current process; it does not reload changed Java classes.
+
+The notice never closes the app, changes open files, saves documents, or runs Git.
+It does not contact GitHub or discover unpulled remote commits. Build output, docs,
+and files elsewhere in the opened workspace do not trigger it. Reopening establishes
+a fresh baseline, so already-present changes do not cause another update prompt.
+Direct Gradle or packaged distribution launches do not enable checkout monitoring
+unless launched with `SYLPH_UPDATE_ROOT` pointing at that checkout.
+
 ## Canvas preview
 
 Open or create a document, right-click inside its source editor, and choose **Show Canvas Preview**.

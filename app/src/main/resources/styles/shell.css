@@ -329,6 +329,29 @@
     -fx-padding: 16px;
 }
 
+.local-update-notice > .header-panel {
+    -fx-background-color: -shell-surface;
+}
+
+.local-update-notice .label {
+    -fx-text-fill: -shell-text;
+}
+
+.local-update-notice .button {
+    -fx-background-color: -shell-surface;
+    -fx-text-fill: -shell-text;
+    -fx-border-color: -shell-border;
+    -fx-border-radius: 4px;
+}
+
+.local-update-notice .button:hover {
+    -fx-background-color: -shell-hover;
+}
+
+.local-update-notice .button:focused {
+    -fx-border-color: -shell-accent;
+}
+
 .terminal-chooser-title {
     -fx-font-size: 20px;
     -fx-font-weight: bold;

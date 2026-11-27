@@ -104,6 +104,14 @@ Arrows show commands and data flow, not every constructor dependency. Worker res
 
 `EditorApp` owns the scene and connects these components. It coordinates dialogs, foreground file actions, theme changes, preview visibility, and shutdown. `EditorChrome` means the surrounding menus/toolbars, not the text document or a browser engine.
 
+`run.sh` exports its checkout path through `SYLPH_UPDATE_ROOT`. On application startup,
+`LocalUpdateMonitor` fingerprints selected source/build inputs on a daemon worker,
+then checks for local content changes every 10 seconds. A change schedules one
+nonmodal notice on the JavaFX thread. The monitor survives Reload Window and closes
+with the application; already queued notices are ignored after shutdown. It never
+fetches remote code, installs updates, or touches document sessions. The next normal
+launcher invocation lets Gradle rebuild changed sources.
+
 Herdr theme imports run on a virtual thread, invoking bundled scripts with separate
 process arguments. Downloads and validation finish before selecting the imported
 theme on the JavaFX thread. A failed import retains the previous selection; pane

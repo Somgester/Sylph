@@ -84,6 +84,22 @@ When reporting an issue, include the command, current revision, file extension, 
 
 Run `python3 scripts/test-setup.py -v` for isolated setup regression checks. Fake Docker/JDK tools verify first-run credentials, permissions, repeated setup, readiness/startup failure, Java provisioning, Java-only/sourced behavior, and empty/complete/partial OAuth credential pairs without changing real credentials or starting containers.
 
+`LocalUpdateMonitorTest` checks content changes with unchanged timestamps, source
+addition/deletion, build/launcher changes, ignored docs/build/workspace files,
+one notification per launch, and shutdown. These tests use temporary checkouts and
+invoke checks directly, without opening update popups. `scripts/test-desktop.py`
+also verifies `run.sh` exports its own checkout path and preserves Gradle arguments.
+`LocalUpdateNoticeTest` opens the real notice headlessly to verify nonmodal behavior,
+light/dark theme changes, dismissal cleanup, and preservation of editor text.
+
+To check the update notice manually, start `./run.sh`, keep the app open, then make
+a real content change under `app/src/main` (or pull a source change). Within about
+10 seconds, expect one **Sylph update available** notice. Dismiss it and make another
+change; expect no repeated notice in that launch. Close normally, relaunch, and
+confirm the notice does not recur without another change. Repeat in light/dark
+themes and with an unsaved document; the notice should preserve the document and
+allow editing to continue. Documentation-only changes should not trigger a notice.
+
 Run `python3 scripts/test-herdr-theme.py -v` with Python 3.11+ for offline theme-import
 checks. Temporary profiles and a fake downloader cover valid custom colors, HTTPS
 restrictions, argument handling, failed downloads, invalid/oversized content,

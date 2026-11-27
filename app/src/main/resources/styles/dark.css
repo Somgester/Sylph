@@ -1,4 +1,4 @@
-#root, .terminal-chooser {
+#root, .terminal-chooser, .local-update-notice {
     -shell-surface: #151820;
     -shell-border: #2a2f3a;
     -shell-text: #cbd5e1;

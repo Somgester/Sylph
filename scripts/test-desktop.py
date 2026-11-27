@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify desktop registration in temporary directories without opening the editor."""
 
+import json
 import os
 from pathlib import Path
 import shutil
@@ -83,6 +84,22 @@ class DesktopTest(unittest.TestCase):
         self.assertIn("control characters", result.stderr)
         self.assertFalse(self.entry.exists())
         self.assertFalse((self.directory / "bad\npath").exists())
+
+    def test_run_exports_checkout_for_updates_and_preserves_gradle_arguments(self):
+        shutil.copy2(ROOT / "run.sh", self.project / "run.sh")
+        (self.project / "init.sh").write_text(":\n")
+        gradle = self.project / "gradlew"
+        gradle.write_text(f"#!{sys.executable}\n" + '''
+import json, os, sys
+print(json.dumps({"root": os.environ.get("SYLPH_UPDATE_ROOT"), "arguments": sys.argv[1:]}))
+''')
+        gradle.chmod(0o755)
+        result = subprocess.run(["/bin/bash", str(self.project / "run.sh"), "--args=path with spaces"],
+                                cwd=self.directory, env=self.env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(0, result.returncode, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(str(self.project), data["root"])
+        self.assertEqual([":app:run", "--no-configuration-cache", "--args=path with spaces"], data["arguments"])
 
 
 if __name__ == "__main__":
