@@ -40,8 +40,10 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [HerdrThemeSettingsPane.java](../app/src/main/java/dev/somgester/sylph/HerdrThemeSettingsPane.java) | Herdr theme selection, asynchronous import controls, reset, status, and cancellation on disposal. |
 | [HerdrThemeImporter.java](../app/src/main/java/dev/somgester/sylph/HerdrThemeImporter.java) | Extracts bundled import scripts and runs them with separate arguments, a timeout, and temporary-file cleanup. |
 | [HerdrCliTheme.java](../app/src/main/java/dev/somgester/sylph/HerdrCliTheme.java) | Persistent theme choices and isolated Herdr CLI configuration/session environment. |
-| [HerdrSessionStore.java](../app/src/main/java/dev/somgester/sylph/HerdrSessionStore.java) | Versioned, validated, atomic local restore references for Herdr tabs and exact Kiro IDs; Kiro capture and startup restore follow separately. |
+| [HerdrSessionStore.java](../app/src/main/java/dev/somgester/sylph/HerdrSessionStore.java) | Versioned, validated, atomic local restore references for Herdr tabs and exact Kiro IDs. |
+| [HerdrKiroResume.java](../app/src/main/java/dev/somgester/sylph/HerdrKiroResume.java) | Bounded fallback for legacy saved Kiro IDs, using ready-shell agent APIs and avoiding active/native-restoring agents. |
 | [HerdrTabTracker.java](../app/src/main/java/dev/somgester/sylph/HerdrTabTracker.java) | Serial background persistence of named Herdr tabs, selection, and explicit close; normal shutdown keeps open entries. |
+| [KiroSessionCapture.java](../app/src/main/java/dev/somgester/sylph/KiroSessionCapture.java) | Scoped, authenticated loopback capture of exact Kiro IDs into live Herdr tab state. |
 | [LocalUpdateMonitor.java](../app/src/main/java/dev/somgester/sylph/LocalUpdateMonitor.java) | Background content fingerprints for local checkout changes and one update notification per launch. |
 | [LocalUpdateNotice.java](../app/src/main/java/dev/somgester/sylph/LocalUpdateNotice.java) | Nonmodal, theme-aware restart instructions; leaves running documents untouched. |
 | [app/src/main/java/dev/somgester/sylph/Sidebar.java](../app/src/main/java/dev/somgester/sylph/Sidebar.java) | Resizable/collapsible file tree, directory loading, sorted entries, and file activation callbacks. |
@@ -77,6 +79,12 @@ Every tracked implementation, resource, test, and configuration file has an entr
 | [auth/start-keycloak.sh](../auth/start-keycloak.sh) | Enables complete Google/GitHub credential pairs before first realm import. |
 | `auth/.env` (generated, ignored) | Private admin and optional OAuth credentials; created once by setup. |
 | [scripts/setup-herdr.sh](../scripts/setup-herdr.sh) | Detects an existing Herdr CLI or installs a checksum-verified, pinned binary for Linux/macOS. |
+| `scripts/herdr-shell/kiro-cli` | Launches Kiro and captures confirmed session IDs for its Herdr pane. |
+| [scripts/herdr-shell/herdr](../scripts/herdr-shell/herdr) | Resolves bare Herdr launches in a Sylph shell using its current directory. |
+| [scripts/setup-kiro-capture.sh](../scripts/setup-kiro-capture.sh) | Optional Kiro/Python compatibility checks and installation of Sylph's session-start hook. |
+| [scripts/kiro-session-hook.py](../scripts/kiro-session-hook.py) | Installs the namespaced hook or forwards scoped session metadata to Sylph without conversation contents. |
+| [scripts/test-kiro-capture.py](../scripts/test-kiro-capture.py) | Isolated hook/setup tests using temporary files and a local HTTP fixture. |
+| [scripts/test-herdr-restore.py](../scripts/test-herdr-restore.py) | Opt-in Unix native Herdr server restart with a fake Kiro, checking exact resume argv without AI calls. |
 | [scripts/import-herdr-theme.sh](../scripts/import-herdr-theme.sh) | Downloads or reads CLI theme TOML and invokes validation before installation. |
 | [scripts/validate-herdr-theme.py](../scripts/validate-herdr-theme.py) | Validates theme-only data and atomically writes a private imported-theme file. Requires Python 3.11+. |
 | [scripts/test-herdr-theme.py](../scripts/test-herdr-theme.py) | Offline importer regression checks using temporary files and a fake downloader. |

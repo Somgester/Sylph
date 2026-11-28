@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Resolve a bare Herdr command in a Sylph shell to its saved session."""
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import urllib.request
+from urllib.parse import urlsplit
+
+from urllib.error import URLError
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, response, code, message, headers, url):
+        return None
+
+
+def main():
+    executable = os.environ["SYLPH_REAL_HERDR"]
+    if len(sys.argv) > 1 or os.environ.get("SYLPH_HERDR_SESSION_ID") or os.environ.get("HERDR_ENV") == "1":
+        os.execv(executable, [executable, *sys.argv[1:]])
+
+    endpoint = Path(os.environ["SYLPH_KIRO_CAPTURE_FILE"])
+    if not endpoint.is_file() or endpoint.is_symlink() or endpoint.stat().st_size > 4096:
+        raise ValueError("Invalid Sylph connection file.")
+    connection = json.loads(endpoint.read_text())
+    uri = urlsplit(connection["SYLPH_KIRO_CAPTURE_URL"])
+    if uri.scheme != "http" or uri.hostname != "127.0.0.1" or not uri.port:
+        raise ValueError("Invalid Sylph connection address.")
+    payload = json.dumps({"terminalId": os.environ["SYLPH_TERMINAL_ID"], "directory": os.getcwd()})
+    request = urllib.request.Request(f"http://127.0.0.1:{uri.port}/attach", data=payload.encode(),
+                                     headers={"Authorization": "Bearer " + connection["SYLPH_KIRO_CAPTURE_TOKEN"],
+                                              "Content-Type": "application/json"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    with opener.open(request, timeout=5) as response:
+        if response.status == 204:
+            return
+        attachment = json.loads(response.read(16385))
+
+    session = attachment["sessionId"]
+    if not re.fullmatch(r"sylph-[a-z0-9][a-z0-9_-]{0,57}", session):
+        raise ValueError("Invalid Herdr session name.")
+    environment = dict(os.environ, SYLPH_HERDR_SESSION_ID=session)
+    for key in ("HERDR_SESSION", "HERDR_SOCKET_PATH", "HERDR_CLIENT_SOCKET_PATH"):
+        environment.pop(key, None)
+    for key in ("HERDR_CONFIG_PATH", "XDG_CONFIG_HOME", "XDG_STATE_HOME"):
+        value = attachment["environment"][key]
+        if value:
+            environment[key] = value
+        else:
+            environment.pop(key, None)
+    environment["PATH"] = str(Path(__file__).resolve().parent) + os.pathsep + environment["PATH"]
+    os.execve(executable, [executable, "--session", session], environment)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, URLError, KeyError, ValueError, TypeError):
+        sys.exit("Sylph could not open the saved Herdr session.")

@@ -22,7 +22,10 @@ final class TerminalView extends BorderPane implements AutoCloseable {
 
     private final TerminalSession session;
 
-    private final HerdrSessionStore.Tab herdrSession;
+    private HerdrSessionStore.Tab herdrSession;
+
+    private java.util.function.BiConsumer<HerdrSessionStore.Tab, HerdrSessionStore.Tab> herdrChanged =
+            (previous, current) -> { };
 
     private final AppSettings settings;
 
@@ -128,6 +131,16 @@ final class TerminalView extends BorderPane implements AutoCloseable {
 
     HerdrSessionStore.Tab herdrSession() {
         return herdrSession;
+    }
+
+    void setHerdrSession(HerdrSessionStore.Tab value) {
+        var previous = herdrSession;
+        herdrSession = value;
+        herdrChanged.accept(previous, value);
+    }
+
+    void setOnHerdrChanged(java.util.function.BiConsumer<HerdrSessionStore.Tab, HerdrSessionStore.Tab> action) {
+        herdrChanged = action;
     }
 
     TerminalSession session() {

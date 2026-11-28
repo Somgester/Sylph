@@ -96,6 +96,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     echo "Keycloak setup skipped (--java-only). Guest editing remains available."
   else
     ./scripts/setup-herdr.sh
+    ./scripts/setup-kiro-capture.sh
     ./scripts/setup-auth.sh
   fi
   echo "Setup completed successfully."

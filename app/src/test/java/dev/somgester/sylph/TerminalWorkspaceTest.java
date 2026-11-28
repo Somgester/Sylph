@@ -44,6 +44,8 @@ class TerminalWorkspaceTest {
 
     private Path herdrCli;
 
+    private Path herdrLauncher;
+
     private final class ScriptedApp extends EditorApp {
         private File openChoice;
 
@@ -68,6 +70,10 @@ class TerminalWorkspaceTest {
             if (commandDirectory != null) {
                 environment.put("PATH", commandDirectory + File.pathSeparator + environment.getOrDefault("PATH", ""));
             }
+            if (herdrLauncher != null) {
+                environment.put("SHELL", "/bin/sh");
+                return createTerminal(directory, environment);
+            }
             lastTerminal = new TerminalView(
                     new TerminalSession(directory, List.of("/bin/sh", "-i"), environment), settings);
             return lastTerminal;
@@ -84,13 +90,18 @@ class TerminalWorkspaceTest {
         }
 
         @Override
+        Path herdrShellLauncher() {
+            return herdrLauncher;
+        }
+
+        @Override
         Path herdrCliProfile() {
             return directory.resolve("sylph-herdr-profile");
         }
 
         @Override
         Path herdrSessionFile() {
-            return directory.resolve(".sylph/herdr-sessions.json");
+            return directory.resolve(".sylph/last-session.json");
         }
     }
 
@@ -155,10 +166,9 @@ class TerminalWorkspaceTest {
             settings.darkThemeProperty().set(false);
             answerTerminalChooser("terminal-choice-herdr-cli");
             EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
-            assertTrue(tabs.getSelectionModel().getSelectedItem().getText().startsWith("Herdr CLI"));
-            assertEquals(2, tabs.getTabs().size());
             return null;
         });
+        FxTestSupport.await(() -> ((TabPane) scene.lookup("#editor-tabs")).getTabs().size() == 2);
     }
 
     private void answerTerminalChooser(String id) {
@@ -181,6 +191,8 @@ class TerminalWorkspaceTest {
                 #!/bin/sh
                 printf 'HERDR_PTY:%s\\n' "$(pwd)"
                 printf 'HERDR_ARGS:%s:%s\\n' "$1" "$2"
+                printf 'HERDR_SCOPE:%s\\n' "$SYLPH_HERDR_SESSION_ID"
+                test -f "$SYLPH_KIRO_CAPTURE_FILE" || exit 9
                 if [ -n "$HERDR_CONFIG_PATH" ]; then cat "$HERDR_CONFIG_PATH"; fi
                 test -t 0
                 """);
@@ -192,14 +204,16 @@ class TerminalWorkspaceTest {
             }
             answerTerminalChooser("terminal-choice-herdr-cli");
             EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, !inEditor, false, true);
-            TabPane tabs = (TabPane) scene.lookup(inEditor ? "#editor-tabs" : "#terminal-panel");
-            assertTrue(tabs.getSelectionModel().getSelectedItem().getText().startsWith("Herdr CLI"));
             return null;
         });
-        TerminalView terminal = selected(inEditor ? "#editor-tabs" : "#terminal-panel");
+        String selector = inEditor ? "#editor-tabs" : "#terminal-panel";
+        FxTestSupport.await(() -> scene.lookup(selector) instanceof TabPane tabs
+                && tabs.getSelectionModel().getSelectedItem().getContent() instanceof TerminalView);
+        TerminalView terminal = selected(selector);
         FxTestSupport.await(() -> screen(terminal).contains("HERDR_PTY:" + directory));
         String sessionId = terminal.herdrSession().herdrSessionId();
         FxTestSupport.await(() -> screen(terminal).contains("HERDR_ARGS:--session:" + sessionId));
+        FxTestSupport.await(() -> screen(terminal).contains("HERDR_SCOPE:" + sessionId));
         FxTestSupport.await(() -> new HerdrSessionStore(app.herdrSessionFile()).load().tabs().stream()
                 .anyMatch(tab -> tab.herdrSessionId().equals(sessionId) && tab.inEditor() == inEditor));
         if (inEditor) {
@@ -212,14 +226,167 @@ class TerminalWorkspaceTest {
     }
 
     @Test
+    void chooserRestoresBothTabsForCurrentFolderAndSelectsLast() throws Exception {
+        herdrCli = directory.resolve("herdr");
+        Files.writeString(herdrCli, "#!/bin/sh\nstty size\nprintf 'RESTORED:%s\\n' \"$2\"\n");
+        assertTrue(herdrCli.toFile().setExecutable(true));
+        create(true);
+        var last = new HerdrSessionStore.Tab("sylph-last", null, directory, false, HerdrCliTheme.NORD);
+        var older = new HerdrSessionStore.Tab("sylph-older", null, directory, true, HerdrCliTheme.DEFAULT);
+        var other = new HerdrSessionStore.Tab("sylph-other", null, directory.resolve("other"),
+                true, HerdrCliTheme.DEFAULT);
+        var store = new HerdrSessionStore(app.herdrSessionFile());
+        store.save(new HerdrSessionStore.State(List.of(older, last, other), other.herdrSessionId()));
+        FxTestSupport.onFxThread(() -> {
+            var tabs = (TabPane) scene.lookup("#editor-tabs");
+            assertEquals(1, tabs.getTabs().size());
+            answerTerminalChooser("terminal-choice-herdr-cli");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            return null;
+        });
+        FxTestSupport.await(() -> ((TabPane) scene.lookup("#editor-tabs")).getTabs().size() == 3);
+        var view = selected("#editor-tabs");
+        assertEquals(last.herdrSessionId(), view.herdrSession().herdrSessionId());
+        FxTestSupport.await(() -> screen(view).contains("RESTORED:sylph-last"));
+        assertFalse(FxTestSupport.onFxThread(() -> screen(view).contains("0 0")));
+    }
+
+    @Test
+    void bareHerdrInExistingShellUsesItsCurrentFolderAndKeepsTheSameTab() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(TerminalSession.findOnPath(
+                "python3", System.getenv("PATH"), System.getProperty("os.name")) != null);
+        herdrLauncher = Path.of("..", "scripts", "herdr-shell").toAbsolutePath().normalize();
+        herdrCli = directory.resolve("herdr");
+        Files.writeString(herdrCli, "#!/bin/sh\nprintf 'ATTACHED:%s\\n' \"$2\"\n");
+        assertTrue(herdrCli.toFile().setExecutable(true));
+        create(true);
+        Path folder = Files.createDirectory(directory.resolve("other"));
+        var saved = new HerdrSessionStore.Tab("sylph-shell", null, folder, false, HerdrCliTheme.DEFAULT);
+        var store = new HerdrSessionStore(app.herdrSessionFile());
+        store.save(new HerdrSessionStore.State(List.of(saved), saved.herdrSessionId()));
+        FxTestSupport.onFxThread(() -> {
+            answerTerminalChooser("terminal-choice-shell");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            return null;
+        });
+        var view = selected("#editor-tabs");
+        view.session().send("cd other && herdr\r");
+        FxTestSupport.await(() -> screen(view).contains("ATTACHED:sylph-shell"));
+        FxTestSupport.onFxThread(() -> {
+            TabPane tabs = (TabPane) scene.lookup("#editor-tabs");
+            assertEquals(2, tabs.getTabs().size());
+            assertEquals(saved.herdrSessionId(), view.herdrSession().herdrSessionId());
+            tabs.getTabs().remove(tabs.getSelectionModel().getSelectedItem());
+            return null;
+        });
+        FxTestSupport.await(() -> store.load().tabs().isEmpty());
+    }
+
+    @Test
+    @org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(named = "SYLPH_TEST_REAL_KIRO", matches = "1")
+    void realKiroWritesDistinctIdsToDiskBeforeSylphExits() throws Exception {
+        herdrCli = TerminalSession.findOnPath("herdr", System.getenv("PATH"), System.getProperty("os.name"));
+        herdrLauncher = Path.of("..", "scripts", "herdr-shell").toAbsolutePath().normalize();
+        create(true);
+        var store = new HerdrSessionStore(app.herdrSessionFile());
+        var servers = new ArrayList<String>();
+        try {
+            FxTestSupport.onFxThread(() -> {
+                settings.herdrThemeProperty().set(HerdrCliTheme.DEFAULT);
+                answerTerminalChooser("terminal-choice-herdr-cli");
+                EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+                return null;
+            });
+            FxTestSupport.await(() -> store.load().tabs().size() == 1);
+            FxTestSupport.onFxThread(() -> {
+                terminalButton((TabPane) scene.lookup("#editor-tabs"), "#duplicate-terminal").fire();
+                return null;
+            });
+            FxTestSupport.await(() -> store.load().tabs().size() == 2);
+            for (var tab : store.load().tabs()) {
+                servers.add(tab.herdrSessionId());
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+                while (nativeHerdr(tab.herdrSessionId(), "pane", "run", "w1:p1", "kiro-cli") != 0) {
+                    assertTrue(System.nanoTime() < deadline, "Herdr pane failed to start");
+                    Thread.sleep(200);
+                }
+                assertEquals(0, nativeHerdr(tab.herdrSessionId(), "tab", "create", "--cwd", directory.toString()));
+                assertEquals(0, nativeHerdr(tab.herdrSessionId(), "pane", "run", "w1:p2", "kiro-cli"));
+            }
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+            while (store.load().tabs().stream().anyMatch(tab -> tab.paneSessions().size() != 2)) {
+                assertTrue(System.nanoTime() < deadline, "Kiro ID missing from Sylph state file");
+                Thread.sleep(200);
+            }
+            assertEquals(4, store.load().tabs().stream().flatMap(tab -> tab.paneSessions().values().stream())
+                    .map(HerdrSessionStore.Chat::sessionId).distinct().count());
+            FxTestSupport.onFxThread(() -> {
+                var tabs = (TabPane) scene.lookup("#editor-tabs");
+                tabs.getTabs().remove(tabs.getSelectionModel().getSelectedItem());
+                return null;
+            });
+            FxTestSupport.await(() -> store.load().tabs().size() == 1);
+            verifyPaneFallbackAfterRestart(store.load().tabs().getFirst());
+        } finally {
+            for (String id : servers) {
+                nativeHerdr(id, "session", "stop", id);
+            }
+        }
+    }
+
+    private void verifyPaneFallbackAfterRestart(HerdrSessionStore.Tab saved) throws Exception {
+        close();
+        String id = saved.herdrSessionId();
+        assertEquals(0, nativeHerdr(id, "session", "stop", id));
+        Path config = Path.of(System.getenv().getOrDefault("XDG_CONFIG_HOME",
+                Path.of(System.getProperty("user.home"), ".config").toString()));
+        Path layout = config.resolve("herdr/sessions").resolve(id).resolve("session.json");
+        var root = com.google.gson.JsonParser.parseString(Files.readString(layout)).getAsJsonObject();
+        var second = root.getAsJsonArray("workspaces").get(0).getAsJsonObject().getAsJsonArray("tabs").get(1)
+                .getAsJsonObject().getAsJsonObject("panes").getAsJsonObject("2");
+        second.remove("agent_resume");
+        Files.writeString(layout, root.toString());
+        String expected = saved.paneSessions().get("w1:p2").sessionId();
+        assertFalse(Files.readString(layout).contains(expected));
+        create(true);
+        FxTestSupport.onFxThread(() -> {
+            answerTerminalChooser("terminal-choice-herdr-cli");
+            EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            return null;
+        });
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (!Files.readString(layout).contains(expected)) {
+            assertTrue(System.nanoTime() < deadline, "Missing pane did not register its original Kiro session");
+            Thread.sleep(200);
+        }
+    }
+
+    private int nativeHerdr(String id, String... args) throws Exception {
+        var command = new ArrayList<>(List.of(herdrCli.toString(), "--session", id));
+        command.addAll(List.of(args));
+        Process process = new ProcessBuilder(command).redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        try {
+            assertTrue(process.waitFor(15, TimeUnit.SECONDS));
+            return process.exitValue();
+        } finally {
+            process.destroyForcibly();
+        }
+    }
+
+    @Test
     void duplicatedHerdrTabsHaveIndependentSessionIdsAndClosingOneRemovesOnlyItsSavedEntry() throws Exception {
         herdrCli = directory.resolve("herdr");
         Files.writeString(herdrCli, "#!/bin/sh\nexit 0\n");
         assertTrue(herdrCli.toFile().setExecutable(true));
         create(true);
-        String[] ids = FxTestSupport.onFxThread(() -> {
+        FxTestSupport.onFxThread(() -> {
             answerTerminalChooser("terminal-choice-herdr-cli");
             EditorShortcutsTest.press(scene, KeyCode.BACK_QUOTE, false, false, true);
+            return null;
+        });
+        FxTestSupport.await(() -> ((TabPane) scene.lookup("#editor-tabs")).getTabs().size() == 2);
+        String[] ids = FxTestSupport.onFxThread(() -> {
             TabPane pane = (TabPane) scene.lookup("#editor-tabs");
             Tab original = pane.getSelectionModel().getSelectedItem();
             var first = ((TerminalView) original.getContent()).herdrSession();

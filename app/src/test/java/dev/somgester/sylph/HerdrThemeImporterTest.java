@@ -41,6 +41,15 @@ class HerdrThemeImporterTest {
     }
 
     @Test
+    void restoringDifferentThemesDoesNotOverwriteAnotherTabsLaunchConfig() throws Exception {
+        Path profile = directory.resolve("profile");
+        var nord = HerdrCliTheme.NORD.environment(profile, Map.of());
+        var dracula = HerdrCliTheme.DRACULA.environment(profile, Map.of());
+        assertTrue(Files.readString(Path.of(nord.get("HERDR_CONFIG_PATH"))).contains("name = \"nord\""));
+        assertTrue(Files.readString(Path.of(dracula.get("HERDR_CONFIG_PATH"))).contains("name = \"dracula\""));
+    }
+
+    @Test
     void invalidImportPreservesPreviousImportedFile() throws Exception {
         requireImporterTools();
         Path source = directory.resolve("invalid.toml");

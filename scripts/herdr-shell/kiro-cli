@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Capture Kiro's confirmed session/new and session/load replies for this Herdr pane."""
+import json
+import os
+from pathlib import Path
+import select
+import shutil
+import subprocess
+import sys
+import tempfile
+
+
+def observe(stream, parent, helper, fifo):
+    pending = {}
+    previous = None
+    # Discard oversized records (e.g. chat contents) without retaining their payloads.
+    with os.fdopen(stream, "rb", buffering=0) as reader:
+        buffer = bytearray()
+        discard = False
+        while os.getppid() == parent:
+            if not select.select([reader], [], [], 1)[0]:
+                continue
+            chunk = reader.read(65536)
+            if not chunk:
+                return
+            # Kiro now holds the writer. Drop the pathname even if the laptop loses power.
+            if fifo is not None:
+                fifo.unlink()
+                fifo.parent.rmdir()
+                fifo = None
+            for i, part in enumerate(chunk.split(b"\n")):
+                if i:
+                    session = reply(buffer, pending) if not discard else None
+                    if session and session != previous:
+                        event = {"hook_event_name": "SessionStart", "session_id": session, "cwd": os.getcwd()}
+                        result = subprocess.run([sys.executable, helper], input=json.dumps(event), text=True)
+                        if result.returncode == 0:
+                            previous = session
+                    buffer.clear()
+                    discard = False
+                if len(buffer) + len(part) > 1024 * 1024:
+                    discard = True
+                if not discard:
+                    buffer.extend(part)
+
+
+def reply(line, pending):
+    try:
+        record = json.loads(line)
+        msg = record["msg"]
+        request = msg.get("id")
+        if request is None:
+            return None
+        if record["dir"] == "out" and msg.get("method") in ("session/new", "session/load"):
+            pending[request] = msg.get("params", {}).get("sessionId")
+        elif record["dir"] == "in" and request in pending and ("result" in msg or "error" in msg):
+            requested = pending.pop(request)
+            if "result" in msg:
+                return requested or msg["result"].get("sessionId")
+    except (ValueError, TypeError, KeyError, AttributeError):
+        pass
+    return None
+
+
+def main():
+    here = Path(__file__).resolve().parent
+    search = os.pathsep.join(p for p in os.get_exec_path() if Path(p).resolve() != here)
+    real = shutil.which("kiro-cli", path=search)
+    if not real:
+        sys.exit("Kiro CLI is missing from PATH.")
+    scoped = os.environ.get("SYLPH_HERDR_SESSION_ID") and os.environ.get("HERDR_PANE_ID")
+    if scoped and not os.getenv("KIRO_ACP_RECORD_PATH"):
+        # A private FIFO keeps protocol traffic off disk and out of the terminal.
+        directory = Path(tempfile.mkdtemp(prefix="sylph-kiro-"))
+        fifo = directory / "session.pipe"
+        os.mkfifo(fifo, 0o600)
+        stream = os.open(fifo, os.O_RDONLY | os.O_NONBLOCK)
+        parent = os.getpid()
+        if os.fork() == 0:
+            try:
+                observe(stream, parent, here.parent / "kiro-session-hook.py", fifo)
+            finally:
+                if fifo.exists():
+                    fifo.unlink()
+                    directory.rmdir()
+                os._exit(0)
+        os.close(stream)
+        os.environ["KIRO_ACP_RECORD_PATH"] = str(fifo)
+    os.execv(real, [real, *sys.argv[1:]])
+
+
+if __name__ == "__main__":
+    main()

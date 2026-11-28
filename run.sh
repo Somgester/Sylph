@@ -22,4 +22,5 @@ fi
 
 # The JavaFX run task captures source sets that Gradle cannot configuration-cache.
 export SYLPH_UPDATE_ROOT="$SYLPH_SCRIPT_DIR"
+export SYLPH_HERDR_WRAPPER_DIR="$SYLPH_SCRIPT_DIR/scripts/herdr-shell"
 exec ./gradlew :app:run --no-configuration-cache "$@"

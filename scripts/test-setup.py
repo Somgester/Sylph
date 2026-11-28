@@ -26,6 +26,7 @@ class SetupTest(unittest.TestCase):
         shutil.copy2(ROOT / "init.sh", self.project / "init.sh")
         shutil.copy2(ROOT / "scripts/setup-auth.sh", self.project / "scripts/setup-auth.sh")
         shutil.copy2(ROOT / "scripts/setup-herdr.sh", self.project / "scripts/setup-herdr.sh")
+        shutil.copy2(ROOT / "scripts/setup-kiro-capture.sh", self.project / "scripts/setup-kiro-capture.sh")
         self.bin = self.directory / "bin"
         self.bin.mkdir()
         self.herdr_log = self.directory / "herdr.log"

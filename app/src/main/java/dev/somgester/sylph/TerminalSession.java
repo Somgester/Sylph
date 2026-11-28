@@ -36,6 +36,8 @@ final class TerminalSession implements AutoCloseable {
 
     private final Map<String, String> environment;
 
+    private final String instanceId = java.util.UUID.randomUUID().toString();
+
     private final ExecutorService input = Executors.newSingleThreadExecutor(
             Thread.ofPlatform().daemon().name("sylph-terminal-input").factory());
 
@@ -66,6 +68,7 @@ final class TerminalSession implements AutoCloseable {
         this.environment.put("TERM", "xterm-256color");
         this.environment.put("COLORTERM", "truecolor");
         this.environment.put("TERM_PROGRAM", "Sylph");
+        this.environment.put("SYLPH_TERMINAL_ID", instanceId);
     }
 
     static Path findOnPath(String program, String searchPath, String operatingSystem) {
@@ -108,6 +111,32 @@ final class TerminalSession implements AutoCloseable {
         return directory;
     }
 
+    String instanceId() {
+        return instanceId;
+    }
+
+    private String[] launchCommand() {
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            return command.toArray(String[]::new);
+        }
+        // Unix children can run before pty4j applies the initial window size. Gate exec until it is usable.
+        String gate = "stty=$1; shift; n=0; while [ \"$n\" -lt 100 ]; do "
+                + "size=$(\"$stty\" size 2>/dev/null) || size='0 0'; "
+                + "rows=${size%% *}; cols=${size##* }; "
+                + "if [ \"$rows\" -gt 0 ] 2>/dev/null && [ \"$cols\" -gt 0 ] 2>/dev/null; then exec \"$@\"; fi; "
+                + "n=$((n + 1)); /bin/sleep 0.02; done; "
+                + "printf '%s\\n' 'Sylph could not initialize the terminal grid.' >&2; exit 1";
+        String stty = Files.isExecutable(Path.of("/bin/stty")) ? "/bin/stty" : "/usr/bin/stty";
+        var arguments = new java.util.ArrayList<>(List.of("/bin/sh", "-c", gate, "sylph-pty", stty));
+        // dash drops Bash function exports. Restore the Sylph wrappers after the grid check.
+        if (environment.containsKey("BASH_FUNC_herdr%%") && environment.containsKey("BASH_FUNC_kiro-cli%%")) {
+            arguments.addAll(List.of("/usr/bin/env", "BASH_FUNC_herdr%%=" + environment.get("BASH_FUNC_herdr%%"),
+                    "BASH_FUNC_kiro-cli%%=" + environment.get("BASH_FUNC_kiro-cli%%")));
+        }
+        arguments.addAll(command);
+        return arguments.toArray(String[]::new);
+    }
+
     CompletableFuture<Void> completion() {
         return completion;
     }
@@ -129,7 +158,7 @@ final class TerminalSession implements AutoCloseable {
             if (!Files.isDirectory(directory)) {
                 throw new IOException("Terminal folder no longer exists: " + directory);
             }
-            process = new PtyProcessBuilder(command.toArray(String[]::new))
+            process = new PtyProcessBuilder(launchCommand())
                     .setEnvironment(environment).setDirectory(directory.toString())
                     .setInitialColumns(columns).setInitialRows(rows).setRedirectErrorStream(true).start();
             launched.complete(null);

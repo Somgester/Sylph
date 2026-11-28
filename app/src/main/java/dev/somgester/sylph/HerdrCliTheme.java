@@ -59,7 +59,7 @@ enum HerdrCliTheme {
                 throw new IOException("Import a Herdr CLI theme in Settings first.");
             }
         } else {
-            config = configDirectory.resolve("sylph-theme.toml");
+            config = configDirectory.resolve("sylph-theme-" + configName + ".toml");
             Path temporary = Files.createTempFile(configDirectory, "sylph-theme-", ".toml");
             try {
                 Files.writeString(temporary, "onboarding = false\n\n[theme]\nname = \"" + configName + "\"\n");

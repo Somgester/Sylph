@@ -28,6 +28,9 @@ A new terminal starts in the opened workspace folder. Without a workspace, it us
 Every new Herdr CLI tab uses a unique named Herdr session (`sylph-…`). Duplicate
 starts an independent named session in the same starting folder, with the same
 theme choice. It does not attach another client to the original tab's server.
+New session names encode the full random UUID in lowercase base 36 instead of
+using its longer dashed representation. This reduces the generated name from
+42 to at most 31 characters, leaving more room for Herdr's Unix socket paths.
 
 Under **Settings → Herdr Themes**, pick a built-in theme for newly
 opened Herdr CLI clients. All 18 themes bundled with Herdr CLI 0.9.5 are available,
@@ -102,29 +105,83 @@ and keeps the same terminal session and output.
 
 Switching tabs preserves unsaved document text, selection, and undo history. If you return to the editor while a terminal is starting, renderer completion respects that focus choice. Shell input and output never become document edits or trigger autosave. Opening an existing sidebar file selects the document tab.
 
-## Kiro session restore work in progress
+## Kiro session restore
 
-Session restore is being delivered in four review chunks:
+Choose **Herdr CLI** in the terminal chooser to reopen the saved Herdr tabs
+for the current workspace or terminal starting folder. Sylph focuses the last used
+tab and reuses any tabs already open. With no saved session for the folder, Sylph creates
+one. Starting Sylph and **Reload Window** leave Herdr closed until requested.
 
-1. **Implemented:** a versioned local JSON store and validation.
-2. **Implemented:** stable named Herdr sessions and open/select/close persistence.
-3. **Next:** capture exact Kiro lifecycle-reported session IDs with compatibility checks.
-4. **Then:** restore saved tabs and resume Kiro using `kiro-cli --resume-id <id>`.
+In a normal Sylph shell started through `./run.sh`, type `herdr` to apply the
+same lookup using the shell’s current directory, including after `cd`. The shell
+entry point requires Python 3. Commands with explicit arguments, such as
+`herdr --session work` or `herdr --help`, go straight to Herdr. If a matching
+Herdr session is already associated with another open tab, Sylph focuses that tab.
 
-The checkout-local state file is `.sylph/herdr-sessions.json` when launched through
+The checkout-local state file is `.sylph/last-session.json` when launched through
 `run.sh`. Direct launches without `SYLPH_UPDATE_ROOT` use
-`~/.sylph/herdr-sessions.json` instead.
-The entire root `.sylph/` directory is ignored by Git, including temporary files
-used for atomic replacement. Opening a Herdr tab creates/updates the file in the
-background. Selecting a Herdr tab records it as the last active one. Explicitly
-closing a tab removes only its saved entry; closing all tabs removes those entries.
-Application shutdown and Reload Window retain open-tab entries for the later
-restore step. Closing a Sylph tab does not delete Kiro's own conversation history.
-Saved entries from an earlier launch are retained until restoration is implemented;
-they are not silently discarded when another tab opens.
+`~/.sylph/last-session.json` instead. The checkout’s `.sylph/` directory is ignored
+by Git. Explicitly closing a terminal removes its saved entry. Exiting Sylph
+retains open-tab entries. Duplicate on a dedicated Herdr tab opens a fresh
+session. Kiro stores conversation history separately.
 
-Exact Kiro ID capture and automatic restoration are not active yet. New records
-therefore have `kiroSessionId: null`; no conversation is guessed from its directory.
+When `kiro-cli` starts in a new Sylph-managed Herdr pane, the launcher observes
+Kiro's successful session creation and load replies through a private FIFO. It
+writes the exact ID to the tab record immediately, even before the first prompt.
+Protocol traffic passes through memory. Only the session reference goes into the
+state file. The global session-start hook remains available for compatible engines.
+Sylph reads the previous `herdr-sessions.json` if the new file is absent.
+The hook also reports `kiro-cli --resume-id <id>` to Herdr through its supported
+custom-agent resume API. Herdr then owns restarting that conversation in its saved
+pane after a full server restart/reboot. Reattaching to a live Herdr server keeps
+its running agent instead of launching a duplicate.
+For earlier JSON records that have a Kiro ID but no native resume report, Sylph
+checks Herdr's live snapshot and asks its ready-shell agent API in the saved folder to resume that
+exact ID once. A live/restoring agent or native session reference blocks this
+fallback, so it cannot type a resume command into an existing chat.
+Records with `kiroSessionId: null` can reattach to a live Herdr session, but cannot
+reconstruct an unrecorded conversation after a full server stop. Sylph does not
+guess the newest conversation in the directory. Capture a session-start event
+before testing reboot restore. Run `bash scripts/setup-kiro-capture.sh` to upgrade the
+old Sylph hook in place, or use `./init.sh` during setup. If the ID is empty,
+open the intended chat with `kiro-cli --resume-id <id>` inside Herdr. Keep the tab
+open when quitting Sylph.
+Each outer Herdr session stores a `paneSessions` map in `.sylph/last-session.json`.
+Each entry records the internal pane ID, Kiro conversation ID and working directory.
+Opening another chat in a pane replaces only that pane's entry. On restore, an active
+agent in one tab leaves the other tabs eligible to resume. A missing pane is never
+recreated by this fallback. Older records retain their single known conversation ID.
+
+Setup requires Kiro CLI 2.13+ with global lifecycle hooks and Python 3.8+. If Kiro
+is not installed, this optional setup is skipped. The installed files are
+`~/.kiro/hooks/sylph-herdr-session.json` and
+`~/.sylph/kiro-hooks/kiro-session-hook.py`. Other hooks and agent settings are kept.
+A conflicting file using Sylph's hook filename is preserved and setup fails rather
+than replacing it. The action is a local command; it does not ask an AI agent to
+generate or process the capture.
+
+Kiro's [global-hook release confirmation](https://github.com/kirodotdev/Kiro/issues/9687)
+and [hook trigger reference](https://kiro.dev/docs/hooks/types/) describe the
+session-start metadata this bridge consumes.
+
+Only Kiro processes launched inside a Sylph-owned Herdr session inherit the capture
+scope. The hook forwards only the exact session ID, tab identity, and directory;
+prompts, conversation contents, and credentials are not forwarded. A random local
+token protects an IPv4-loopback listener. Its current connection details live in
+private `.sylph/kiro-capture.json` (or the user-home fallback directory), so existing
+Herdr shells can reconnect when Sylph creates a replacement listener. This file is
+also ignored by Git; it is separate from the saved tab/session references.
+Unknown or closed tabs cannot be added by hook events. Unrelated and nested-agent
+events are ignored. Closing the app stops its listener but retains saved session
+IDs; explicit tab close still removes the tab's saved entry.
+
+The installer writes a versioned JSON document with a `hooks` array. Kiro CLI
+2.21.4 logs a schema warning and skips older, unwrapped definitions.
+Automated capture verification uses synthetic lifecycle payloads, real loopback
+requests, and temporary stores. A real interactive Kiro conversation must still be
+checked manually for that agent/version. Separately, the opt-in native restart
+test stops/restarts real Herdr with a fake Kiro and verifies exactly one launch
+with the original resume ID. It makes no AI calls and is not a real laptop reboot.
 
 `HerdrSessionStore` saves ordered Herdr tab/session identifiers, optional exact Kiro
 session IDs, absolute working directories, editor/panel placement, selected themes,
@@ -153,7 +210,12 @@ On Unix, Sylph starts the executable named by `SHELL` with `-i`, falling back to
 
 Ctrl+C interrupts a foreground command. Ctrl+Shift+C copies selected terminal text and Ctrl+Shift+V pastes; Cmd+C/Cmd+V also work on macOS. Right-click provides Copy/Paste. The Edit menu also routes Copy/Paste/Select All to the active terminal; terminal Undo/Redo/Cut are disabled. Opening the menu retains its editing target, and returning to the document restores document actions. Markdown preview's shortcut is bypassed while terminal has focus so terminal paste works. Other application shortcuts, including Save and the palette, remain available. Paste goes through xterm.js so bracketed-paste mode is preserved.
 
-Close stops the shell and its observed child processes and releases PTY streams. Reload Window and application shutdown close all terminal sessions. A naturally exited shell retains its output and exit status until its tab is closed; duplicate starts a new shell. Shell sessions are not persisted across restarts or reloads.
+Close stops the shell and its observed child processes and releases PTY streams.
+Reload Window and application shutdown dispose Sylph's terminal clients. Saved
+Herdr clients reopen when requested; a live Herdr server retains its pane
+processes, while stopped servers use their saved layouts/resume references. Normal
+shell tabs are not persisted. A naturally exited terminal retains its output and
+exit status until closed; Duplicate starts a fresh session.
 
 The terminal runs with the user's normal permissions. Its commands can change files outside the opened workspace, just like an external terminal. Sylph's guarded sidebar file actions do not sandbox shell commands.
 
@@ -170,6 +232,25 @@ The terminal runs with the user's normal permissions. Its commands can change fi
 Each output chunk waits for xterm.js to consume it before the next chunk is delivered, bounding pending renderer work. Java strings cross the JavaScript bridge as values, never interpolated code. Output is parsed as terminal data, not HTML. Renderer assets are bundled locally, require no CDN at runtime, and use a restrictive content policy. The terminal WebView is separate from Markdown's JavaScript-disabled preview.
 
 Tests run real Unix shells and the real renderer in headless JavaFX. See [testing](testing.md). Windows and macOS desktop behavior still requires verification on those platforms; successful Linux checks are not cross-platform runtime evidence. Startup failures appear inside the tab instead of opening an external terminal.
+
+## Herdr startup troubleshooting
+
+On Unix, Sylph waits for the PTY to report a nonzero row and column count before
+starting the terminal command. This prevents Herdr from rejecting a terminal
+whose grid is still being initialized.
+
+### Server readiness and socket paths
+
+If Herdr reports `server did not become ready within 15s`, inspect the socket path
+in the error. Unix-domain sockets have a small OS-dependent path-length limit.
+The old dashed UUID names could produce a 111-byte client-socket path under the
+Sylph theme profile, exceeding Linux's limit. Compact names fix this case without
+changing the saved-state schema or deleting existing session entries.
+
+Close the failed tab, restart Sylph with `./run.sh`, and open a fresh Herdr tab to
+use the shorter name. Existing saved identifiers are retained unchanged. Exceptionally
+long configuration/home paths can still exceed the OS limit; this change reduces
+the name overhead rather than relocating Herdr's configuration or sockets.
 
 ## Dependency maintenance
 

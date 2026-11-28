@@ -73,7 +73,7 @@ application {
 
 tasks.named('processResources') {
     from("$rootDir/scripts") {
-        include 'import-herdr-theme.sh', 'validate-herdr-theme.py'
+        include 'import-herdr-theme.sh', 'validate-herdr-theme.py', 'kiro-session-hook.py'
         into 'herdr'
     }
 }

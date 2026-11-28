@@ -25,7 +25,7 @@ A desktop display is needed to run the application. Tests use headless JavaFX by
 
 | Script | Work performed | Example |
 | --- | --- | --- |
-| [init.sh](../init.sh) | Sets up JDK 21, Herdr CLI and local Keycloak; `--java-only` sets up Java alone | `./init.sh` |
+| [init.sh](../init.sh) | Sets up JDK 21, Herdr CLI, optional Kiro capture and local Keycloak; `--java-only` sets up Java alone | `./init.sh` |
 | [lint.sh](../lint.sh) | Runs `:app:checkstyleMain` and `:app:checkstyleTest` | `./lint.sh` |
 | [test.sh](../test.sh) | Runs `:app:test` | `./test.sh --tests '*ShellSyntaxTest'` |
 | [build.sh](../build.sh) | Runs `:app:assemble`; does not run tests or lint | `./build.sh` |
@@ -37,6 +37,12 @@ Otherwise, it downloads Herdr 0.9.5 for Linux or macOS (x86_64/ARM64), verifies 
 pinned SHA-256 checksum, and installs it under `~/.local/share/sylph/tools/bin`.
 This needs curl and sha256sum (or shasum). A fresh `./run.sh` discovers the installed
 binary automatically. `./init.sh --java-only` skips Herdr and Keycloak setup.
+
+If Kiro CLI is installed, direct `./init.sh` also installs Sylph's local session-start
+capture hook. This needs Kiro CLI 2.13+ and Python 3.8+. It preserves other hooks and
+agent settings; an existing conflicting Sylph hook filename stops setup. If Kiro is
+absent, optional capture setup is skipped. `--java-only` and sourced initialization
+skip hook installation. See [Kiro capture and restoration](terminal.md#kiro-session-restore).
 
 Direct `./init.sh` also requires a running Docker installation with Docker Compose v2; it starts Keycloak and imports the Sylph realm/client automatically. For automatic Google/GitHub configuration on a fresh machine, fill their client IDs/secrets in `auth/.env` before setup; see [authentication setup](authentication.md).
 

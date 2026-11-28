@@ -8,8 +8,9 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -100,6 +101,8 @@ public class EditorApp extends Application {
     private Alert localUpdateNotice;
 
     private HerdrTabTracker herdrTabs;
+
+    private KiroSessionCapture kiroCapture;
 
     private final class FileAction implements AutoCloseable {
 
@@ -479,22 +482,156 @@ public class EditorApp extends Application {
         }
         Path directory = terminalDirectory();
         if (choice == TerminalChooser.Choice.HERDR_CLI) {
-            try {
-                HerdrCliTheme theme = settings.herdrThemeProperty().get();
-                var inherited = new java.util.HashMap<>(theme.environment(herdrCliProfile(), System.getenv()));
-                inherited.remove("HERDR_SESSION");
-                inherited.remove("HERDR_SOCKET_PATH");
-                terminals.open(directory, inEditor, "Herdr CLI", folder -> {
-                    String id = "sylph-" + UUID.randomUUID();
-                    var saved = new HerdrSessionStore.Tab(id, null, folder.toAbsolutePath(), inEditor, theme);
-                    return new TerminalView(new TerminalSession(folder,
-                            List.of(herdrCli.toString(), "--session", id), inherited), settings, saved);
-                });
-            } catch (IOException | SecurityException failure) {
-                status.setText("Could not prepare the Sylph Herdr theme profile: " + failure.getMessage());
-            }
+            openLastHerdrTab(herdrCli, directory, inEditor);
         } else {
             terminals.open(directory, inEditor);
+        }
+    }
+
+    void openLastHerdrTab(Path executable, Path directory, boolean inEditor) {
+        TerminalWorkspace target = terminals;
+        herdrTabTracker().saved().whenComplete((saved, failure) -> Platform.runLater(() -> {
+            if (terminals != target || target.isClosed()) {
+                return;
+            }
+            if (failure != null) {
+                status.setText("Could not read saved Herdr sessions.");
+                return;
+            }
+            var matches = saved.forDirectory(directory);
+            try {
+                if (matches.isEmpty()) {
+                    openHerdrTab(executable, herdrDescriptor(directory, inEditor, null));
+                    return;
+                }
+                var selected = matches.getLast();
+                openOtherHerdrTabs(executable, target, matches);
+                if (!target.hasHerdrSession(selected.herdrSessionId())) {
+                    openHerdrTab(executable, herdrDescriptor(directory, inEditor, selected));
+                }
+                target.selectHerdrSession(selected.herdrSessionId());
+            } catch (IOException | SecurityException error) {
+                status.setText("Could not prepare the Herdr session: " + error.getMessage());
+            }
+        }));
+    }
+
+    private void openOtherHerdrTabs(Path executable, TerminalWorkspace target, List<HerdrSessionStore.Tab> matches)
+            throws IOException {
+        for (int index = 0; index + 1 < matches.size(); index++) {
+            var tab = matches.get(index);
+            if (!target.hasHerdrSession(tab.herdrSessionId())) {
+                openHerdrTab(executable, tab);
+            }
+        }
+    }
+
+    private HerdrSessionStore.Tab herdrDescriptor(Path directory, boolean inEditor, HerdrSessionStore.Tab saved) {
+        return saved == null
+                ? new HerdrSessionStore.Tab(HerdrSessionStore.newSessionId(), null, directory.toAbsolutePath(),
+                        inEditor, settings.herdrThemeProperty().get())
+                : new HerdrSessionStore.Tab(saved.herdrSessionId(), saved.kiroSessionId(),
+                        directory.toAbsolutePath(), inEditor, saved.theme(), saved.paneSessions());
+    }
+
+    private KiroSessionCapture herdrCapture() throws IOException {
+        if (kiroCapture == null) {
+            kiroCapture = new KiroSessionCapture(herdrSessionFile().getParent().resolve("kiro-capture.json"),
+                    herdrTabTracker()::captured, this::attachHerdrFromShell);
+        }
+        return kiroCapture;
+    }
+
+    private Map<String, String> herdrEnvironment(HerdrSessionStore.Tab descriptor) throws IOException {
+        var environment = new java.util.HashMap<>(descriptor.theme().environment(herdrCliProfile(), System.getenv()));
+        environment.remove("HERDR_SESSION");
+        environment.remove("HERDR_SOCKET_PATH");
+        environment.remove("HERDR_CLIENT_SOCKET_PATH");
+        environment.remove("HERDR_ENV");
+        Path launcher = herdrShellLauncher();
+        if (launcher != null && Files.isExecutable(launcher.resolve("kiro-cli"))) {
+            environment.put("SYLPH_REAL_HERDR", herdrCliExecutable().toString());
+            configureHerdrLaunchers(environment, launcher);
+        }
+        environment.putAll(herdrCapture().environment());
+        environment.put("SYLPH_HERDR_SESSION_ID", descriptor.herdrSessionId());
+        return environment;
+    }
+
+    private void openHerdrTab(Path executable, HerdrSessionStore.Tab saved) throws IOException {
+        var environment = herdrEnvironment(saved);
+        terminals.open(saved.directory(), saved.inEditor(), "Herdr CLI", folder -> {
+            var view = new TerminalView(new TerminalSession(folder,
+                    List.of(executable.toString(), "--session", saved.herdrSessionId()), environment),
+                    settings, saved);
+            resumeKiroInHerdr(executable, saved, environment, view);
+            return view;
+        }, () -> {
+            try {
+                openHerdrTab(executable, new HerdrSessionStore.Tab(HerdrSessionStore.newSessionId(), null,
+                        saved.directory(), saved.inEditor(), saved.theme()));
+            } catch (IOException | SecurityException error) {
+                status.setText("Could not duplicate the Herdr session: " + error.getMessage());
+            }
+        });
+    }
+
+    private void resumeKiroInHerdr(Path executable, HerdrSessionStore.Tab saved, Map<String, String> environment,
+            TerminalView view) {
+        HerdrKiroResume.restore(executable, saved, environment, view.session().completion(),
+                message -> Platform.runLater(() -> status.setText(message)));
+    }
+
+    private CompletableFuture<KiroSessionCapture.Attachment> attachHerdrFromShell(String instance, Path directory) {
+        var result = new CompletableFuture<KiroSessionCapture.Attachment>();
+        Platform.runLater(() -> {
+            TerminalWorkspace target = terminals;
+            TerminalView view = target.terminal(instance);
+            if (view == null || target.isClosed() || view.session().completion().isDone()) {
+                result.complete(null);
+                return;
+            }
+            herdrTabTracker().saved().whenComplete((saved, failure) -> Platform.runLater(() -> {
+                if (failure != null) {
+                    result.completeExceptionally(failure);
+                } else if (result.isDone() || terminals != target || target.terminal(instance) != view) {
+                    result.complete(null);
+                } else {
+                    attachHerdrFromShell(target, view, directory, saved.forDirectory(directory), result);
+                }
+            }));
+        });
+        return result;
+    }
+
+    private void attachHerdrFromShell(TerminalWorkspace target, TerminalView view, Path directory,
+            List<HerdrSessionStore.Tab> matches, CompletableFuture<KiroSessionCapture.Attachment> result) {
+        try {
+            Path executable = herdrCliExecutable();
+            if (executable == null || !Files.isDirectory(directory)) {
+                result.complete(null);
+                return;
+            }
+            openOtherHerdrTabs(executable, target, matches);
+            var descriptor = herdrDescriptor(directory, target.inEditor(view),
+                    matches.isEmpty() ? null : matches.getLast());
+            if (target.hasHerdrSession(descriptor.herdrSessionId()) && (view.herdrSession() == null
+                    || !view.herdrSession().herdrSessionId().equals(descriptor.herdrSessionId()))) {
+                showEditor();
+                target.selectHerdrSession(descriptor.herdrSessionId());
+                result.complete(null);
+                return;
+            }
+            var environment = herdrEnvironment(descriptor);
+            view.setHerdrSession(descriptor);
+            target.selectHerdrSession(descriptor.herdrSessionId());
+            resumeKiroInHerdr(executable, descriptor, environment, view);
+            result.complete(new KiroSessionCapture.Attachment(descriptor.herdrSessionId(), Map.of(
+                    "HERDR_CONFIG_PATH", environment.getOrDefault("HERDR_CONFIG_PATH", ""),
+                    "XDG_CONFIG_HOME", environment.getOrDefault("XDG_CONFIG_HOME", ""),
+                    "XDG_STATE_HOME", environment.getOrDefault("XDG_STATE_HOME", ""))));
+        } catch (IOException | RuntimeException failure) {
+            result.completeExceptionally(failure);
         }
     }
 
@@ -551,7 +688,43 @@ public class EditorApp extends Application {
     }
 
     TerminalView createTerminal(Path directory) {
-        return new TerminalView(directory, settings);
+        return createTerminal(directory, System.getenv());
+    }
+
+    TerminalView createTerminal(Path directory, Map<String, String> inherited) {
+        Path executable = herdrCliExecutable();
+        Path launcher = herdrShellLauncher();
+        String os = System.getProperty("os.name");
+        if (executable != null && launcher != null && Files.isExecutable(launcher.resolve("herdr"))
+                && TerminalSession.findOnPath("python3", inherited.get("PATH"), os) != null) {
+            try {
+                var environment = new java.util.HashMap<>(inherited);
+                environment.putAll(herdrCapture().environment());
+                environment.put("SYLPH_REAL_HERDR", executable.toString());
+                List<String> shell = TerminalSession.shell(environment, os);
+                configureHerdrLaunchers(environment, launcher);
+                return new TerminalView(new TerminalSession(directory, shell, environment), settings);
+            } catch (IOException failure) {
+                status.setText("Could not enable Herdr resume in this shell.");
+            }
+        }
+        return new TerminalView(new TerminalSession(directory, TerminalSession.shell(inherited, os), inherited),
+                settings);
+    }
+
+    private static void configureHerdrLaunchers(Map<String, String> environment, Path launcher) {
+        environment.put("SYLPH_HERDR_WRAPPER_DIR", launcher.toString());
+        environment.put("PATH", launcher + File.pathSeparator + environment.get("PATH"));
+        // Interactive Bash can put ~/.local/bin ahead of the wrappers while sourcing ~/.bashrc.
+        for (String command : List.of("herdr", "kiro-cli")) {
+            environment.putIfAbsent("BASH_FUNC_" + command + "%%",
+                    "() { \"$SYLPH_HERDR_WRAPPER_DIR/" + command + "\" \"$@\"; }");
+        }
+    }
+
+    Path herdrShellLauncher() {
+        String launcher = System.getenv("SYLPH_HERDR_WRAPPER_DIR");
+        return launcher == null ? null : Path.of(launcher);
     }
 
     Path herdrCliExecutable() {
@@ -566,7 +739,7 @@ public class EditorApp extends Application {
         String checkout = System.getenv("SYLPH_UPDATE_ROOT");
         Path root = checkout == null || checkout.isBlank() ? Path.of(System.getProperty("user.home"))
                 : Path.of(checkout);
-        return root.resolve(".sylph/herdr-sessions.json");
+        return root.resolve(".sylph/last-session.json");
     }
 
     private HerdrTabTracker herdrTabTracker() {
@@ -985,6 +1158,10 @@ public class EditorApp extends Application {
     }
 
     private void closeResources(boolean closeAccount) {
+        if (closeAccount && kiroCapture != null) {
+            kiroCapture.close();
+            kiroCapture = null;
+        }
         if (closeAccount && herdrTabs != null) {
             herdrTabs.close();
             herdrTabs = null;

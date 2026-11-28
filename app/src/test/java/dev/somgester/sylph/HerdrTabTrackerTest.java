@@ -27,7 +27,8 @@ class HerdrTabTrackerTest {
             tracker.opened(second);
             tracker.selected(first.herdrSessionId());
             tracker.flushed().get(5, TimeUnit.SECONDS);
-            assertEquals(new HerdrSessionStore.State(List.of(first, second), first.herdrSessionId()), store.load());
+            assertEquals(new HerdrSessionStore.State(List.of(second, first), first.herdrSessionId()), store.load());
+            assertEquals(first, tracker.saved().get(5, TimeUnit.SECONDS).forDirectory(directory).getLast());
             tracker.removed(first.herdrSessionId());
             tracker.selected(second.herdrSessionId());
             tracker.flushed().get(5, TimeUnit.SECONDS);

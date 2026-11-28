@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
+import java.net.StandardProtocolFamily;
+import java.net.UnixDomainSocketAddress;
+import java.nio.channels.ServerSocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -14,11 +17,34 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 class HerdrSessionStoreTest {
 
     @TempDir
     Path directory;
+
+    @Test
+    @EnabledOnOs({OS.LINUX, OS.MAC})
+    void compactSessionNameCanBindSocketWhereDashedUuidWouldExceedUnixLimit() throws Exception {
+        String id = HerdrSessionStore.newSessionId();
+        assertTrue(id.matches("sylph-[a-z0-9]{1,25}"));
+        // Reproduce the profile-path budget without touching the user's real Herdr directory.
+        String suffix = "/sessions/" + id + "/herdr-client.sock";
+        int padding = 103 - directory.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                - 1 - suffix.length();
+        assumeTrue(padding > 0, "Temporary base directory must leave room for a Unix socket path");
+        Path config = directory.resolve("p".repeat(padding));
+        Path socket = config.resolve("sessions").resolve(id).resolve("herdr-client.sock");
+        Path old = config.resolve("sessions/sylph-7c1844f9-327d-4d7e-8e23-db05d39a332c/herdr-client.sock");
+        assertTrue(old.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 107);
+        assertEquals(103, socket.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+        Files.createDirectories(socket.getParent());
+        try (var server = ServerSocketChannel.open(StandardProtocolFamily.UNIX)) {
+            server.bind(UnixDomainSocketAddress.of(socket));
+        }
+    }
 
     @Test
     void missingFileIsEmptyAndRoundTripKeepsIdsOrderPlacementAndTheme() throws Exception {
@@ -54,7 +80,7 @@ class HerdrSessionStoreTest {
         Path file = directory.resolve("state.json");
         var store = new HerdrSessionStore(file);
         for (String invalid : List.of("not JSON", "{}", "[]",
-                "{\"version\":2,\"tabs\":[],\"activeSessionId\":null}",
+                "{\"version\":3,\"tabs\":[],\"activeSessionId\":null}",
                 "{\"version\":1.5,\"tabs\":[],\"activeSessionId\":null}",
                 "{\"version\":\"1\",\"tabs\":[],\"activeSessionId\":null}",
                 "{\"version\":1,\"tabs\":[],\"activeSessionId\":\"sylph-missing\"}",

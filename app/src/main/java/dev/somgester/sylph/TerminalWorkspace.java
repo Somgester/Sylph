@@ -284,7 +284,49 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         onHerdrRemoved = removed;
     }
 
+    boolean isClosed() {
+        return closed;
+    }
+
+    boolean hasHerdrSession(String id) {
+        return terminals.values().stream().anyMatch(view -> view.herdrSession() != null
+                && view.herdrSession().herdrSessionId().equals(id));
+    }
+
+    TerminalView terminal(String instanceId) {
+        return terminals.values().stream().filter(view -> view.session().instanceId().equals(instanceId))
+                .findFirst().orElse(null);
+    }
+
+    boolean inEditor(TerminalView view) {
+        return editors.getTabs().stream().anyMatch(tab -> terminals.get(tab) == view);
+    }
+
+    void selectHerdrSession(String id) {
+        if (id == null || closed) {
+            return;
+        }
+        for (TabPane pane : List.of(editors, panel)) {
+            for (Tab tab : pane.getTabs()) {
+                TerminalView view = terminals.get(tab);
+                if (view != null && view.herdrSession() != null && view.herdrSession().herdrSessionId().equals(id)) {
+                    if (pane == panel) {
+                        showPanel();
+                    }
+                    pane.getSelectionModel().select(tab);
+                    focusSelection(pane);
+                    return;
+                }
+            }
+        }
+    }
+
     TerminalView open(Path directory, boolean inEditor, String name, Function<Path, TerminalView> factory) {
+        return open(directory, inEditor, name, factory, () -> open(directory, inEditor, name, factory));
+    }
+
+    TerminalView open(Path directory, boolean inEditor, String name, Function<Path, TerminalView> factory,
+            Runnable onDuplicate) {
         if (closed) {
             return null;
         }
@@ -298,9 +340,18 @@ final class TerminalWorkspace extends SplitPane implements AutoCloseable {
         duplicate.getStyleClass().add("terminal-duplicate");
         duplicate.setAccessibleText("Duplicate " + tab.getText());
         duplicate.setTooltip(new Tooltip("Open another " + name + " in the same starting folder"));
-        duplicate.setOnAction(event -> open(view.session().directory(), inEditor, name, factory));
+        duplicate.setOnAction(event -> onDuplicate.run());
         tab.setGraphic(new HBox(3, duplicate, expandButton(tab, pane)));
         terminals.put(tab, view);
+        view.setOnHerdrChanged((previous, current) -> {
+            if (closed || !terminals.containsKey(tab)) {
+                return;
+            }
+            if (previous != null && !previous.herdrSessionId().equals(current.herdrSessionId())) {
+                onHerdrRemoved.accept(previous.herdrSessionId());
+            }
+            onHerdrOpened.accept(current);
+        });
         if (view.herdrSession() != null) {
             onHerdrOpened.accept(view.herdrSession());
         }

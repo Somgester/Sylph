@@ -119,16 +119,35 @@ disposal cancels pending work. The process runner bounds runtime and removes its
 temporary scripts/downloads. Herdr CLI receives a separate config/state environment;
 theme files are never executed as shell commands. See [terminal](terminal.md).
 
-`HerdrSessionStore` is the persistence foundation for a separate session-restore
-feature. Its immutable state records Herdr tab identities and optional native Kiro
+`HerdrSessionStore` owns durable session-restore references. Its immutable state
+records Herdr tab identities and optional native Kiro
 conversation IDs, with placement, theme, directory, and active-tab metadata. The
 versioned JSON file is validated before atomic replacement; invalid existing data
 is retained. `TerminalView` carries the tab's descriptor. `TerminalWorkspace`
 reports open/selection/explicit-close events to `HerdrTabTracker`, which serializes
 disk work on a separate worker. Whole-workspace disposal suppresses removal events,
 preserving tabs for restart. Each new/duplicated tab invokes `herdr --session` with
-a distinct named identity and clears inherited session/socket overrides. Kiro ID
-capture and automatic startup restoration remain subsequent chunks.
+a distinct named identity and clears inherited session/socket overrides.
+`KiroSessionCapture` binds an authenticated loopback endpoint. The global Kiro
+session-start command hook is scoped by environment inherited from each Herdr
+server, resolves current endpoint details from a private local file, and sends only
+IDs and cwd. The tracker accepts events only for live tabs and serializes them with
+tab-close saves; late events cannot resurrect removed entries. Listener shutdown
+precedes tracker shutdown. On request, the chooser loads the saved Herdr
+tabs for its folder on the tracker worker. The bare shell command uses an
+authenticated loopback request carrying the terminal instance ID and shell cwd.
+Both paths reuse the saved named session. Startup and Reload Window leave Herdr
+closed until requested. On Unix, a short PTY startup gate waits for valid rows
+and columns before executing the child.
+
+The scoped `kiro-cli` launcher also watches successful ACP session creation and load
+replies through a private FIFO, so capture can happen before the first prompt.
+The Kiro hook reports a supported custom-agent resume argv to Herdr after saving
+the exact ID and working directory under the outer session and internal pane IDs. Herdr persists that command with its pane and runs it after
+server restart. `HerdrKiroResume` checks the snapshot for each recorded pane independently. It can resume an idle
+pane while another pane already has a live or restoring agent. Version 1 records
+retain the older single-session fallback. It never writes commands directly
+into xterm input or selects a conversation by recency.
 
 ## Document lifecycle and disk work
 

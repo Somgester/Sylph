@@ -122,17 +122,76 @@ It checks ordered round trips, IDs, placement/theme/active-tab references, missi
 working directories, private permissions, atomic-write cleanup, immutable state,
 invalid/oversized/non-UTF-8 files, unknown schema versions, and symlink rejection.
 Malformed existing state is preserved on both failed loads and attempted saves.
+Its Unix-socket regression check binds a real socket in a temporary profile with
+enough path overhead to reject the former dashed UUID name. New compact names fit
+the tested 103-byte budget. This runs on Linux/macOS when the temporary base path
+leaves sufficient room; it does not start Herdr or open a desktop window.
 `HerdrTabTrackerTest` covers ordered lifecycle saves, explicit-close removal,
 normal-shutdown retention, preservation of an existing exact Kiro ID, and reporting
 corrupt-state failures without overwriting the file. Headless `TerminalWorkspaceTest`
 checks real PTY launch arguments, placement persistence, unique duplicate session
 IDs, explicit-close removal, and retention when disposing the application. Fake
 Herdr executables and temporary stores keep real Herdr/Kiro sessions untouched.
-Reboot restoration and Kiro lifecycle capture are not wired up yet.
+`KiroSessionCaptureTest` verifies token checks, input limits, exact IDs for two tabs
+sharing a folder, rejection of closed/unknown tabs, and real bundled-hook delivery
+after listener replacement. The Python integration fixture requires Python 3 and
+skips when unavailable. `python3 scripts/test-kiro-capture.py -v` verifies scoped
+events, ignored nested/unrelated events, closed-tab replies, endpoint restrictions,
+private installer output, filename conflicts, and version-gated setup. Tests use
+temporary hook folders, not user hooks or actual agent conversations.
+Headless restoration tests verify that the chooser opens all saved
+tabs for the current folder and that the launched command sees a nonzero PTY
+grid. A shell test uses `cd` and bare `herdr` to resume in the existing terminal,
+then closes that tab and checks its saved entry is removed. `HerdrKiroResumeTest` covers exact legacy resume arguments, no duplicate
+launch over live/pending/native-owned agents, and no invented resume when IDs are absent.
+The fallback also refuses to use a shell in a different directory.
+
+The opt-in Unix command `python3 scripts/test-herdr-restore.py` starts real Herdr
+with isolated config/state and a fake Kiro executable, sends a synthetic native
+session-start event, stops the named server, then attaches again. It verifies the
+same ID is resumed once with `kiro-cli --resume-id exact-resume-id`. It disables
+update checks and cleans up only its own named server. No real AI chat, user Kiro
+history, or laptop reboot is used. Verified with Herdr 0.9.5 on Linux.
+
+Run `python3 scripts/test-herdr-restore.py --real-kiro` for the opt-in multi-pane test.
+The related headless JavaFX test can be run with
+`SYLPH_TEST_REAL_KIRO=1 ./test.sh --tests '*realKiroWritesDistinctIdsToDiskBeforeSylphExits'`.
+It exercises the chooser, duplicate, on-disk state, and explicit close using real executables.
+It then restarts Sylph with one native resume command removed from the surviving test
+session and verifies that Kiro registers the original ID again in that internal tab.
+
+The Python restart check starts two real Herdr sessions with two internal Kiro tabs each in the same temporary workspace, waits for their distinct
+session IDs, and verifies that each reloads its own ID. On Linux it force-stops the
+fixture Herdr servers. It submits no prompts. Kiro can retain the test sessions in
+its own history.
+
+A separate native Herdr 0.9.5 smoke check on Linux reproduced rejection of a
+111-byte socket path and verified that a 100-byte path using the compact session
+name starts the real server/client in a PTY with a Nord config. That check used
+temporary config/state directories, disabled update checks, and stopped only its
+isolated named server afterward. It supplements the fake-CLI launch tests; it is
+not part of the default test suite or evidence for macOS runtime behavior.
 
 To review tab persistence manually, launch `./run.sh`, open a Herdr tab using its
-terminal chooser, then open `.sylph/herdr-sessions.json`. Verify a new named identity
+terminal chooser, then open `.sylph/last-session.json`. Verify a new named identity
 and its editor/panel location. Duplicate and select tabs, then close one: its entry
 should disappear while the others remain. Exit Sylph normally with a Herdr tab
-still open: its entry should remain. Reopening does not restore it automatically
-until the startup-restoration chunk is implemented.
+still open: its entry should remain. Relaunch Sylph and verify no Herdr tabs open.
+Open the same workspace and choose Herdr CLI, or type `herdr` in a normal Sylph shell
+in that folder. All saved tabs for that folder should reopen, with the most recent selected.
+
+For a real Kiro capture check, run `./init.sh`, start Sylph, open Herdr from its
+chooser, then start `kiro-cli` there. Submit a prompt if the selected engine delays
+its session-start event. Compare `/session-id` in Kiro with that open tab's
+`kiroSessionId` in `.sylph/last-session.json`. Repeat with two Herdr tabs using the
+same directory and verify each ID stays with its tab. Close one Sylph tab: its entry
+must disappear and remain absent even if an old hook event arrives. This real-agent
+check is manual and is not implied by successful fixture tests.
+
+After updating the hook through `./init.sh`, test a real agent/server restart in a
+separate test session with a confirmed recorded ID. Reopening a live Herdr server
+should reattach without another Kiro launch. After stopping that test server,
+relaunching Sylph and explicitly opening Herdr should reopen the same session
+and resume the recorded ID. A
+record with no Kiro ID cannot recover an unrecorded chat after server shutdown;
+verify this condition is reported accurately rather than guessing another chat.
